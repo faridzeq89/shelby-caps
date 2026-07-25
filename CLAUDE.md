@@ -1,0 +1,59 @@
+# POS Boutique — CLAUDE.md
+
+Memoria del proyecto entre sesiones. **Actualizar al cerrar cada fase.**
+
+## Qué es
+Punto de venta para **boutique de ropa** (retail), en tablet Android. Venta directa
+por mostrador con escaneo de código de barras, variantes talla×color, inventario por
+SKU, apartados, devoluciones/cambios y corte de caja.
+
+## Stack (decidido)
+- **Flutter** (app Android nativa) + **Drift/SQLite local** como fuente de verdad.
+- **Local-first**: la tablet opera sin internet; la nube es respaldo, no dependencia.
+- **Supabase** como respaldo/sincronización en la nube (dos proyectos: `dev` y `prod`).
+- Impresión de ticket **ESC/POS** reutilizando lo probado en el POS Maraco (restaurante).
+- Autenticación **por PIN + roles** (admin / manager / cashier). Email/password solo admin
+  para el login de respaldo en la nube.
+
+> Nota de arquitectura vs. el documento original: el doc apuntaba a React PWA + Supabase
+> (verdad en la nube, offline como fase difícil al final). Aquí es al revés: Flutter es
+> offline por diseño, la Fase 8 es "sincronización a la nube", y la seguridad la impone
+> la app (roles/PIN), no la RLS de Postgres (esa solo protege el espejo de respaldo).
+
+## Convenciones (no negociables)
+- **Dinero en centavos enteros** (`*_cents INTEGER`). Nunca `double`/`float`.
+- **Cantidades de inventario en enteros con signo** en un **ledger append-only**
+  (`inventory_movements`), NUNCA una columna `stock` editable. El stock es una consulta.
+- `inventory_movements` **no se actualiza ni se borra** — ni admin. Es un libro mayor.
+- **UUID de venta generado en el cliente** (idempotencia: un reintento no duplica).
+- **Folios con prefijo de dispositivo** (`T1-000123`) para no colisionar entre tablets.
+- Nombres de tablas/columnas en **inglés, snake_case**. Enums explícitos.
+- IVA **incluido** en el precio; se desglosa hacia atrás. `tax_rate` **por producto**.
+- Redondeo de IVA **a nivel ticket** (desglosar una vez), no por línea.
+- Zona horaria **America/Mexico_City**; el "día de operación" lo define el corte de caja.
+- Toda migración de esquema en archivos versionados. Si no está en el repo, no existe.
+- **Commit + tag al cerrar cada fase** (`fase-3-catalogo`).
+- **Una fase por sesión.** No empezar la siguiente en la misma sesión que se cerró una.
+
+## Estado de fases
+- [x] **Fase 0 — Decisiones** (este documento + `docs/decisiones.md`). Cerrada 2026-07-25.
+      Pendiente: confirmar con la dueña los 4 puntos de negocio marcados TBD.
+- [ ] Fase 1 — Fundación (Flutter + Drift + PIN + respaldo Supabase + layout tablet)
+- [ ] Fase 2 — Esquema, seguridad de app y semillas
+- [ ] Fase 3 — Catálogo admin (+ generador de variantes + importación CSV/Excel)
+- [ ] Fase 4 — Venta camino feliz (escaneo → carrito → cobro efectivo → ticket)
+- [ ] Fase 5 — Pagos múltiples, descuentos con autorización y corte de caja
+- [ ] Fase 6 — Devoluciones y cambios
+- [ ] Fase 7 — Apartados
+- [ ] Fase 8 — Sincronización/respaldo en la nube y reconciliación (era "offline" en el doc)
+- [ ] Fase 9 — Inventario operativo (recepción, ajustes, conteo físico)
+- [ ] Fase 10 — Reportes (+ ventas por vendedor)
+- [ ] Fase 11 — Producción (firma APK, respaldo, monitoreo, aviso de privacidad, capacitación)
+
+## Orden mínimo para operar
+Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
+primera semana. La 8 (respaldo robusto) es la red de seguridad.
+
+## Documentos
+- `docs/decisiones.md` — las decisiones de Fase 0 con su justificación y los TBD.
+- `docs/plan-fases.md` — el plan de construcción por fases, adaptado a Flutter.

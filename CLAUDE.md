@@ -64,7 +64,14 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       y atajos, ticket de regalo (sin precios), ticket PDF (rollo 80mm). Venta se guarda ANTES
       de imprimir (si falla la impresión, la venta persiste). Botón "Vender" en home para todos.
       19 pruebas verdes. ESC/POS térmico real pendiente de hardware (como el ZPL).
-- [ ] Fase 5 — Pagos múltiples, descuentos con autorización y corte de caja
+- [~] **Fase 5 — Pagos múltiples, descuentos y corte de caja**. Núcleo cerrado 2026-07-25
+      (con APK). Esquema v3: tabla `cash_movements`. `checkout` acepta **pagos divididos**
+      (efectivo/tarjeta/transferencia) y **descuento por venta** (reparto proporcional, IVA por
+      línea, auditado); autorización por **PIN de gerente** sobre 15%. `cancelSale` (gerente/
+      admin): no borra, marca `cancelled`, devuelve stock (`returned`) y audita. `CashSessionRepository`
+      + pantalla **Corte de caja**: abrir con fondo, retiros/depósitos, resumen en vivo, ventas del
+      turno con cancelación, cierre con arqueo (esperado vs contado + diferencia). Migración v2→v3
+      probada. 24 pruebas verdes. **Pendiente de Fase 5: descuento por línea individual.**
 - [ ] Fase 6 — Devoluciones y cambios
 - [ ] Fase 7 — Apartados
 - [ ] Fase 8 — Sincronización/respaldo en la nube y reconciliación (era "offline" en el doc)

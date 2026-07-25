@@ -46,6 +46,20 @@ class AuthController extends ChangeNotifier {
     return false;
   }
 
+  /// Verifica un PIN de gerente/admin para autorizar una acción (descuento
+  /// grande, cancelación) sin cerrar la sesión del cajero. Devuelve el perfil
+  /// autorizante o null.
+  Future<Profile?> verifyPrivilegedPin(String pin) async {
+    for (final profile in await _db.activeProfiles()) {
+      final privileged =
+          profile.role == UserRole.admin || profile.role == UserRole.manager;
+      if (privileged && PinHash.verify(pin, profile.pinSalt, profile.pinHash)) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
   /// Cambia el PIN del usuario en sesión y limpia la bandera [mustChangePin].
   Future<void> changePin(String newPin) async {
     final user = _currentUser;

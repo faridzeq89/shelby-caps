@@ -26,6 +26,8 @@ enum CashSessionStatus { open, closed }
 
 enum StockCountStatus { open, applied, cancelled }
 
+enum CashMovementKind { deposit, withdrawal }
+
 // ===========================================================================
 // Operación / seguridad
 // ===========================================================================
@@ -271,5 +273,17 @@ class StockCountLines extends Table {
   IntColumn get variantId => integer().references(Variants, #id)();
   IntColumn get countedQty => integer()();
   IntColumn get systemQty => integer()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Entradas y salidas de efectivo del cajón durante un turno (retiros,
+/// depósitos), aparte de las ventas.
+class CashMovements extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get sessionId => integer().references(CashSessions, #id)();
+  TextColumn get kind => textEnum<CashMovementKind>()();
+  IntColumn get amountCents => integer()();
+  TextColumn get reason => text().nullable()();
+  IntColumn get userId => integer().nullable().references(Profiles, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

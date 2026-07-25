@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/money.dart';
+import '../../core/permissions.dart';
 import '../local/database.dart';
 
 /// Una línea que entra al cobro (precio ya congelado al momento de agregar).
@@ -19,17 +20,30 @@ class CheckoutLine {
   final int unitPriceCents;
 }
 
+/// Un pago que entra al cobro. Puede haber varios (pago dividido).
+class PaymentInput {
+  const PaymentInput(this.method, this.amountCents);
+  final PaymentMethod method;
+  final int amountCents;
+}
+
 class CheckoutResult {
   const CheckoutResult({
     required this.saleId,
     required this.folio,
+    required this.grossCents,
+    required this.discountCents,
+    required this.taxCents,
     required this.totalCents,
     required this.changeCents,
   });
 
   final String saleId;
   final String folio;
-  final int totalCents;
+  final int grossCents;
+  final int discountCents;
+  final int taxCents;
+  final int totalCents; // neto (bruto - descuento)
   final int changeCents;
 }
 
@@ -45,24 +59,60 @@ class SalesRepository {
     required Profile cashier,
     required int locationId,
     required List<CheckoutLine> lines,
-    required PaymentMethod method,
-    required int amountTenderedCents,
+    required List<PaymentInput> payments,
+    int discountCents = 0,
+    String? discountReason,
     int? customerId,
     int? salespersonId,
   }) async {
     assert(lines.isNotEmpty, 'No se puede cobrar un carrito vacío');
 
-    // Cálculo de totales (IVA incluido, desglosado por línea según su producto).
-    var subtotal = 0, tax = 0, total = 0;
-    final calc = <(_LineTotals, CheckoutLine)>[];
-    for (final l in lines) {
-      final lineTotal = l.unitPriceCents * l.qty;
-      final bd = taxIncludedBreakdown(lineTotal, l.product.taxRateBps);
-      calc.add((_LineTotals(lineTotal, bd.taxCents), l));
-      total += lineTotal;
-      tax += bd.taxCents;
+    // Bruto y descuento (repartido proporcional entre líneas para conservar el
+    // IVA por producto y que el total cuadre al centavo).
+    final gross = lines.fold(0, (s, l) => s + l.unitPriceCents * l.qty);
+    final discount = discountCents.clamp(0, gross);
+    final net = gross - discount;
+
+    var subtotal = 0, tax = 0;
+    final lineRows = <SaleLinesCompanion>[];
+    var allocated = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final l = lines[i];
+      final lineGross = l.unitPriceCents * l.qty;
+      final isLast = i == lines.length - 1;
+      final lineNet = isLast
+          ? net - allocated
+          : (gross == 0 ? 0 : (lineGross * net / gross).round());
+      allocated += lineNet;
+      final bd = taxIncludedBreakdown(lineNet, l.product.taxRateBps);
       subtotal += bd.baseCents;
+      tax += bd.taxCents;
+      lineRows.add(SaleLinesCompanion.insert(
+        saleId: '', // se rellena dentro de la transacción
+        variantId: l.variant.id,
+        qty: l.qty,
+        unitPriceCents: l.unitPriceCents,
+        discountCents: Value(lineGross - lineNet),
+        taxCents: bd.taxCents,
+        lineTotalCents: lineNet,
+      ));
     }
+
+    // Validación de pagos.
+    final nonCash = payments
+        .where((p) => p.method != PaymentMethod.cash)
+        .fold(0, (s, p) => s + p.amountCents);
+    final cashEntered = payments
+        .where((p) => p.method == PaymentMethod.cash)
+        .fold(0, (s, p) => s + p.amountCents);
+    if (nonCash > net) {
+      throw ArgumentError('Los pagos distintos a efectivo superan el total');
+    }
+    final cashApplied = net - nonCash;
+    if (cashApplied > 0 && cashEntered < cashApplied) {
+      throw ArgumentError('Efectivo insuficiente para cubrir el total');
+    }
+    final change = (cashEntered - cashApplied).clamp(0, cashEntered);
 
     final saleId = _uuid.v4();
     final prefix = await _devicePrefix();
@@ -80,27 +130,22 @@ class SalesRepository {
               customerId: Value(customerId),
               status: SaleStatus.completed,
               subtotalCents: subtotal,
+              discountCents: Value(discount),
               taxCents: tax,
-              totalCents: total,
+              totalCents: net,
+              notes: Value(discount > 0 ? discountReason : null),
             ),
           );
 
-      for (final (totals, line) in calc) {
+      for (var i = 0; i < lineRows.length; i++) {
         await _db.into(_db.saleLines).insert(
-              SaleLinesCompanion.insert(
-                saleId: saleId,
-                variantId: line.variant.id,
-                qty: line.qty,
-                unitPriceCents: line.unitPriceCents,
-                taxCents: totals.tax,
-                lineTotalCents: totals.total,
-              ),
+              lineRows[i].copyWith(saleId: Value(saleId)),
             );
         await _db.into(_db.inventoryMovements).insert(
               InventoryMovementsCompanion.insert(
-                variantId: line.variant.id,
+                variantId: lines[i].variant.id,
                 locationId: locationId,
-                qty: -line.qty, // salida
+                qty: -lines[i].qty,
                 type: MovementType.sale,
                 userId: Value(cashier.id),
                 referenceType: const Value('sale'),
@@ -109,21 +154,92 @@ class SalesRepository {
             );
       }
 
-      await _db.into(_db.payments).insert(
-            PaymentsCompanion.insert(
+      // Pagos: los que no son efectivo tal cual; el efectivo, sólo lo aplicado
+      // (el excedente es cambio, no ingreso).
+      for (final p in payments.where((p) => p.method != PaymentMethod.cash)) {
+        await _db.into(_db.payments).insert(PaymentsCompanion.insert(
               saleId: saleId,
-              method: method,
-              amountCents: total,
+              method: p.method,
+              amountCents: p.amountCents,
               cashierId: cashier.id,
-            ),
-          );
+            ));
+      }
+      if (cashApplied > 0) {
+        await _db.into(_db.payments).insert(PaymentsCompanion.insert(
+              saleId: saleId,
+              method: PaymentMethod.cash,
+              amountCents: cashApplied,
+              cashierId: cashier.id,
+            ));
+      }
+
+      if (discount > 0) {
+        await _db.into(_db.auditLog).insert(AuditLogCompanion.insert(
+              userId: Value(cashier.id),
+              action: 'sale_discount',
+              entityType: 'sale',
+              entityId: Value(saleId),
+              detail: Value('discountCents=$discount; ${discountReason ?? ''}'),
+            ));
+      }
 
       return CheckoutResult(
         saleId: saleId,
         folio: folio,
-        totalCents: total,
-        changeCents: amountTenderedCents - total,
+        grossCents: gross,
+        discountCents: discount,
+        taxCents: tax,
+        totalCents: net,
+        changeCents: change,
       );
+    });
+  }
+
+  /// Cancela una venta del día: no borra la fila (queda `cancelled`), devuelve
+  /// el stock con movimientos `returned` y lo registra en `audit_log`.
+  Future<void> cancelSale({
+    required Profile actor,
+    required String saleId,
+    String? reason,
+  }) async {
+    if (!Permissions.canCancelSale(actor.role)) {
+      throw PermissionException(
+          'El rol ${actor.role.name} no puede cancelar ventas');
+    }
+    await _db.transaction(() async {
+      final sale = await (_db.select(_db.sales)
+            ..where((t) => t.id.equals(saleId)))
+          .getSingle();
+      if (sale.status == SaleStatus.cancelled) return;
+
+      final saleLines = await (_db.select(_db.saleLines)
+            ..where((t) => t.saleId.equals(saleId)))
+          .get();
+      for (final l in saleLines) {
+        await _db.into(_db.inventoryMovements).insert(
+              InventoryMovementsCompanion.insert(
+                variantId: l.variantId,
+                locationId: sale.locationId,
+                qty: l.qty.abs(), // regresa a existencia
+                type: MovementType.returned,
+                userId: Value(actor.id),
+                referenceType: const Value('cancel'),
+                referenceId: Value(saleId),
+                reason: const Value('Cancelación de venta'),
+              ),
+            );
+      }
+
+      await (_db.update(_db.sales)..where((t) => t.id.equals(saleId)))
+          .write(const SalesCompanion(status: Value(SaleStatus.cancelled)));
+
+      await _db.into(_db.auditLog).insert(AuditLogCompanion.insert(
+            userId: Value(actor.id),
+            action: 'cancel_sale',
+            entityType: 'sale',
+            entityId: Value(saleId),
+            detail: Value(reason ?? ''),
+          ));
     });
   }
 
@@ -134,7 +250,6 @@ class SalesRepository {
     return row?.value ?? 'T1';
   }
 
-  /// Folio dentro de la misma transacción del cobro (evita transacción anidada).
   Future<String> _nextFolio(String prefix) async {
     final current = await (_db.select(_db.folioSequences)
           ..where((t) => t.prefix.equals(prefix)))
@@ -145,10 +260,4 @@ class SalesRepository {
         );
     return '$prefix-${next.toString().padLeft(6, '0')}';
   }
-}
-
-class _LineTotals {
-  const _LineTotals(this.total, this.tax);
-  final int total;
-  final int tax;
 }

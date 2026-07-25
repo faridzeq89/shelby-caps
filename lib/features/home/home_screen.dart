@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/roles.dart';
 import '../../services/auth_controller.dart';
 import '../admin/admin_screen.dart';
+import '../sales/cash_session_screen.dart';
 import '../sales/sale_screen.dart';
 
 /// Pantalla principal tras el login. Saluda al usuario con su rol y, solo para
@@ -51,6 +52,14 @@ class HomeScreen extends StatelessWidget {
                 textStyle:
                     const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CashSessionScreen()),
+              ),
+              icon: const Icon(Icons.point_of_sale_outlined),
+              label: const Text('Corte de caja'),
             ),
             if (auth.isAdmin) ...[
               const SizedBox(height: 16),

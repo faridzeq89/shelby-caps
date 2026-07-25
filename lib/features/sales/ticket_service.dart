@@ -24,9 +24,10 @@ class TicketData {
     required this.cashierName,
     required this.lines,
     required this.subtotalCents,
+    required this.discountCents,
     required this.taxCents,
     required this.totalCents,
-    required this.tenderedCents,
+    required this.payments,
     required this.changeCents,
     required this.gift,
     this.businessName = 'POS Boutique',
@@ -36,10 +37,11 @@ class TicketData {
   final DateTime dateTime;
   final String cashierName;
   final List<TicketLine> lines;
-  final int subtotalCents;
-  final int taxCents;
-  final int totalCents;
-  final int tenderedCents;
+  final int subtotalCents; // bruto (IVA incluido)
+  final int discountCents;
+  final int taxCents; // IVA incluido, informativo
+  final int totalCents; // neto
+  final List<(String, int)> payments; // (etiqueta, monto)
   final int changeCents;
   final bool gift;
   final String businessName;
@@ -112,11 +114,13 @@ class TicketService {
             pw.Divider(),
             if (!t.gift) ...[
               row('Subtotal', _money(t.subtotalCents)),
-              row('IVA', _money(t.taxCents)),
+              if (t.discountCents > 0)
+                row('Descuento', '-${_money(t.discountCents)}'),
               row('TOTAL', _money(t.totalCents), bold: true),
+              row('IVA incluido', _money(t.taxCents)),
               pw.SizedBox(height: 4),
-              row('Efectivo', _money(t.tenderedCents)),
-              row('Cambio', _money(t.changeCents)),
+              for (final p in t.payments) row(p.$1, _money(p.$2)),
+              if (t.changeCents > 0) row('Cambio', _money(t.changeCents)),
             ],
             pw.SizedBox(height: 8),
             pw.Center(

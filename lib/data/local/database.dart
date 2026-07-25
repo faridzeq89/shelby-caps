@@ -48,6 +48,7 @@ class VariantStockData {
     AuditLog,
     StockCounts,
     StockCountLines,
+    CashMovements,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -56,7 +57,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -67,7 +68,7 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (m, from, to) async {
           if (from < 2) {
             // La v1 solo tenía `profiles` (con el PIN del admin ya cambiado);
-            // se conserva y se crea todo lo demás.
+            // se conserva y se crea todo lo demás (incluye cash_movements).
             for (final entity in allSchemaEntities) {
               if (entity is TableInfo && entity.actualTableName == 'profiles') {
                 continue;
@@ -75,6 +76,9 @@ class AppDatabase extends _$AppDatabase {
               await m.create(entity);
             }
             await _createExtras();
+          } else if (from < 3) {
+            // v2 → v3: solo faltaba la tabla de movimientos de efectivo.
+            await m.createTable(cashMovements);
           }
         },
         beforeOpen: (details) async {

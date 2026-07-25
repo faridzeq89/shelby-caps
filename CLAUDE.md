@@ -36,8 +36,8 @@ SKU, apartados, devoluciones/cambios y corte de caja.
 - **Una fase por sesión.** No empezar la siguiente en la misma sesión que se cerró una.
 
 ## Estado de fases
-- [x] **Fase 0 — Decisiones** (este documento + `docs/decisiones.md`). Cerrada 2026-07-25.
-      Pendiente: confirmar con la dueña los 4 puntos de negocio marcados TBD.
+- [x] **Fase 0 — Decisiones** (este documento + `docs/decisiones.md`). Cerrada 2026-07-25,
+      sin decisiones abiertas (los 5 puntos de negocio ya confirmados).
 - [ ] Fase 1 — Fundación (Flutter + Drift + PIN + respaldo Supabase + layout tablet)
 - [ ] Fase 2 — Esquema, seguridad de app y semillas
 - [ ] Fase 3 — Catálogo admin (+ generador de variantes + importación CSV/Excel)

@@ -11,12 +11,12 @@ Cerradas 2026-07-25. Cambiarlas después cuesta migraciones sobre datos de venta
 | 2 | Moneda y redondeo | **MXN**, dinero en **centavos enteros** (`*_cents INTEGER`). Nunca float. | DECIDIDO |
 | 3 | Multisucursal | `location_id` desde el día uno con **una sola fila**. Agregarlo después al ledger duele; ocioso no cuesta. | DECIDIDO |
 | 4 | Atributos de variante | **Columnas fijas** `size`, `color` + `attributes` (JSON en TEXT) para lo raro (material/temporada). | DECIDIDO |
-| 5 | Códigos internos | Prefijo distinguible + 10 dígitos en **Code128**. Prefijo propuesto: `MB`. | TBD (confirmar prefijo) |
-| 6 | Impresora de tickets | **ESC/POS reutilizando el enfoque de Maraco.** Falta modelo/conexión exacta (USB/Bluetooth/red). | TBD (modelo) |
-| 7 | Impresora de etiquetas | Arrancar con **PDF de hojas adhesivas**. ZPL solo si compran Zebra/Brother (equipo distinto, no habla ESC/POS). | TBD (comprar o PDF) |
+| 5 | Códigos internos | Prefijo distinguible + 10 dígitos en **Code128**. Prefijo: **`MB`**. | DECIDIDO |
+| 6 | Impresora de tickets | **ESC/POS genérico reutilizando el enfoque de Maraco**, compatible con cualquier impresora de tickets (USB/Bluetooth/red). | DECIDIDO |
+| 7 | Impresora de etiquetas | **Soportar ambas:** PDF de hojas adhesivas **y** etiquetadora **ZPL** (Zebra/Brother). Equipo distinto al de tickets, no habla ESC/POS. | DECIDIDO |
 | 8 | Facturación CFDI | **Solo ticket en v1.** Campo `rfc` en la venta por si después se factura aparte. Integrar PAC es otro proyecto. | DECIDIDO |
-| 9 | Política de apartado | Propuesta: **30% de anticipo**, plazo **30 días**; al vencer se **libera la reserva** y el anticipo queda como **nota de crédito** (no se pierde, no se devuelve efectivo). | TBD (confirmar con la dueña) |
-| 10 | Política de devolución | Propuesta: **15 días** con ticket obligatorio; se prefiere **cambio o nota de crédito**; efectivo solo con **autorización de gerente** (PIN). Pieza dañada no vuelve a stock vendible. | TBD (confirmar con la dueña) |
+| 9 | Política de apartado | **30% de anticipo**, plazo **30 días**; al vencer se **libera la reserva** y el anticipo queda como **nota de crédito** (no se pierde, no se devuelve efectivo). | DECIDIDO |
+| 10 | Política de devolución | **15 días** con ticket obligatorio; se prefiere **cambio o nota de crédito**; efectivo solo con **autorización de gerente** (PIN). Pieza dañada no vuelve a stock vendible. | DECIDIDO |
 
 ## Huecos integrados (los 7 que faltaban)
 
@@ -35,9 +35,12 @@ Cerradas 2026-07-25. Cambiarlas después cuesta migraciones sobre datos de venta
 - **Folio de devoluciones:** misma serie de folios que las ventas (más simple para reportes).
 - **Costeo para margen:** **último costo** (`cost_cents` de la variante). Simple y suficiente para v1.
 
-## Pendientes de la dueña (no bloquean Fases 1–5)
-1. Prefijo de códigos internos (propuesto `MB`).
-2. Modelo/conexión de la impresora de tickets.
-3. ¿Se compra etiquetadora (ZPL) o arrancamos con PDF de hojas adhesivas?
-4. Política de apartado (% anticipo, plazo, qué pasa al vencer).
-5. Política de devolución (días, quién autoriza, efectivo o nota de crédito).
+## Confirmado por la dueña (2026-07-25)
+Los 5 puntos que quedaban abiertos ya están cerrados y reflejados arriba:
+1. Prefijo de códigos internos: **`MB`**.
+2. Impresora de tickets: **ESC/POS genérico** (enfoque de Maraco), sirve para cualquier modelo.
+3. Etiquetas: **ambas** — PDF de hojas adhesivas **y** etiquetadora ZPL.
+4. Apartado: **30% / 30 días / anticipo → nota de crédito al vencer**.
+5. Devolución: **15 días con ticket, cambio o nota de crédito, efectivo solo con PIN de gerente**.
+
+**Fase 0 totalmente cerrada. No quedan decisiones abiertas.**

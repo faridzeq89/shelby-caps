@@ -54,7 +54,7 @@ Cargar la mercancía real.
   códigos internos. (Diferencia entre cargar en 2 horas o en 2 días.)
 - Asignación de códigos: escanear UPC de proveedor para vincular, o generar interno.
 - **Importación CSV/Excel** del inventario existente (hueco #12).
-- Impresión de etiquetas por lote (PDF de hojas adhesivas; ZPL si se decide).
+- Impresión de etiquetas por lote: **ambas rutas** — PDF de hojas adhesivas y ZPL (etiquetadora Zebra/Brother).
 - Precios y costos con `audit_log` en cambios de precio.
 - **Aceptación:** producto con 12 variantes, hoja de etiquetas impresa, y al escanear
   cualquiera de las 12 devuelve la variante correcta.

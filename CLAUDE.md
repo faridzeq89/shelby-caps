@@ -14,6 +14,8 @@ SKU, apartados, devoluciones/cambios y corte de caja.
 - Impresión de ticket **ESC/POS** reutilizando lo probado en el POS Maraco (restaurante).
 - Autenticación **por PIN + roles** (admin / manager / cashier). Email/password solo admin
   para el login de respaldo en la nube.
+- Proyecto Flutter: package `pos_boutique`, applicationId **`com.boutique.pos_boutique`**,
+  solo plataforma Android. Estado con `provider`, base local con `drift`.
 
 > Nota de arquitectura vs. el documento original: el doc apuntaba a React PWA + Supabase
 > (verdad en la nube, offline como fase difícil al final). Aquí es al revés: Flutter es
@@ -38,7 +40,10 @@ SKU, apartados, devoluciones/cambios y corte de caja.
 ## Estado de fases
 - [x] **Fase 0 — Decisiones** (este documento + `docs/decisiones.md`). Cerrada 2026-07-25,
       sin decisiones abiertas (los 5 puntos de negocio ya confirmados).
-- [ ] Fase 1 — Fundación (Flutter + Drift + PIN + respaldo Supabase + layout tablet)
+- [x] **Fase 1 — Fundación**. Cerrada 2026-07-25. Flutter (Android) + Drift + login por PIN
+      con roles + gating de admin + layout tablet. 3 pruebas verdes, `flutter analyze` limpio.
+      Admin inicial: PIN **1234**, obliga a cambiarlo al primer login. Pendiente de Fase 1 que
+      se movió: el respaldo/login Supabase se hará junto con la Fase 8 (sincronización nube).
 - [ ] Fase 2 — Esquema, seguridad de app y semillas
 - [ ] Fase 3 — Catálogo admin (+ generador de variantes + importación CSV/Excel)
 - [ ] Fase 4 — Venta camino feliz (escaneo → carrito → cobro efectivo → ticket)

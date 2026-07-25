@@ -44,7 +44,7 @@ void main() {
   tearDown(() => db.close());
 
   testWidgets(
-    'Aceptación Fase 1: el cajero entra con PIN, ve su rol y no accede a admin',
+    'Aceptación Fase 1: el cajero entra con PIN, cae en el POS y no ve Admin',
     (tester) async {
       await seedUser(db,
           name: 'Caja Ana', role: UserRole.cashier, pin: '5678');
@@ -55,11 +55,14 @@ void main() {
 
       await enterPin(tester, '5678');
 
-      // Ve su nombre y su rol.
-      expect(find.text('Hola, Caja Ana'), findsOneWidget);
-      expect(find.text('Cajero'), findsOneWidget);
+      // Cae en el punto de venta y ve el menú inferior.
+      expect(find.widgetWithText(FilledButton, 'Cobrar'), findsOneWidget);
+      expect(find.text('Vender'), findsOneWidget);
+      expect(find.text('Corte'), findsOneWidget);
+      expect(find.text('Salir'), findsOneWidget);
 
-      // No hay entrada a administración para el cajero.
+      // El cajero NO tiene la pestaña de administración.
+      expect(find.text('Admin'), findsNothing);
       expect(find.text('Administración'), findsNothing);
     },
   );

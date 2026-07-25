@@ -17,6 +17,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
+  // Al volver a una pestaña de datos se le cambia la "época" (key) para que se
+  // reconstruya y recargue (ventas/devoluciones recientes aparecen al instante).
+  int _corteEpoch = 0;
+  int _adminEpoch = 0;
 
   Future<void> _confirmLogout(AuthController auth) async {
     final ok = await showDialog<bool>(
@@ -44,8 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final pages = <Widget>[
       const SaleScreen(),
-      const CashSessionScreen(),
-      if (isAdmin) const AdminScreen(),
+      CashSessionScreen(key: ValueKey('corte-$_corteEpoch')),
+      if (isAdmin) AdminScreen(key: ValueKey('admin-$_adminEpoch')),
     ];
     final destinations = <NavigationDestination>[
       const NavigationDestination(
@@ -79,7 +83,12 @@ class _HomeScreenState extends State<HomeScreen> {
           if (i == logoutIndex) {
             _confirmLogout(auth);
           } else {
-            setState(() => _index = i);
+            setState(() {
+              // Recarga la pestaña de datos al entrar.
+              if (i == 1) _corteEpoch++;
+              if (i == 2) _adminEpoch++;
+              _index = i;
+            });
           }
         },
         destinations: destinations,

@@ -3,6 +3,7 @@ import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/money.dart';
+import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/sales_repository.dart';
@@ -420,15 +421,20 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   Future<void> _confirm() async {
     if (!_canConfirm) return;
     if (_discountCents > 0 && _needsAuth && !_authorized) {
-      final ok = await _authorize();
-      if (!ok) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('PIN de gerente inválido o cancelado')));
+      final role = context.read<AuthController>().currentUser!.role;
+      if (Permissions.canAuthorizeDiscount(role)) {
+        _authorized = true; // admin/gerente ya está autorizado
+      } else {
+        final ok = await _authorize();
+        if (!ok) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('PIN de gerente inválido o cancelado')));
+          }
+          return;
         }
-        return;
+        _authorized = true;
       }
-      _authorized = true;
     }
     final payments = <PaymentInput>[
       if (_cents(_cash) > 0) PaymentInput(PaymentMethod.cash, _cents(_cash)),

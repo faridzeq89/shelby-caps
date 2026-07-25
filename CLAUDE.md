@@ -72,7 +72,13 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       + pantalla **Corte de caja**: abrir con fondo, retiros/depósitos, resumen en vivo, ventas del
       turno con cancelación, cierre con arqueo (esperado vs contado + diferencia). Migración v2→v3
       probada. 24 pruebas verdes. **Pendiente de Fase 5: descuento por línea individual.**
-- [ ] Fase 6 — Devoluciones y cambios
+- [x] **Fase 6 — Devoluciones y cambios**. Cerrada 2026-07-25 (con APK). `ReturnsRepository`:
+      buscar venta por folio, `returnableLines` (valida lo ya devuelto), `processReturn`
+      (reembolso efectivo con autorización de gerente, o nota de crédito; movimientos `returned`;
+      pieza dañada = returned + adjustment que la saca de stock vendible), `processExchange`
+      (devolución + venta nueva en UNA transacción; el crédito de lo devuelto se aplica y se
+      cobra/acredita la diferencia). Selector de variante extraído a `variant_picker.dart`
+      (compartido venta/cambio). Pantalla Devoluciones desde la barra de Venta. 29 pruebas verdes.
 - [ ] Fase 7 — Apartados
 - [ ] Fase 8 — Sincronización/respaldo en la nube y reconciliación (era "offline" en el doc)
 - [ ] Fase 9 — Inventario operativo (recepción, ajustes, conteo físico)

@@ -160,6 +160,13 @@ class AppDatabase extends _$AppDatabase {
   // -------------------------------------------------------------------------
   // Folios consecutivos con prefijo de dispositivo (T1-000123)
   // -------------------------------------------------------------------------
+  Future<String> devicePrefix() async {
+    final row = await (select(appSettings)
+          ..where((t) => t.key.equals('device_prefix')))
+        .getSingleOrNull();
+    return row?.value ?? 'T1';
+  }
+
   Future<String> nextFolio(String prefix) {
     return transaction(() async {
       final current = await (select(folioSequences)

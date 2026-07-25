@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "timeout": 30,
+            "statusMessage": "Respaldando a GitHub...",
+            "command": "cd /c/Users/Farid/Documents/boutique-pos && { git add -A; git diff --cached --quiet || git commit -q -m \"respaldo automatico $(date '+%Y-%m-%d %H:%M')\"; git push -q origin HEAD && echo '{\"systemMessage\":\"Respaldo automatico a GitHub completado\"}' || echo '{\"systemMessage\":\"Fallo el respaldo automatico a GitHub (revisa conexion/credenciales)\"}'; }"
+          }
+        ]
+      }
+    ]
+  }
+}

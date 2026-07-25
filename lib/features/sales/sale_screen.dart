@@ -416,11 +416,6 @@ class _PaymentSheetState extends State<_PaymentSheet> {
     super.dispose();
   }
 
-  void _addCash(int cents) {
-    final next = _tenderedCents + cents;
-    setState(() => _tendered.text = (next / 100).toStringAsFixed(2));
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -445,23 +440,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 labelText: 'Efectivo recibido', prefixText: '\$'),
             onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final amt in [10000, 20000, 50000])
-                OutlinedButton(
-                  onPressed: () => _addCash(amt),
-                  child: Text('+\$${amt ~/ 100}'),
-                ),
-              OutlinedButton(
-                onPressed: () => setState(() => _tendered.text =
-                    (widget.totalCents / 100).toStringAsFixed(2)),
-                child: const Text('Exacto'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             _change >= 0
                 ? 'Cambio: \$${(_change / 100).toStringAsFixed(2)}'

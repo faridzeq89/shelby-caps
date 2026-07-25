@@ -86,7 +86,14 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       nota de crédito, terms expired). Pantalla Apartados (lista con por vencer/vencido, nuevo
       apartado, detalle con abonos/liquidar/reimprimir) desde la barra de Venta. Vencimiento: manual
       con "Procesar vencidos" (no hay cron local). Comprobante PDF. 32 pruebas verdes.
-- [ ] Fase 8 — Sincronización/respaldo en la nube y reconciliación (era "offline" en el doc)
+- [~] **Fase 8 — Respaldo en la nube (Supabase)**. Código cerrado 2026-07-25 (con APK).
+      Respaldo del archivo completo de la base (VACUUM INTO) a Supabase Storage bucket `backups`,
+      ruta fija `boutique.sqlite` (single-tenant → restaurar en tablet nueva). `CloudBackupService`
+      (estado idle/syncing/ok/error, tras cada venta + periódico 15 min + manual, restaurar).
+      Pantalla Admin → Respaldo en la nube. Config en `.env` (gitignored) DEV/PROD, `flutter_dotenv`
+      + `supabase_flutter`. **FALTA que el dueño corra `supabase/migrations/0001_backups.sql` en
+      cada proyecto** (bucket + políticas anon) — ver `docs/supabase-setup.md`. Verificación
+      end-to-end en dispositivo (no testeable desde CI). Pendiente: reporte de reconciliación.
 - [ ] Fase 9 — Inventario operativo (recepción, ajustes, conteo físico)
 - [ ] Fase 10 — Reportes (+ ventas por vendedor)
 - [ ] Fase 11 — Producción (firma APK, respaldo, monitoreo, aviso de privacidad, capacitación)

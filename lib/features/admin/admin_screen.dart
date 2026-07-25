@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../services/auth_controller.dart';
 import '../catalog/catalog_home_screen.dart';
+import 'cloud_backup_screen.dart';
 
 /// Panel de administración. Solo para rol admin: aunque se navegue directo,
 /// un no-admin ve "Acceso denegado" (la puerta se cierra aquí, no solo
@@ -46,6 +47,17 @@ class AdminScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const CatalogHomeScreen()),
+              ),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.cloud_outlined),
+              title: const Text('Respaldo en la nube'),
+              subtitle: const Text('Respaldar / restaurar (Supabase)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CloudBackupScreen()),
               ),
             ),
           ),

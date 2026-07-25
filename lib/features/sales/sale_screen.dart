@@ -8,6 +8,7 @@ import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/cloud_backup_service.dart';
 import 'layaways_screen.dart';
 import 'returns_screen.dart';
 import 'ticket_service.dart';
@@ -136,6 +137,9 @@ class _SaleScreenState extends State<SaleScreen> {
       _toast('Error al cobrar: $e');
       return;
     }
+
+    // Respaldo en la nube tras la venta (sin bloquear).
+    if (mounted) context.read<CloudBackupService>().backupSoon();
 
     // La venta YA quedó registrada. La impresión es aparte: si falla, no se
     // pierde la venta.

@@ -44,7 +44,13 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       con roles + gating de admin + layout tablet. 3 pruebas verdes, `flutter analyze` limpio.
       Admin inicial: PIN **1234**, obliga a cambiarlo al primer login. Pendiente de Fase 1 que
       se movió: el respaldo/login Supabase se hará junto con la Fase 8 (sincronización nube).
-- [ ] Fase 2 — Esquema, seguridad de app y semillas
+- [x] **Fase 2 — Esquema, seguridad de app y semillas**. Cerrada 2026-07-25. Esquema
+      completo en Drift (schemaVersion 2): catálogo, ledger `inventory_movements` append-only,
+      ventas/pagos/apartados/notas de crédito, clientes, caja, auditoría, conteos, folios.
+      Vista `variant_stock` (on_hand/reserved/available) + triggers de inmutabilidad del ledger.
+      Seguridad por rol en repos (`Permissions`, `CatalogRepository`, `InventoryRepository`).
+      Semilla de ~12 productos con matriz talla×color, códigos `MB`, costos y stock inicial.
+      9 pruebas verdes. Sin APK (fase sin UI nueva). RLS de Supabase pendiente para Fase 8.
 - [ ] Fase 3 — Catálogo admin (+ generador de variantes + importación CSV/Excel)
 - [ ] Fase 4 — Venta camino feliz (escaneo → carrito → cobro efectivo → ticket)
 - [ ] Fase 5 — Pagos múltiples, descuentos con autorización y corte de caja

@@ -130,6 +130,39 @@ void main() {
     expect((await repo.resolveByCode('7501099012345'))?.id, variantId);
   });
 
+  test('variantsWithStock devuelve disponibilidad por variante', () async {
+    final actor = await admin();
+    final locId =
+        await db.into(db.locations).insert(LocationsCompanion.insert(name: 'P'));
+    final catId = await repo.createCategory(actor, 'Blusas');
+    final productId = await repo.createProduct(actor,
+        name: 'Blusa', categoryId: catId, basePriceCents: 20000);
+    // CH: Azul y Rosa; M: solo Azul.
+    await repo.generateVariantMatrix(actor,
+        productId: productId,
+        sizes: ['CH'],
+        colors: ['Azul', 'Rosa'],
+        initialStock: 3,
+        locationId: locId);
+    await repo.generateVariantMatrix(actor,
+        productId: productId,
+        sizes: ['M'],
+        colors: ['Azul'],
+        initialStock: 2,
+        locationId: locId);
+
+    final ws = await repo.variantsWithStock(productId);
+    expect(ws, hasLength(3));
+    // Disponibilidad de CH/Azul.
+    final chAzul = ws.firstWhere(
+        (e) => e.$1.size == 'CH' && e.$1.color == 'Azul');
+    expect(chAzul.$2, 3);
+    // No existe M/Rosa.
+    expect(ws.any((e) => e.$1.size == 'M' && e.$1.color == 'Rosa'), isFalse);
+    // Stock total.
+    expect(ws.fold(0, (s, e) => s + e.$2), 8); // 3 + 3 + 2
+  });
+
   test('la hoja de etiquetas PDF se genera sin error', () async {
     final labels = [
       const LabelData(

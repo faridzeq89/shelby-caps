@@ -72,6 +72,44 @@ class CatalogRepository {
         .toList();
   }
 
+  /// Búsqueda por PRODUCTO (para el flujo tipo e-commerce: elegir la prenda y
+  /// luego la variante). Coincide por nombre o por SKU de alguna variante.
+  Future<List<Product>> searchProducts(String query, {int limit = 40}) async {
+    final q = '%${query.trim()}%';
+    final byName = await (_db.select(_db.products)
+          ..where((t) => t.name.like(q) & t.active.equals(true))
+          ..orderBy([(t) => OrderingTerm(expression: t.name)])
+          ..limit(limit))
+        .get();
+    final ids = byName.map((p) => p.id).toSet();
+    final result = [...byName];
+
+    final bySku = await (_db.select(_db.variants).join([
+      innerJoin(_db.products,
+          _db.products.id.equalsExp(_db.variants.productId)),
+    ])
+          ..where(_db.variants.sku.like(q) & _db.products.active.equals(true))
+          ..limit(limit))
+        .get();
+    for (final r in bySku) {
+      final p = r.readTable(_db.products);
+      if (ids.add(p.id)) result.add(p);
+    }
+    return result;
+  }
+
+  /// Variantes activas de un producto con su existencia disponible (del ledger).
+  Future<List<(Variant, int)>> variantsWithStock(int productId) async {
+    final variants = await (_db.select(_db.variants)
+          ..where((t) => t.productId.equals(productId) & t.active.equals(true)))
+        .get();
+    final out = <(Variant, int)>[];
+    for (final v in variants) {
+      out.add((v, (await _db.stockFor(v.id)).available));
+    }
+    return out;
+  }
+
   // -------------------------------------------------------------------------
   // Altas
   // -------------------------------------------------------------------------

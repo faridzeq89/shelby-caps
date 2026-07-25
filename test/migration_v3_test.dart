@@ -22,7 +22,7 @@ void main() {
     final raw = sqlite3.open(file.path);
     raw.execute('DROP TABLE cash_movements');
     raw.execute('PRAGMA user_version = 2');
-    raw.dispose();
+    raw.close(); // cierra la conexión sqlite3 cruda
 
     // 3) Reabre: debe correr onUpgrade v2→v3 y recrear la tabla.
     db = AppDatabase(NativeDatabase(file));

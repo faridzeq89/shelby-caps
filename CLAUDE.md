@@ -57,7 +57,13 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       edición de precios/costos con auditoría, **etiquetas PDF (Code128) + generación ZPL**.
       14 pruebas verdes; migración v1→v2 verificada. **Pendiente de Fase 3: importación
       CSV/Excel** (hueco #12) y envío real a etiquetadora ZPL (depende de hardware).
-- [ ] Fase 4 — Venta camino feliz (escaneo → carrito → cobro efectivo → ticket)
+- [x] **Fase 4 — Venta camino feliz**. Cerrada 2026-07-25 (con APK). `SalesRepository.checkout`:
+      venta + líneas + pago + movimientos `sale` (stock −qty) en UNA transacción; folio con
+      prefijo de dispositivo; IVA desglosado por línea. UI `lib/features/sales/`: pantalla de
+      venta (campo escaneo/búsqueda HID, carrito con +/−, totales), cobro en efectivo con cambio
+      y atajos, ticket de regalo (sin precios), ticket PDF (rollo 80mm). Venta se guarda ANTES
+      de imprimir (si falla la impresión, la venta persiste). Botón "Vender" en home para todos.
+      19 pruebas verdes. ESC/POS térmico real pendiente de hardware (como el ZPL).
 - [ ] Fase 5 — Pagos múltiples, descuentos con autorización y corte de caja
 - [ ] Fase 6 — Devoluciones y cambios
 - [ ] Fase 7 — Apartados

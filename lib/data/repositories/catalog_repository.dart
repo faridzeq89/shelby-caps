@@ -52,6 +52,26 @@ class CatalogRepository {
         .getSingleOrNull();
   }
 
+  /// El producto padre de una variante.
+  Future<Product?> productOfVariant(Variant variant) => productById(variant.productId);
+
+  /// Búsqueda por nombre de producto o SKU (para agregar al carrito sin lector).
+  Future<List<(Product, Variant)>> searchVariants(String query,
+      {int limit = 40}) async {
+    final q = '%${query.trim()}%';
+    final rows = await (_db.select(_db.variants).join([
+      innerJoin(_db.products,
+          _db.products.id.equalsExp(_db.variants.productId)),
+    ])
+          ..where(_db.variants.sku.like(q) | _db.products.name.like(q))
+          ..where(_db.variants.active.equals(true))
+          ..limit(limit))
+        .get();
+    return rows
+        .map((r) => (r.readTable(_db.products), r.readTable(_db.variants)))
+        .toList();
+  }
+
   // -------------------------------------------------------------------------
   // Altas
   // -------------------------------------------------------------------------

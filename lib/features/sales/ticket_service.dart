@@ -1,0 +1,132 @@
+import 'dart:typed_data';
+
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+
+class TicketLine {
+  const TicketLine({
+    required this.description,
+    required this.qty,
+    required this.unitPriceCents,
+    required this.lineTotalCents,
+  });
+  final String description;
+  final int qty;
+  final int unitPriceCents;
+  final int lineTotalCents;
+}
+
+class TicketData {
+  const TicketData({
+    required this.folio,
+    required this.dateTime,
+    required this.cashierName,
+    required this.lines,
+    required this.subtotalCents,
+    required this.taxCents,
+    required this.totalCents,
+    required this.tenderedCents,
+    required this.changeCents,
+    required this.gift,
+    this.businessName = 'POS Boutique',
+  });
+
+  final String folio;
+  final DateTime dateTime;
+  final String cashierName;
+  final List<TicketLine> lines;
+  final int subtotalCents;
+  final int taxCents;
+  final int totalCents;
+  final int tenderedCents;
+  final int changeCents;
+  final bool gift;
+  final String businessName;
+}
+
+/// Genera el ticket como PDF en formato rollo (80mm). El envío a impresora
+/// térmica ESC/POS se conecta cuando se defina el modelo (Fase 0 #6); mientras,
+/// este PDF se imprime/comparte desde el diálogo del sistema.
+class TicketService {
+  const TicketService._();
+
+  static String _money(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+  static Future<Uint8List> buildPdf(TicketData t) async {
+    final doc = pw.Document();
+    final fmt = DateFormat('dd/MM/yyyy HH:mm');
+
+    pw.Widget row(String a, String b, {bool bold = false}) => pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(a,
+                style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+            pw.Text(b,
+                style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+          ],
+        );
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80,
+        margin: const pw.EdgeInsets.all(8),
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            pw.Center(
+              child: pw.Text(t.businessName,
+                  style:
+                      pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text('Folio: ${t.folio}', style: const pw.TextStyle(fontSize: 9)),
+            pw.Text(fmt.format(t.dateTime),
+                style: const pw.TextStyle(fontSize: 9)),
+            pw.Text('Atendió: ${t.cashierName}',
+                style: const pw.TextStyle(fontSize: 9)),
+            if (t.gift)
+              pw.Center(
+                child: pw.Text('*** TICKET DE REGALO ***',
+                    style: pw.TextStyle(
+                        fontSize: 9, fontWeight: pw.FontWeight.bold)),
+              ),
+            pw.Divider(),
+            for (final l in t.lines)
+              t.gift
+                  ? pw.Text('${l.qty} x ${l.description}',
+                      style: const pw.TextStyle(fontSize: 9))
+                  : pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                      children: [
+                        pw.Text(l.description,
+                            style: const pw.TextStyle(fontSize: 9)),
+                        row('  ${l.qty} x ${_money(l.unitPriceCents)}',
+                            _money(l.lineTotalCents)),
+                      ],
+                    ),
+            pw.Divider(),
+            if (!t.gift) ...[
+              row('Subtotal', _money(t.subtotalCents)),
+              row('IVA', _money(t.taxCents)),
+              row('TOTAL', _money(t.totalCents), bold: true),
+              pw.SizedBox(height: 4),
+              row('Efectivo', _money(t.tenderedCents)),
+              row('Cambio', _money(t.changeCents)),
+            ],
+            pw.SizedBox(height: 8),
+            pw.Center(
+              child: pw.Text('¡Gracias por su compra!',
+                  style: const pw.TextStyle(fontSize: 9)),
+            ),
+          ],
+        ),
+      ),
+    );
+    return doc.save();
+  }
+}

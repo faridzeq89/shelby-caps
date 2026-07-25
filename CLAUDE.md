@@ -79,7 +79,13 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       (devolución + venta nueva en UNA transacción; el crédito de lo devuelto se aplica y se
       cobra/acredita la diferencia). Selector de variante extraído a `variant_picker.dart`
       (compartido venta/cambio). Pantalla Devoluciones desde la barra de Venta. 29 pruebas verdes.
-- [ ] Fase 7 — Apartados
+- [x] **Fase 7 — Apartados**. Cerrada 2026-07-25 (con APK). `LayawayRepository`: cliente mínimo,
+      `createLayaway` (venta status layaway, anticipo 30% mínimo, reserva con movimientos `reserve`
+      — la pieza sigue en on_hand pero no disponible), `addPayment` (abonos), `settle` (release+sale,
+      status completed, ticket con todos los pagos), `expireOverdue` (libera reservas, lo pagado →
+      nota de crédito, terms expired). Pantalla Apartados (lista con por vencer/vencido, nuevo
+      apartado, detalle con abonos/liquidar/reimprimir) desde la barra de Venta. Vencimiento: manual
+      con "Procesar vencidos" (no hay cron local). Comprobante PDF. 32 pruebas verdes.
 - [ ] Fase 8 — Sincronización/respaldo en la nube y reconciliación (era "offline" en el doc)
 - [ ] Fase 9 — Inventario operativo (recepción, ajustes, conteo físico)
 - [ ] Fase 10 — Reportes (+ ventas por vendedor)

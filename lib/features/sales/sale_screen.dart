@@ -8,6 +8,7 @@ import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
+import 'layaways_screen.dart';
 import 'returns_screen.dart';
 import 'ticket_service.dart';
 import 'variant_picker.dart';
@@ -214,6 +215,13 @@ class _SaleScreenState extends State<SaleScreen> {
       appBar: AppBar(
         title: const Text('Venta'),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LayawaysScreen()),
+            ),
+            icon: const Icon(Icons.bookmark_border),
+            tooltip: 'Apartados',
+          ),
           IconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ReturnsScreen()),

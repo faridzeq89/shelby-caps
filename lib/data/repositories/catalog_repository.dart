@@ -100,20 +100,24 @@ class CatalogRepository {
     final product = await productById(productId);
     if (product == null) return const [];
 
+    final normSizes = _dedup(sizes);
+    final normColors = _dedup(colors);
+
     return _db.transaction(() async {
       final existing = await variantsOf(productId);
-      final existingKeys =
-          existing.map((v) => '${v.size ?? ''}|${v.color ?? ''}').toSet();
+      final existingKeys = existing
+          .map((v) => _variantKey(v.size ?? '', v.color ?? ''))
+          .toSet();
       var seq = await _maxInternalBarcodeNumber();
       final created = <int>[];
 
-      for (final size in sizes) {
-        for (final color in colors) {
-          if (existingKeys.contains('$size|$color')) continue;
+      for (final size in normSizes) {
+        for (final color in normColors) {
+          if (existingKeys.contains(_variantKey(size, color))) continue;
           final variantId = await _db.into(_db.variants).insert(
                 VariantsCompanion.insert(
                   productId: productId,
-                  sku: _sku(product, productId, size, color),
+                  sku: _sku(productId, size, color),
                   size: Value(size),
                   color: Value(color),
                   costCents: Value(costCents),
@@ -242,12 +246,27 @@ class CatalogRepository {
     return row.read<int>('n');
   }
 
-  String _sku(Product product, int productId, String size, String color) {
-    String slug(String s) => s
-        .toUpperCase()
-        .replaceAll(RegExp(r'[^A-Z0-9]'), '')
-        .padRight(3, 'X')
-        .substring(0, 3);
-    return '${slug(product.name)}-$productId-$size-${slug(color)}';
+  /// Deduplica tallas/colores de un lote (sin distinguir mayúsculas, espacios
+  /// ni acentos), evitando SKUs repetidos en la misma generación.
+  List<String> _dedup(List<String> items) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final raw in items) {
+      final t = raw.trim();
+      if (t.isEmpty) continue;
+      if (seen.add(_san(t))) out.add(t);
+    }
+    return out;
   }
+
+  String _variantKey(String size, String color) =>
+      '${_san(size)}|${_san(color)}';
+
+  String _san(String v) =>
+      v.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
+  /// SKU único por (producto, talla, color): `P{id}-{TALLA}-{COLOR}`. No es
+  /// lossy, así que dos colores distintos nunca colisionan.
+  String _sku(int productId, String size, String color) =>
+      'P$productId-${_san(size)}-${_san(color)}';
 }

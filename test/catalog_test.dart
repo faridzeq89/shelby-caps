@@ -71,6 +71,47 @@ void main() {
     expect((await repo.variantsOf(productId)), hasLength(3));
   });
 
+  test('genera SKUs únicos con colores parecidos (regresión del bug 2067)',
+      () async {
+    final actor = await admin();
+    final catId = await repo.createCategory(actor, 'Playeras');
+    final productId = await repo.createProduct(actor,
+        name: 'Playera Deportiva', categoryId: catId, basePriceCents: 120000);
+
+    // "Blanco" y "Blanca" recortados a 3 letras daban ambos "BLA" y chocaban.
+    final created = await repo.generateVariantMatrix(
+      actor,
+      productId: productId,
+      sizes: ['CH', 'M', 'G', 'XG'],
+      colors: ['Blanco', 'Blanca', 'Azul cielo'],
+    );
+    expect(created, hasLength(12));
+
+    final skus = <String>{};
+    for (final id in created) {
+      final v =
+          await (db.select(db.variants)..where((t) => t.id.equals(id)))
+              .getSingle();
+      skus.add(v.sku);
+    }
+    expect(skus, hasLength(12)); // todos distintos, sin colisión
+  });
+
+  test('deduplica tallas y colores repetidos en el lote', () async {
+    final actor = await admin();
+    final catId = await repo.createCategory(actor, 'Cat');
+    final productId = await repo.createProduct(actor,
+        name: 'Prod', categoryId: catId, basePriceCents: 10000);
+
+    final created = await repo.generateVariantMatrix(
+      actor,
+      productId: productId,
+      sizes: ['M', 'M', ' m '],
+      colors: ['Rosa', 'rosa', ' Rosa '],
+    );
+    expect(created, hasLength(1)); // una sola combinación real
+  });
+
   test('el código de proveedor y el interno resuelven a la misma variante',
       () async {
     final actor = await admin();

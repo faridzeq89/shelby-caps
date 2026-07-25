@@ -39,7 +39,9 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
     return _CatalogData(products, categories, counts);
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() => setState(() {
+        _future = _load();
+      });
 
   Future<void> _newProduct() async {
     final productId = await showDialog<int>(

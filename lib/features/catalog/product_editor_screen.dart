@@ -60,7 +60,9 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     return _EditorData(product!, rows);
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() => setState(() {
+        _future = _load();
+      });
 
   void _toast(String msg) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));

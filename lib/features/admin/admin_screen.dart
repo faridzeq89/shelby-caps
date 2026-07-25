@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/auth_controller.dart';
+import '../catalog/catalog_home_screen.dart';
 
 /// Panel de administración. Solo para rol admin: aunque se navegue directo,
 /// un no-admin ve "Acceso denegado" (la puerta se cierra aquí, no solo
@@ -34,11 +35,37 @@ class AdminScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Administración')),
-      body: const Center(
-        child: Text(
-          'Panel de administración\n(catálogo, usuarios y reportes llegan en fases próximas)',
-          textAlign: TextAlign.center,
-        ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.inventory_2_outlined),
+              title: const Text('Catálogo'),
+              subtitle: const Text('Productos, variantes, códigos y etiquetas'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CatalogHomeScreen()),
+              ),
+            ),
+          ),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.groups_outlined),
+              title: Text('Usuarios'),
+              subtitle: Text('Próxima fase'),
+              enabled: false,
+            ),
+          ),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.bar_chart_outlined),
+              title: Text('Reportes'),
+              subtitle: Text('Próxima fase'),
+              enabled: false,
+            ),
+          ),
+        ],
       ),
     );
   }

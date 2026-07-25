@@ -12,7 +12,7 @@ class PermissionException implements Exception {
 /// Capacidades por rol. La frontera de seguridad del POS es la app (no hay
 /// servidor en operación normal); la RLS de Supabase solo cuida el respaldo.
 ///
-/// El cajero vende pero no edita precios ni ve costos.
+/// El cajero vende pero no edita precios, no ve costos ni administra catálogo.
 class Permissions {
   const Permissions._();
 
@@ -20,6 +20,9 @@ class Permissions {
       role == UserRole.admin || role == UserRole.manager;
 
   static bool canSeeCosts(UserRole role) =>
+      role == UserRole.admin || role == UserRole.manager;
+
+  static bool canManageCatalog(UserRole role) =>
       role == UserRole.admin || role == UserRole.manager;
 
   static bool canManageUsers(UserRole role) => role == UserRole.admin;

@@ -3,13 +3,168 @@ import 'package:drift/drift.dart';
 import '../../core/permissions.dart';
 import '../local/database.dart';
 
-/// Operaciones de catálogo que cruzan la frontera de permisos.
+/// Precio efectivo de una variante: su override o el precio base del producto.
+int effectivePrice(Product product, Variant variant) =>
+    variant.priceCentsOverride ?? product.basePriceCents;
+
+/// Operaciones de catálogo (lado administrador). Los cambios sensibles exigen
+/// rol y quedan en `audit_log`.
 class CatalogRepository {
   CatalogRepository(this._db);
   final AppDatabase _db;
 
-  /// Cambia el precio de una variante. Solo admin/gerente; queda registrado en
-  /// `audit_log`. Un cajero recibe [PermissionException].
+  void _requireCatalog(Profile actor) {
+    if (!Permissions.canManageCatalog(actor.role)) {
+      throw PermissionException(
+          'El rol ${actor.role.name} no puede administrar el catálogo');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Lecturas
+  // -------------------------------------------------------------------------
+  Future<List<Category>> categories() =>
+      (_db.select(_db.categories)..orderBy([(t) => OrderingTerm(expression: t.sortOrder)]))
+          .get();
+
+  Future<List<Product>> products() =>
+      (_db.select(_db.products)..orderBy([(t) => OrderingTerm(expression: t.name)]))
+          .get();
+
+  Future<Product?> productById(int id) =>
+      (_db.select(_db.products)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  Future<List<Variant>> variantsOf(int productId) =>
+      (_db.select(_db.variants)..where((t) => t.productId.equals(productId)))
+          .get();
+
+  Future<List<Barcode>> barcodesOf(int variantId) =>
+      (_db.select(_db.barcodes)..where((t) => t.variantId.equals(variantId)))
+          .get();
+
+  /// Escaneo: devuelve la variante ligada a [code], o null si no existe.
+  Future<Variant?> resolveByCode(String code) async {
+    final bc = await (_db.select(_db.barcodes)
+          ..where((t) => t.code.equals(code.trim())))
+        .getSingleOrNull();
+    if (bc == null) return null;
+    return (_db.select(_db.variants)..where((t) => t.id.equals(bc.variantId)))
+        .getSingleOrNull();
+  }
+
+  // -------------------------------------------------------------------------
+  // Altas
+  // -------------------------------------------------------------------------
+  Future<int> createCategory(Profile actor, String name) async {
+    _requireCatalog(actor);
+    final count = (await _db.select(_db.categories).get()).length;
+    return _db.into(_db.categories).insert(
+          CategoriesCompanion.insert(name: name, sortOrder: Value(count)),
+        );
+  }
+
+  Future<int> createProduct(
+    Profile actor, {
+    required String name,
+    required int categoryId,
+    required int basePriceCents,
+    String? brand,
+    int taxRateBps = 1600,
+  }) async {
+    _requireCatalog(actor);
+    return _db.into(_db.products).insert(
+          ProductsCompanion.insert(
+            name: name,
+            categoryId: categoryId,
+            basePriceCents: basePriceCents,
+            brand: Value(brand),
+            taxRateBps: Value(taxRateBps),
+          ),
+        );
+  }
+
+  /// Genera en lote las variantes de la matriz talla × color que aún no
+  /// existan, cada una con su código interno `MB` y, opcionalmente, stock
+  /// inicial. Devuelve los ids creados. Esta es la función que carga el
+  /// inventario en minutos en vez de horas.
+  Future<List<int>> generateVariantMatrix(
+    Profile actor, {
+    required int productId,
+    required List<String> sizes,
+    required List<String> colors,
+    int costCents = 0,
+    int initialStock = 0,
+    int? locationId,
+  }) async {
+    _requireCatalog(actor);
+    final product = await productById(productId);
+    if (product == null) return const [];
+
+    return _db.transaction(() async {
+      final existing = await variantsOf(productId);
+      final existingKeys =
+          existing.map((v) => '${v.size ?? ''}|${v.color ?? ''}').toSet();
+      var seq = await _maxInternalBarcodeNumber();
+      final created = <int>[];
+
+      for (final size in sizes) {
+        for (final color in colors) {
+          if (existingKeys.contains('$size|$color')) continue;
+          final variantId = await _db.into(_db.variants).insert(
+                VariantsCompanion.insert(
+                  productId: productId,
+                  sku: _sku(product, productId, size, color),
+                  size: Value(size),
+                  color: Value(color),
+                  costCents: Value(costCents),
+                ),
+              );
+          seq++;
+          await _db.into(_db.barcodes).insert(
+                BarcodesCompanion.insert(
+                  variantId: variantId,
+                  code: 'MB${seq.toString().padLeft(10, '0')}',
+                  source: BarcodeSource.internal,
+                ),
+              );
+          if (initialStock > 0 && locationId != null) {
+            await _db.into(_db.inventoryMovements).insert(
+                  InventoryMovementsCompanion.insert(
+                    variantId: variantId,
+                    locationId: locationId,
+                    qty: initialStock,
+                    type: MovementType.receipt,
+                    userId: Value(actor.id),
+                    reason: const Value('Alta de variante'),
+                  ),
+                );
+          }
+          created.add(variantId);
+        }
+      }
+      return created;
+    });
+  }
+
+  /// Vincula un código de proveedor (UPC escaneado o tecleado) a una variante.
+  Future<int> addSupplierBarcode(
+    Profile actor,
+    int variantId,
+    String code,
+  ) async {
+    _requireCatalog(actor);
+    return _db.into(_db.barcodes).insert(
+          BarcodesCompanion.insert(
+            variantId: variantId,
+            code: code.trim(),
+            source: BarcodeSource.supplier,
+          ),
+        );
+  }
+
+  // -------------------------------------------------------------------------
+  // Precios y costos (con auditoría)
+  // -------------------------------------------------------------------------
   Future<void> updateVariantPrice({
     required Profile actor,
     required int variantId,
@@ -22,15 +177,77 @@ class CatalogRepository {
     await _db.transaction(() async {
       await (_db.update(_db.variants)..where((t) => t.id.equals(variantId)))
           .write(VariantsCompanion(priceCentsOverride: Value(newPriceCents)));
-      await _db.into(_db.auditLog).insert(
-            AuditLogCompanion.insert(
-              userId: Value(actor.id),
-              action: 'update_price',
-              entityType: 'variant',
-              entityId: Value(variantId.toString()),
-              detail: Value('priceCents=$newPriceCents'),
-            ),
-          );
+      await _audit(actor, 'update_price', 'variant', variantId.toString(),
+          'priceCents=$newPriceCents');
     });
+  }
+
+  Future<void> updateVariantCost({
+    required Profile actor,
+    required int variantId,
+    required int newCostCents,
+  }) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      await (_db.update(_db.variants)..where((t) => t.id.equals(variantId)))
+          .write(VariantsCompanion(costCents: Value(newCostCents)));
+      await _audit(actor, 'update_cost', 'variant', variantId.toString(),
+          'costCents=$newCostCents');
+    });
+  }
+
+  Future<void> updateProductBasePrice({
+    required Profile actor,
+    required int productId,
+    required int newPriceCents,
+  }) async {
+    if (!Permissions.canEditPrices(actor.role)) {
+      throw PermissionException(
+          'El rol ${actor.role.name} no puede editar precios');
+    }
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(basePriceCents: Value(newPriceCents)));
+      await _audit(actor, 'update_price', 'product', productId.toString(),
+          'basePriceCents=$newPriceCents');
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Internos
+  // -------------------------------------------------------------------------
+  Future<void> _audit(Profile actor, String action, String entityType,
+      String entityId, String detail) {
+    return _db.into(_db.auditLog).insert(
+          AuditLogCompanion.insert(
+            userId: Value(actor.id),
+            action: action,
+            entityType: entityType,
+            entityId: Value(entityId),
+            detail: Value(detail),
+          ),
+        );
+  }
+
+  /// Mayor número usado en los códigos internos `MB##########`, para continuar
+  /// sin colisiones con lo ya sembrado.
+  Future<int> _maxInternalBarcodeNumber() async {
+    final row = await _db
+        .customSelect(
+          "SELECT COALESCE(MAX(CAST(SUBSTR(code, 3) AS INTEGER)), 0) AS n "
+          "FROM barcodes WHERE source = 'internal'",
+          readsFrom: {_db.barcodes},
+        )
+        .getSingle();
+    return row.read<int>('n');
+  }
+
+  String _sku(Product product, int productId, String size, String color) {
+    String slug(String s) => s
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z0-9]'), '')
+        .padRight(3, 'X')
+        .substring(0, 3);
+    return '${slug(product.name)}-$productId-$size-${slug(color)}';
   }
 }

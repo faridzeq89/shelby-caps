@@ -11,5 +11,5 @@ Future<void> main() async {
   final auth = AuthController(db);
   await auth.ensureSeedAdmin();
   await SeedService(db).run();
-  runApp(BoutiquePosApp(auth: auth));
+  runApp(BoutiquePosApp(auth: auth, db: db));
 }

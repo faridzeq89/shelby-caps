@@ -2,22 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme.dart';
+import 'data/local/database.dart';
 import 'features/auth/change_pin_screen.dart';
 import 'features/auth/pin_login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'services/auth_controller.dart';
 
-/// Raíz de la app. Recibe un [AuthController] ya sembrado para poder inyectar
-/// una base en memoria desde los tests.
+/// Raíz de la app. Recibe la base y un [AuthController] ya sembrado para poder
+/// inyectar una base en memoria desde los tests.
 class BoutiquePosApp extends StatelessWidget {
-  const BoutiquePosApp({super.key, required this.auth});
+  const BoutiquePosApp({super.key, required this.auth, required this.db});
 
   final AuthController auth;
+  final AppDatabase db;
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: auth,
+    return MultiProvider(
+      providers: [
+        Provider<AppDatabase>.value(value: db),
+        ChangeNotifierProvider.value(value: auth),
+      ],
       child: MaterialApp(
         title: 'POS Boutique',
         debugShowCheckedModeBanner: false,

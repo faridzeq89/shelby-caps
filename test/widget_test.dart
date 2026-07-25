@@ -50,7 +50,7 @@ void main() {
           name: 'Caja Ana', role: UserRole.cashier, pin: '5678');
       final auth = AuthController(db);
 
-      await tester.pumpWidget(BoutiquePosApp(auth: auth));
+      await tester.pumpWidget(BoutiquePosApp(auth: auth, db: db));
       await tester.pumpAndSettle();
 
       await enterPin(tester, '5678');
@@ -90,7 +90,7 @@ void main() {
       final auth = AuthController(db);
       await auth.ensureSeedAdmin();
 
-      await tester.pumpWidget(BoutiquePosApp(auth: auth));
+      await tester.pumpWidget(BoutiquePosApp(auth: auth, db: db));
       await tester.pumpAndSettle();
 
       await enterPin(tester, '1234');

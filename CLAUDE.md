@@ -51,7 +51,12 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       Seguridad por rol en repos (`Permissions`, `CatalogRepository`, `InventoryRepository`).
       Semilla de ~12 productos con matriz talla×color, códigos `MB`, costos y stock inicial.
       9 pruebas verdes. Sin APK (fase sin UI nueva). RLS de Supabase pendiente para Fase 8.
-- [ ] Fase 3 — Catálogo admin (+ generador de variantes + importación CSV/Excel)
+- [~] **Fase 3 — Catálogo admin**. Núcleo cerrado 2026-07-25 (con APK). CRUD de categorías/
+      productos, **generador de matriz de variantes** (talla×color con códigos `MB` y stock
+      inicial), alta de código de proveedor, **resolución por escaneo** (código→variante),
+      edición de precios/costos con auditoría, **etiquetas PDF (Code128) + generación ZPL**.
+      14 pruebas verdes; migración v1→v2 verificada. **Pendiente de Fase 3: importación
+      CSV/Excel** (hueco #12) y envío real a etiquetadora ZPL (depende de hardware).
 - [ ] Fase 4 — Venta camino feliz (escaneo → carrito → cobro efectivo → ticket)
 - [ ] Fase 5 — Pagos múltiples, descuentos con autorización y corte de caja
 - [ ] Fase 6 — Devoluciones y cambios

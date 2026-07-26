@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../services/auth_controller.dart';
 import '../catalog/catalog_home_screen.dart';
 import '../inventory/inventory_home_screen.dart';
+import '../reports/reports_screen.dart';
 import 'cloud_backup_screen.dart';
 
 /// Panel de administración. Solo para rol admin: aunque se navegue directo,
@@ -81,12 +82,15 @@ class AdminScreen extends StatelessWidget {
               enabled: false,
             ),
           ),
-          const Card(
+          Card(
             child: ListTile(
-              leading: Icon(Icons.bar_chart_outlined),
-              title: Text('Reportes'),
-              subtitle: Text('Próxima fase'),
-              enabled: false,
+              leading: const Icon(Icons.bar_chart_outlined),
+              title: const Text('Reportes'),
+              subtitle: const Text('Ventas, margen, inventario muerto, export'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReportsScreen()),
+              ),
             ),
           ),
         ],

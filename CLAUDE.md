@@ -106,8 +106,17 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       desde la barra de Venta (campana con badge + icono de inventario) y tarjeta en Admin. Todo
       respeta el ledger append-only y audita. 40 pruebas verdes (9 nuevas: 8 de inventario +
       migración v4). **Traspasos entre ubicaciones diferidos** hasta que exista 2ª sucursal.
-- [ ] Fase 10 — Reportes (+ ventas por vendedor)
-- [ ] Fase 11 — Producción (firma APK, respaldo, monitoreo, aviso de privacidad, capacitación)
+- [x] **Fase 10 — Reportes**. Cerrada 2026-07-25 (con APK). `ReportsRepository` (solo lectura,
+      SQL de agregación sobre ventas/ledger): `periodSummary` (con comparativo vs periodo anterior),
+      `variantSales` (top y desglose talla/color), `marginByProduct` (último costo), `deadStock`
+      (existencia sin venta en N días), `cashierVariances` (arqueos), `returnRates`, `salesBySalesperson`
+      (cae al cajero si no hay vendedor). UI `lib/features/reports/`: `reports_screen` (selector de
+      periodo Hoy/7/30/60, tarjeta de resumen, detalle por reporte en DataTable) + `report_export`
+      (CSV con BOM UTF-8, compartido vía `Printing.sharePdf`). Enlazado desde Admin. 43 pruebas verdes
+      (3 nuevas). Sin cambio de esquema (no requiere build_runner).
+- [~] **Fase 11 — Producción**. Documentación y config sin secretos preparadas 2026-07-25.
+      Pendiente del dueño: generar keystore + firmar APK release, y DSN de Sentry (requieren sus
+      credenciales; ver `docs/produccion.md`).
 
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la

@@ -6,6 +6,7 @@ import '../catalog/catalog_home_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
 import 'cloud_backup_screen.dart';
+import 'users_screen.dart';
 
 /// Panel de administración. Solo para rol admin: aunque se navegue directo,
 /// un no-admin ve "Acceso denegado" (la puerta se cierra aquí, no solo
@@ -74,12 +75,15 @@ class AdminScreen extends StatelessWidget {
               ),
             ),
           ),
-          const Card(
+          Card(
             child: ListTile(
-              leading: Icon(Icons.groups_outlined),
-              title: Text('Usuarios'),
-              subtitle: Text('Próxima fase'),
-              enabled: false,
+              leading: const Icon(Icons.groups_outlined),
+              title: const Text('Usuarios'),
+              subtitle: const Text('Crear cajeros/gerentes, PIN, activar'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const UsersScreen()),
+              ),
             ),
           ),
           Card(

@@ -55,8 +55,8 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       productos, **generador de matriz de variantes** (talla×color con códigos `MB` y stock
       inicial), alta de código de proveedor, **resolución por escaneo** (código→variante),
       edición de precios/costos con auditoría, **etiquetas PDF (Code128) + generación ZPL**.
-      14 pruebas verdes; migración v1→v2 verificada. **Pendiente de Fase 3: importación
-      CSV/Excel** (hueco #12) y envío real a etiquetadora ZPL (depende de hardware).
+      14 pruebas verdes; migración v1→v2 verificada. **Importación CSV/Excel RESUELTA**
+      (backlog 2026-07-26, ver abajo). Pendiente: envío real a etiquetadora ZPL (depende de hardware).
 - [x] **Fase 4 — Venta camino feliz**. Cerrada 2026-07-25 (con APK). `SalesRepository.checkout`:
       venta + líneas + pago + movimientos `sale` (stock −qty) en UNA transacción; folio con
       prefijo de dispositivo; IVA desglosado por línea. UI `lib/features/sales/`: pantalla de
@@ -71,7 +71,7 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       admin): no borra, marca `cancelled`, devuelve stock (`returned`) y audita. `CashSessionRepository`
       + pantalla **Corte de caja**: abrir con fondo, retiros/depósitos, resumen en vivo, ventas del
       turno con cancelación, cierre con arqueo (esperado vs contado + diferencia). Migración v2→v3
-      probada. 24 pruebas verdes. **Pendiente de Fase 5: descuento por línea individual.**
+      probada. 24 pruebas verdes. **Descuento por línea individual RESUELTO** (backlog 2026-07-26).
 - [x] **Fase 6 — Devoluciones y cambios**. Cerrada 2026-07-25 (con APK). `ReturnsRepository`:
       buscar venta por folio, `returnableLines` (valida lo ya devuelto), `processReturn`
       (reembolso efectivo con autorización de gerente, o nota de crédito; movimientos `returned`;
@@ -93,7 +93,8 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       Pantalla Admin → Respaldo en la nube. Config en `.env` (gitignored) DEV/PROD, `flutter_dotenv`
       + `supabase_flutter`. **FALTA que el dueño corra `supabase/migrations/0001_backups.sql` en
       cada proyecto** (bucket + políticas anon) — ver `docs/supabase-setup.md`. Verificación
-      end-to-end en dispositivo (no testeable desde CI). Pendiente: reporte de reconciliación.
+      end-to-end en dispositivo (no testeable desde CI). **Reporte de reconciliación RESUELTO**
+      (backlog 2026-07-26).
 - [x] **Fase 9 — Inventario operativo**. Cerrada 2026-07-25 (con APK). Esquema v4:
       `variants.min_stock` (punto de reorden por variante) + migración v3→v4 idempotente
       (`_addMinStockIfMissing`). `InventoryRepository` ampliado: `receiveBatch` (movimientos
@@ -117,6 +118,19 @@ SKU, apartados, devoluciones/cambios y corte de caja.
 - [~] **Fase 11 — Producción**. Documentación y config sin secretos preparadas 2026-07-25.
       Pendiente del dueño: generar keystore + firmar APK release, y DSN de Sentry (requieren sus
       credenciales; ver `docs/produccion.md`).
+
+## Backlog resuelto (2026-07-26, post-fases, en `main`)
+Cuatro pendientes acumulados, cada uno con tests y commit propio. 60 pruebas verdes.
+- **Gestión de usuarios** (`UserRepository` + Admin→Usuarios): crear cajeros/gerentes con PIN
+  (4-6 díg., `mustChangePin`, sin PIN duplicado), activar/desactivar (no al último admin ni a
+  sí mismo), reset de PIN. Solo admin, auditado. Desbloquea probar roles reales.
+- **Descuento por línea** (Fase 5): `CheckoutLine.lineDiscountCents` se aplica antes del reparto
+  del descuento por venta; botón en el carrito con autorización de gerente sobre 15%.
+- **Importación CSV/Excel** (Fase 3, hueco #12): `ImportRepository` pega CSV/TSV (Excel),
+  crea categorías/productos/variantes con costo, stock inicial `receipt`, código proveedor o
+  interno MB; idempotente por SKU. Pantalla Catálogo→Importar con revisión previa.
+- **Reconciliación** (Fase 8): `ReconciliationRepository` + Admin→Reconciliación: stock negativo,
+  sobre-reservado, pagos que no cuadran (folios duplicados no aplica: `folio` es UNIQUE).
 
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la

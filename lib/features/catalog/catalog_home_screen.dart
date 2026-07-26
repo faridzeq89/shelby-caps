@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../services/auth_controller.dart';
+import 'import_screen.dart';
 import 'product_editor_screen.dart';
 
 class CatalogHomeScreen extends StatefulWidget {
@@ -65,7 +66,21 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Catálogo')),
+      appBar: AppBar(
+        title: const Text('Catálogo'),
+        actions: [
+          IconButton(
+            tooltip: 'Importar desde CSV/Excel',
+            icon: const Icon(Icons.upload_file),
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const ImportScreen(),
+              ));
+              _reload();
+            },
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _newProduct,
         icon: const Icon(Icons.add),

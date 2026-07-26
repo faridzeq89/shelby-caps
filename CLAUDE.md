@@ -94,7 +94,18 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       + `supabase_flutter`. **FALTA que el dueño corra `supabase/migrations/0001_backups.sql` en
       cada proyecto** (bucket + políticas anon) — ver `docs/supabase-setup.md`. Verificación
       end-to-end en dispositivo (no testeable desde CI). Pendiente: reporte de reconciliación.
-- [ ] Fase 9 — Inventario operativo (recepción, ajustes, conteo físico)
+- [x] **Fase 9 — Inventario operativo**. Cerrada 2026-07-25 (con APK). Esquema v4:
+      `variants.min_stock` (punto de reorden por variante) + migración v3→v4 idempotente
+      (`_addMinStockIfMissing`). `InventoryRepository` ampliado: `receiveBatch` (movimientos
+      `receipt`, opción de actualizar costo), `adjust` (movimiento `adjustment` con motivo
+      obligatorio — merma/dañado/robo/corrección — gerente/admin o PIN de gerente), conteo
+      físico sobre `stock_counts`/`stock_count_lines` (crear/capturar/ver diferencias/aplicar
+      en lote como movimientos `count`/cancelar), y stock bajo (`lowStockVariants`/`lowStockCount`
+      usando disponible = on_hand − reservado; default global en `app_settings.low_stock_default`).
+      UI en `lib/features/inventory/`: hub + recepción + ajuste + conteo + stock bajo; enganchada
+      desde la barra de Venta (campana con badge + icono de inventario) y tarjeta en Admin. Todo
+      respeta el ledger append-only y audita. 40 pruebas verdes (9 nuevas: 8 de inventario +
+      migración v4). **Traspasos entre ubicaciones diferidos** hasta que exista 2ª sucursal.
 - [ ] Fase 10 — Reportes (+ ventas por vendedor)
 - [ ] Fase 11 — Producción (firma APK, respaldo, monitoreo, aviso de privacidad, capacitación)
 

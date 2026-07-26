@@ -32,4 +32,9 @@ class Permissions {
 
   static bool canCancelSale(UserRole role) =>
       role == UserRole.admin || role == UserRole.manager;
+
+  /// Recibir mercancía, ajustar stock, correr conteos y fijar mínimos. El
+  /// cajero puede consultar el inventario, pero no moverlo.
+  static bool canManageInventory(UserRole role) =>
+      role == UserRole.admin || role == UserRole.manager;
 }

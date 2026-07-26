@@ -112,6 +112,9 @@ class Variants extends Table {
   // Nulo => hereda el precio del producto.
   IntColumn get priceCentsOverride => integer().nullable()();
   IntColumn get costCents => integer().withDefault(const Constant(0))();
+  // Punto de reorden por variante. Nulo => usa el default global
+  // (AppSettings `low_stock_default`). Alimenta las alertas de stock bajo.
+  IntColumn get minStock => integer().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

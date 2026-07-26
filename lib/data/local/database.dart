@@ -57,7 +57,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -79,12 +79,29 @@ class AppDatabase extends _$AppDatabase {
           } else if (from < 3) {
             // v2 → v3: solo faltaba la tabla de movimientos de efectivo.
             await m.createTable(cashMovements);
+            // Encadena con v3 → v4 para bases que salten de v2 a v4.
+            await _addMinStockIfMissing(m);
+          } else if (from < 4) {
+            // v3 → v4: punto de reorden por variante (alertas de stock bajo).
+            await _addMinStockIfMissing(m);
           }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  /// Agrega `variants.min_stock` solo si aún no existe. Idempotente: una base
+  /// v2 fabricada en pruebas puede ya traer la columna, y ALTER TABLE no
+  /// soporta IF NOT EXISTS.
+  Future<void> _addMinStockIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('variants')").get();
+    final hasColumn =
+        info.any((r) => r.read<String>('name') == 'min_stock');
+    if (!hasColumn) {
+      await m.addColumn(variants, variants.minStock);
+    }
+  }
 
   /// Índices, la vista `variant_stock` y los triggers de inmutabilidad del
   /// ledger. Idempotente (IF NOT EXISTS) para servir en creación y upgrade.

@@ -6,9 +6,12 @@ import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
+import '../../data/repositories/inventory_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/cloud_backup_service.dart';
+import '../inventory/inventory_home_screen.dart';
+import '../inventory/low_stock_screen.dart';
 import 'layaways_screen.dart';
 import 'returns_screen.dart';
 import 'ticket_service.dart';
@@ -37,10 +40,12 @@ class _SaleScreenState extends State<SaleScreen> {
   late final AppDatabase _db = context.read<AppDatabase>();
   late final CatalogRepository _catalog = CatalogRepository(_db);
   late final SalesRepository _sales = SalesRepository(_db);
+  late final InventoryRepository _inventory = InventoryRepository(_db);
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _lines = <_CartLine>[];
   int? _locationId;
+  int _lowStock = 0;
 
   Profile get _cashier => context.read<AuthController>().currentUser!;
 
@@ -55,6 +60,19 @@ class _SaleScreenState extends State<SaleScreen> {
     _db.select(_db.locations).getSingleOrNull().then((loc) {
       if (mounted) setState(() => _locationId = loc?.id);
     });
+    _refreshLowStock();
+  }
+
+  Future<void> _refreshLowStock() async {
+    final n = await _inventory.lowStockCount();
+    if (mounted) setState(() => _lowStock = n);
+  }
+
+  Future<void> _openInventory(Widget screen) async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => screen));
+    _refreshLowStock();
+    _scanFocus.requestFocus();
   }
 
   @override
@@ -180,6 +198,7 @@ class _SaleScreenState extends State<SaleScreen> {
     if (!mounted) return;
     await _showDone(result, printed);
     setState(() => _lines.clear());
+    _refreshLowStock();
     _scanFocus.requestFocus();
   }
 
@@ -219,6 +238,21 @@ class _SaleScreenState extends State<SaleScreen> {
       appBar: AppBar(
         title: const Text('Venta'),
         actions: [
+          IconButton(
+            onPressed: () => _openInventory(const LowStockScreen()),
+            icon: _lowStock > 0
+                ? Badge(
+                    label: Text('$_lowStock'),
+                    child: const Icon(Icons.notifications_active_outlined),
+                  )
+                : const Icon(Icons.notifications_none),
+            tooltip: 'Stock bajo',
+          ),
+          IconButton(
+            onPressed: () => _openInventory(const InventoryHomeScreen()),
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Inventario',
+          ),
           IconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const LayawaysScreen()),

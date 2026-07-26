@@ -1,0 +1,7 @@
+# Plantilla de firma de release. Copia este archivo a `key.properties` (mismo
+# folder `android/`) y pon tus valores reales. `key.properties` NO se sube a git.
+# Ver docs/produccion.md sección 1.
+storePassword=CAMBIA_ESTO
+keyPassword=CAMBIA_ESTO
+keyAlias=boutique
+storeFile=boutique-release.jks

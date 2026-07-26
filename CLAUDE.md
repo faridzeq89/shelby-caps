@@ -125,3 +125,7 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
 ## Documentos
 - `docs/decisiones.md` — las decisiones de Fase 0 con su justificación y los TBD.
 - `docs/plan-fases.md` — el plan de construcción por fases, adaptado a Flutter.
+- `docs/supabase-setup.md` — cómo dejar listo el respaldo en la nube (Fase 8).
+- `docs/produccion.md` — Fase 11: firma release, monitoreo, respaldo, contingencia, checklist.
+- `docs/aviso-privacidad.md` — aviso LFPDPPP simplificado para el mostrador.
+- `docs/guia-rapida.md` — guía de una página para la caja.

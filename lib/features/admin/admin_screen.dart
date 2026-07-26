@@ -6,6 +6,7 @@ import '../catalog/catalog_home_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
 import 'cloud_backup_screen.dart';
+import 'reconciliation_screen.dart';
 import 'users_screen.dart';
 
 /// Panel de administración. Solo para rol admin: aunque se navegue directo,
@@ -72,6 +73,17 @@ class AdminScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const CloudBackupScreen()),
+              ),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.rule),
+              title: const Text('Reconciliación'),
+              subtitle: const Text('Stock negativo, folios, pagos que no cuadran'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReconciliationScreen()),
               ),
             ),
           ),

@@ -12,12 +12,22 @@ class CheckoutLine {
     required this.variant,
     required this.qty,
     required this.unitPriceCents,
+    this.lineDiscountCents = 0,
   });
 
   final Product product;
   final Variant variant;
   final int qty;
   final int unitPriceCents;
+
+  /// Descuento aplicado SOLO a esta línea (además del descuento por venta).
+  final int lineDiscountCents;
+
+  int get grossCents => unitPriceCents * qty;
+
+  /// Importe de la línea tras su propio descuento (antes del de venta).
+  int get baseCents =>
+      (grossCents - lineDiscountCents).clamp(0, grossCents);
 }
 
 /// Un pago que entra al cobro. Puede haber varios (pago dividido).
@@ -67,22 +77,25 @@ class SalesRepository {
   }) async {
     assert(lines.isNotEmpty, 'No se puede cobrar un carrito vacío');
 
-    // Bruto y descuento (repartido proporcional entre líneas para conservar el
-    // IVA por producto y que el total cuadre al centavo).
-    final gross = lines.fold(0, (s, l) => s + l.unitPriceCents * l.qty);
-    final discount = discountCents.clamp(0, gross);
-    final net = gross - discount;
+    // Dos niveles de descuento:
+    //  1) por línea (l.lineDiscountCents), aplicado antes del reparto;
+    //  2) por venta (discountCents), repartido proporcional sobre lo que quede,
+    //     para conservar el IVA por producto y que el total cuadre al centavo.
+    final gross = lines.fold(0, (s, l) => s + l.grossCents);
+    final baseSum = lines.fold(0, (s, l) => s + l.baseCents);
+    final saleDiscount = discountCents.clamp(0, baseSum);
+    final net = baseSum - saleDiscount;
+    final discount = gross - net; // descuento total (línea + venta)
 
     var subtotal = 0, tax = 0;
     final lineRows = <SaleLinesCompanion>[];
     var allocated = 0;
     for (var i = 0; i < lines.length; i++) {
       final l = lines[i];
-      final lineGross = l.unitPriceCents * l.qty;
       final isLast = i == lines.length - 1;
       final lineNet = isLast
           ? net - allocated
-          : (gross == 0 ? 0 : (lineGross * net / gross).round());
+          : (baseSum == 0 ? 0 : (l.baseCents * net / baseSum).round());
       allocated += lineNet;
       final bd = taxIncludedBreakdown(lineNet, l.product.taxRateBps);
       subtotal += bd.baseCents;
@@ -92,7 +105,7 @@ class SalesRepository {
         variantId: l.variant.id,
         qty: l.qty,
         unitPriceCents: l.unitPriceCents,
-        discountCents: Value(lineGross - lineNet),
+        discountCents: Value(l.grossCents - lineNet),
         taxCents: bd.taxCents,
         lineTotalCents: lineNet,
       ));

@@ -23,8 +23,12 @@ class _CartLine {
   final Variant variant;
   final int unitPriceCents;
   int qty;
+  int lineDiscountCents = 0;
 
   int get lineTotal => unitPriceCents * qty;
+
+  /// Importe de la línea tras su descuento propio.
+  int get net => (lineTotal - lineDiscountCents).clamp(0, lineTotal);
   String get title =>
       '${product.name}  ${variant.size ?? ''} ${variant.color ?? ''}'.trim();
 }
@@ -49,9 +53,11 @@ class _SaleScreenState extends State<SaleScreen> {
 
   Profile get _cashier => context.read<AuthController>().currentUser!;
 
-  int get _total => _lines.fold(0, (s, l) => s + l.lineTotal);
+  int get _total => _lines.fold(0, (s, l) => s + l.net);
   int get _tax => _lines.fold(
-      0, (s, l) => s + taxIncludedBreakdown(l.lineTotal, l.product.taxRateBps).taxCents);
+      0, (s, l) => s + taxIncludedBreakdown(l.net, l.product.taxRateBps).taxCents);
+
+  static const _lineAuthThreshold = 0.15; // descuento por línea que exige gerente
   int get _itemCount => _lines.fold(0, (s, l) => s + l.qty);
 
   @override
@@ -145,6 +151,7 @@ class _SaleScreenState extends State<SaleScreen> {
               variant: l.variant,
               qty: l.qty,
               unitPriceCents: l.unitPriceCents,
+              lineDiscountCents: l.lineDiscountCents,
             ),
         ],
         payments: payment.payments,
@@ -171,7 +178,7 @@ class _SaleScreenState extends State<SaleScreen> {
             description: l.title,
             qty: l.qty,
             unitPriceCents: l.unitPriceCents,
-            lineTotalCents: l.lineTotal,
+            lineTotalCents: l.net,
           ),
       ],
       subtotalCents: result.grossCents,
@@ -306,13 +313,23 @@ class _SaleScreenState extends State<SaleScreen> {
   }
 
   Widget _cartTile(_CartLine line) {
+    final unit = '\$${(line.unitPriceCents / 100).toStringAsFixed(2)}';
+    final subtitle = line.lineDiscountCents > 0
+        ? '$unit c/u  ·  −\$${(line.lineDiscountCents / 100).toStringAsFixed(2)}  ·  = \$${(line.net / 100).toStringAsFixed(2)}'
+        : '$unit c/u  ·  = \$${(line.lineTotal / 100).toStringAsFixed(2)}';
     return ListTile(
       title: Text(line.title),
-      subtitle: Text(
-          '\$${(line.unitPriceCents / 100).toStringAsFixed(2)} c/u  ·  = \$${(line.lineTotal / 100).toStringAsFixed(2)}'),
+      subtitle: Text(subtitle),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+              tooltip: 'Descuento en línea',
+              onPressed: () => _editLineDiscount(line),
+              icon: Icon(Icons.local_offer_outlined,
+                  color: line.lineDiscountCents > 0
+                      ? Theme.of(context).colorScheme.primary
+                      : null)),
           IconButton(
               onPressed: () => _changeQty(line, -1),
               icon: const Icon(Icons.remove_circle_outline)),
@@ -323,6 +340,74 @@ class _SaleScreenState extends State<SaleScreen> {
         ],
       ),
     );
+  }
+
+  /// Verifica autorización de gerente (o que el actor ya lo sea) por PIN.
+  Future<bool> _authorizeManager() async {
+    if (Permissions.canAuthorizeDiscount(_cashier.role)) return true;
+    final auth = context.read<AuthController>();
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Autorización de gerente'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'PIN de gerente'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Autorizar')),
+        ],
+      ),
+    );
+    if (ok != true) return false;
+    return (await auth.verifyPrivilegedPin(ctrl.text)) != null;
+  }
+
+  Future<void> _editLineDiscount(_CartLine line) async {
+    final ctrl = TextEditingController(
+        text: line.lineDiscountCents == 0
+            ? ''
+            : (line.lineDiscountCents / 100).toStringAsFixed(2));
+    final pesos = await showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Descuento — ${line.title}'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+              prefixText: '\$', labelText: 'Descuento (0 para quitar)'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(double.tryParse(ctrl.text.trim()) ?? 0),
+              child: const Text('Aplicar')),
+        ],
+      ),
+    );
+    if (pesos == null) return;
+    final cents = ((pesos * 100).round()).clamp(0, line.lineTotal);
+    if (cents > (line.lineTotal * _lineAuthThreshold).round()) {
+      if (!await _authorizeManager()) {
+        _toast('Descuento no autorizado');
+        return;
+      }
+    }
+    setState(() => line.lineDiscountCents = cents);
   }
 
   Widget _summaryBar() {

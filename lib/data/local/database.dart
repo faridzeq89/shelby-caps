@@ -109,6 +109,9 @@ class AppDatabase extends _$AppDatabase {
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
+          // Espera en vez de fallar si el respaldo (VACUUM) toma el lock un
+          // instante: evita "database is locked" al guardar.
+          await customStatement('PRAGMA busy_timeout = 5000');
         },
       );
 

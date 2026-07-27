@@ -225,6 +225,18 @@ Todo con tests/analyze verdes (94 pruebas) y APK.
   `productImageProvider`); Usuarios (buscador + chips por rol, avatar/chips de color por rol/estado).
   Clientes y Usuarios con filas en tarjetas. La pantalla de **Vender NO se tocó** (ya gustaba).
 
+## Rediseño de acceso + marca (2026-07-26, en `main`)
+- **Nombre real del negocio: "Montana Boutique"** — consistente en toda la app: título de la
+  app (`app.dart`), label de Android, pantalla de login, **tickets** (`ticket_service.dart`) y
+  **comprobante de apartado** (`layaway_receipt.dart`). Ya no queda ningún "POS Boutique".
+- **Ícono de la app**: `assets/icono-app.png` + adaptativo (`icono-foreground.png`, fondo
+  `#7a1f5c`) vía `flutter_launcher_icons` (regenerar con `dart run flutter_launcher_icons`).
+- **Pantalla de acceso rediseñada** (`pin_login_screen.dart`): logo con esquinas redondeadas +
+  sombra, nombre de marca.
+- **Teclado PIN** (`pin_pad.dart`): responde al TOCAR (onTapDown, no pierde toques rápidos) con
+  **vibración** (HapticFeedback), puntos animados, tecla de avance resaltada, `PinPad` acepta
+  `logo` opcional. Tests de Fase 1 actualizados al nuevo diseño. 94 pruebas verdes.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

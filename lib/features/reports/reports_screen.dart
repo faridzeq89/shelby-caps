@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_dropdown.dart';
 import '../../core/dashboard_tile.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/reports_repository.dart';
@@ -150,26 +151,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               // Selector de periodo: desplegable con presets + personalizado.
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Periodo',
-                  prefixIcon: Icon(Icons.calendar_month_outlined),
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _presetSlug,
-                    isExpanded: true,
-                    items: [
-                      for (final (slug, label) in _presets)
-                        DropdownMenuItem(value: slug, child: Text(label)),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) _onPreset(v);
-                    },
-                  ),
-                ),
+              AppDropdown<String>(
+                label: 'Periodo',
+                icon: Icons.calendar_month_outlined,
+                value: _presetSlug,
+                items: [
+                  for (final (slug, label) in _presets)
+                    DropdownMenuItem(value: slug, child: Text(label)),
+                ],
+                onChanged: (v) {
+                  if (v != null) _onPreset(v);
+                },
               ),
               const SizedBox(height: 6),
               Align(

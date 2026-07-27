@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_dropdown.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../services/auth_controller.dart';
@@ -350,10 +351,12 @@ class _NewProductDialogState extends State<_NewProductDialog> {
               controller: _name,
               decoration: const InputDecoration(labelText: 'Nombre'),
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: _brand,
               decoration: const InputDecoration(labelText: 'Marca (opcional)'),
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: _price,
               keyboardType:
@@ -361,13 +364,13 @@ class _NewProductDialogState extends State<_NewProductDialog> {
               decoration: const InputDecoration(
                   labelText: 'Precio base', prefixText: '\$'),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             if (!_creatingCategory)
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButton<int>(
-                      isExpanded: true,
+                    child: AppDropdown<int>(
+                      label: 'Categoría',
                       value: _categoryId,
                       items: [
                         for (final c in _categories)
@@ -376,7 +379,8 @@ class _NewProductDialogState extends State<_NewProductDialog> {
                       onChanged: (v) => setState(() => _categoryId = v),
                     ),
                   ),
-                  IconButton(
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
                     tooltip: 'Nueva categoría',
                     icon: const Icon(Icons.add),
                     onPressed: () => setState(() => _creatingCategory = true),

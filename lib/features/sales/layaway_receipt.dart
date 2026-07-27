@@ -27,7 +27,7 @@ class LayawayReceiptService {
     required int paidCents,
     required int balanceCents,
     required DateTime dueDate,
-    String businessName = 'POS Boutique',
+    String businessName = 'Montana Boutique',
   }) async {
     final doc = pw.Document();
     final df = DateFormat('dd/MM/yyyy');

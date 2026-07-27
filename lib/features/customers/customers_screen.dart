@@ -418,27 +418,35 @@ class _CustomerEditorDialogState extends State<_CustomerEditorDialog> {
       c.text.trim().isEmpty ? null : c.text.trim();
 
   Future<void> _save() async {
-    if (_name.text.trim().isEmpty) return;
+    if (_name.text.trim().isEmpty || _saving) return;
     setState(() => _saving = true);
-    int id;
-    if (widget.existing == null) {
-      id = await widget.repo.create(
-        name: _name.text.trim(),
-        phone: _clean(_phone),
-        email: _clean(_email),
-        notes: _clean(_notes),
-      );
-    } else {
-      id = widget.existing!.id;
-      await widget.repo.update(
-        id: id,
-        name: _name.text.trim(),
-        phone: _clean(_phone),
-        email: _clean(_email),
-        notes: _clean(_notes),
-      );
+    try {
+      int id;
+      if (widget.existing == null) {
+        id = await widget.repo.create(
+          name: _name.text.trim(),
+          phone: _clean(_phone),
+          email: _clean(_email),
+          notes: _clean(_notes),
+        );
+      } else {
+        id = widget.existing!.id;
+        await widget.repo.update(
+          id: id,
+          name: _name.text.trim(),
+          phone: _clean(_phone),
+          email: _clean(_email),
+          notes: _clean(_notes),
+        );
+      }
+      if (mounted) Navigator.of(context).pop(id);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No se pudo guardar: $e')));
+      }
     }
-    if (mounted) Navigator.of(context).pop(id);
   }
 
   @override

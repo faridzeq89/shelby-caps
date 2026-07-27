@@ -30,7 +30,7 @@ class TicketData {
     required this.payments,
     required this.changeCents,
     required this.gift,
-    this.businessName = 'POS Boutique',
+    this.businessName = 'Montana Boutique',
   });
 
   final String folio;

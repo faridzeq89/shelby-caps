@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_dropdown.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../services/auth_controller.dart';
@@ -257,9 +258,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
             controller: _name,
             decoration: const InputDecoration(labelText: 'Nombre'),
           ),
-          const SizedBox(height: 8),
-          DropdownButton<UserRole>(
-            isExpanded: true,
+          const SizedBox(height: 12),
+          AppDropdown<UserRole>(
+            label: 'Rol',
             value: _role,
             items: [
               for (final r in UserRole.values)
@@ -267,6 +268,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
             ],
             onChanged: (v) => setState(() => _role = v ?? UserRole.cashier),
           ),
+          const SizedBox(height: 12),
           TextField(
             controller: _pin,
             keyboardType: TextInputType.number,

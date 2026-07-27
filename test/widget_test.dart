@@ -30,10 +30,16 @@ Future<void> seedUser(
 
 Future<void> enterPin(WidgetTester tester, String pin) async {
   for (final digit in pin.split('')) {
-    await tester.tap(find.text(digit));
+    final key = find.text(digit);
+    await tester.ensureVisible(key);
+    await tester.pump();
+    await tester.tap(key, warnIfMissed: false);
     await tester.pump();
   }
-  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
+  final btn = find.widgetWithText(FilledButton, 'Entrar');
+  await tester.ensureVisible(btn);
+  await tester.pump();
+  await tester.tap(btn, warnIfMissed: false);
   await tester.pumpAndSettle();
 }
 

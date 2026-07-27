@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Teclado numérico reutilizable para capturar un PIN.
+///
+/// Las teclas responden al **tocar** (onTapDown), no al soltar, para que no se
+/// pierdan toques rápidos, con vibración ligera de confirmación.
 ///
 /// [onSubmit] recibe el PIN capturado y devuelve un mensaje de error para
 /// mostrar en pantalla, o `null` si todo salió bien. El pad se limpia después
@@ -11,6 +15,7 @@ class PinPad extends StatefulWidget {
     required this.title,
     required this.onSubmit,
     this.subtitle,
+    this.logo,
     this.minLength = 4,
     this.maxLength = 6,
     this.submitLabel = 'Entrar',
@@ -18,6 +23,7 @@ class PinPad extends StatefulWidget {
 
   final String title;
   final String? subtitle;
+  final Widget? logo;
   final int minLength;
   final int maxLength;
   final String submitLabel;
@@ -70,62 +76,77 @@ class _PinPadState extends State<PinPad> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
               child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(widget.title, style: theme.textTheme.headlineSmall),
-            if (widget.subtitle != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                widget.subtitle!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ],
-            const SizedBox(height: 24),
-            _Dots(length: _pin.length, max: widget.maxLength),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 24,
-              child: _error == null
-                  ? null
-                  : Text(
-                      _error!,
-                      style: TextStyle(color: theme.colorScheme.error),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.logo != null) ...[
+                    widget.logo!,
+                    const SizedBox(height: 20),
+                  ],
+                  Text(widget.title,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  if (widget.subtitle != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.subtitle!,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
-            ),
-            const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 3,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.6,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                for (var d = 1; d <= 9; d++)
-                  _Key(label: '$d', onTap: () => _tap('$d')),
-                _Key(icon: Icons.backspace_outlined, onTap: _backspace),
-                _Key(label: '0', onTap: () => _tap('0')),
-                _Key(
-                  icon: Icons.check_circle,
-                  onTap: canSubmit ? _submit : null,
-                  filled: true,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: canSubmit ? _submit : null,
-              child: _busy
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(widget.submitLabel),
-            ),
-          ],
+                  ],
+                  const SizedBox(height: 28),
+                  _Dots(length: _pin.length, max: widget.maxLength),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 24,
+                    child: _error == null
+                        ? null
+                        : Text(
+                            _error!,
+                            style: TextStyle(
+                                color: theme.colorScheme.error,
+                                fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                  const SizedBox(height: 10),
+                  GridView.count(
+                    shrinkWrap: true,
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 1.25,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (var d = 1; d <= 9; d++)
+                        _Key(label: '$d', onTap: () => _tap('$d')),
+                      _Key(
+                          icon: Icons.backspace_outlined,
+                          onTap: _pin.isEmpty ? null : _backspace),
+                      _Key(label: '0', onTap: () => _tap('0')),
+                      _Key(
+                        icon: Icons.arrow_forward_rounded,
+                        onTap: canSubmit ? _submit : null,
+                        filled: true,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: canSubmit ? _submit : null,
+                      child: _busy
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(widget.submitLabel),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -148,14 +169,17 @@ class _Dots extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (var i = 0; i < max; i++)
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 6),
-            width: 16,
-            height: 16,
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            margin: const EdgeInsets.symmetric(horizontal: 7),
+            width: 18,
+            height: 18,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: i < length ? scheme.primary : Colors.transparent,
-              border: Border.all(color: scheme.outline),
+              border: Border.all(
+                  color: i < length ? scheme.primary : scheme.outline,
+                  width: 1.5),
             ),
           ),
       ],
@@ -163,7 +187,9 @@ class _Dots extends StatelessWidget {
   }
 }
 
-class _Key extends StatelessWidget {
+/// Tecla del pad: responde al TOCAR (onTapDown) para no perder toques rápidos,
+/// con vibración y realce al presionar.
+class _Key extends StatefulWidget {
   const _Key({this.label, this.icon, this.onTap, this.filled = false});
 
   final String? label;
@@ -172,21 +198,63 @@ class _Key extends StatelessWidget {
   final bool filled;
 
   @override
+  State<_Key> createState() => _KeyState();
+}
+
+class _KeyState extends State<_Key> {
+  bool _down = false;
+
+  void _fire() {
+    if (widget.onTap == null) return;
+    HapticFeedback.lightImpact();
+    widget.onTap!();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final child = icon != null
-        ? Icon(icon, size: 28)
+    final enabled = widget.onTap != null;
+    final child = widget.icon != null
+        ? Icon(widget.icon,
+            size: 30,
+            color: widget.filled ? Colors.white : scheme.onSurface)
         : Text(
-            label ?? '',
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w500),
+            widget.label ?? '',
+            style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurface),
           );
-    return Material(
-      color: filled ? scheme.primaryContainer : scheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Center(child: child),
+
+    final baseColor = widget.filled
+        ? scheme.primary
+        : Theme.of(context).colorScheme.surface;
+    final pressedColor = widget.filled
+        ? scheme.primary.withValues(alpha: 0.82)
+        : scheme.primary.withValues(alpha: 0.12);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // Dispara al TOCAR (down): instantáneo y sin perder toques rápidos.
+      onTapDown: enabled
+          ? (_) {
+              _fire();
+              setState(() => _down = true);
+            }
+          : null,
+      onTapUp: enabled ? (_) => setState(() => _down = false) : null,
+      onTapCancel: enabled ? () => setState(() => _down = false) : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 60),
+        decoration: BoxDecoration(
+          color: enabled
+              ? (_down ? pressedColor : baseColor)
+              : scheme.surface.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+              color: widget.filled ? Colors.transparent : scheme.outlineVariant),
+        ),
+        child: Center(child: Opacity(opacity: enabled ? 1 : 0.4, child: child)),
       ),
     );
   }

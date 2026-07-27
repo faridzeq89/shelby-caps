@@ -237,6 +237,20 @@ Todo con tests/analyze verdes (94 pruebas) y APK.
   **vibración** (HapticFeedback), puntos animados, tecla de avance resaltada, `PinPad` acepta
   `logo` opcional. Tests de Fase 1 actualizados al nuevo diseño. 94 pruebas verdes.
 
+## Ajustes de UI/rendimiento (2026-07-26, en `main`)
+- **Juzgar rendimiento SIEMPRE en APK `release`, no `debug`.** El debug corre 3-10× más lento;
+  el "lag del teclado" y los tirones eran del build debug. En release todo va fluido (confirmado
+  por el dueño). El release está firmado (Fase 12): `flutter build apk --release`.
+- **Bug corregido:** Cancelar en "Nuevo cliente" hacía `pop(false)` sobre `showDialog<int>` →
+  reventaba por tipo y no cerraba (el dueño creaba clientes al no poder salir). Ahora `pop()`.
+  Regla: no pases un tipo distinto al de `showDialog<T>` en `Navigator.pop`.
+- **Perf de reportes/inventario:** índice `idx_sale_lines_variant` (esquema **v8**); `recommendations`
+  y `deadStock` reescritos con CTE `sales_agg` (agrega ventas por variante 1 vez, en vez de
+  subconsultas correlacionadas por cada variante) + topes (80/200). `activeLayaways` sin N+1.
+- **Responsivo:** barra de Venta colapsa acciones en menú "⋮" en teléfono (<600px); diálogos con
+  `SingleChildScrollView` (no overflow con teclado); `AppDropdown` reutilizable (borde redondeado).
+- Estas mejoras NO tienen tag de fase (son post-Fase 16); viven en `main`. 94 pruebas verdes.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

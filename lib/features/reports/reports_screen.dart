@@ -33,21 +33,76 @@ class _ReportsScreenState extends State<ReportsScreen> {
   late final ReportsRepository _repo =
       ReportsRepository(context.read<AppDatabase>());
 
-  int _periodIndex = 2; // 30 días por defecto
+  String _presetSlug = '30d';
+  DateTimeRange? _customRange;
   late Future<_HubData> _future = _load();
 
-  List<_Period> _periods() {
+  static const _presets = <(String, String)>[
+    ('hoy', 'Hoy'),
+    ('ayer', 'Ayer'),
+    ('7d', 'Últimos 7 días'),
+    ('30d', 'Últimos 30 días'),
+    ('60d', 'Últimos 60 días'),
+    ('90d', 'Últimos 90 días'),
+    ('mes', 'Este mes'),
+    ('mespasado', 'Mes pasado'),
+    ('custom', 'Personalizado…'),
+  ];
+
+  _Period get _period {
     final now = DateTime.now();
-    final startToday = DateTime(now.year, now.month, now.day);
-    return [
-      _Period('Hoy', startToday, startToday.add(const Duration(days: 1)), 'hoy'),
-      _Period('7 días', now.subtract(const Duration(days: 7)), now, '7d'),
-      _Period('30 días', now.subtract(const Duration(days: 30)), now, '30d'),
-      _Period('60 días', now.subtract(const Duration(days: 60)), now, '60d'),
-    ];
+    final today = DateTime(now.year, now.month, now.day);
+    final f = DateFormat('dd/MM/yy');
+    switch (_presetSlug) {
+      case 'hoy':
+        return _Period('Hoy', today, today.add(const Duration(days: 1)), 'hoy');
+      case 'ayer':
+        final y = today.subtract(const Duration(days: 1));
+        return _Period('Ayer', y, today, 'ayer');
+      case '7d':
+        return _Period('7 días', now.subtract(const Duration(days: 7)), now, '7d');
+      case '60d':
+        return _Period('60 días', now.subtract(const Duration(days: 60)), now, '60d');
+      case '90d':
+        return _Period('90 días', now.subtract(const Duration(days: 90)), now, '90d');
+      case 'mes':
+        return _Period(
+            'Este mes', DateTime(now.year, now.month, 1), now, 'mes');
+      case 'mespasado':
+        return _Period('Mes pasado', DateTime(now.year, now.month - 1, 1),
+            DateTime(now.year, now.month, 1), 'mespasado');
+      case 'custom':
+        final r = _customRange!;
+        final end = DateTime(r.end.year, r.end.month, r.end.day)
+            .add(const Duration(days: 1));
+        return _Period(
+            '${f.format(r.start)}–${f.format(r.end)}', r.start, end, 'custom');
+      default:
+        return _Period(
+            '30 días', now.subtract(const Duration(days: 30)), now, '30d');
+    }
   }
 
-  _Period get _period => _periods()[_periodIndex];
+  Future<void> _onPreset(String slug) async {
+    if (slug == 'custom') {
+      final now = DateTime.now();
+      final picked = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(now.year - 3),
+        lastDate: now,
+        initialDateRange: _customRange,
+      );
+      if (picked == null) return;
+      setState(() {
+        _customRange = picked;
+        _presetSlug = 'custom';
+      });
+      _reload();
+      return;
+    }
+    setState(() => _presetSlug = slug);
+    _reload();
+  }
 
   Future<_HubData> _load() async {
     final p = _period;
@@ -93,17 +148,33 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // Selector de periodo.
-              SegmentedButton<int>(
-                segments: [
-                  for (var i = 0; i < _periods().length; i++)
-                    ButtonSegment(value: i, label: Text(_periods()[i].label)),
-                ],
-                selected: {_periodIndex},
-                onSelectionChanged: (sel) {
-                  setState(() => _periodIndex = sel.first);
-                  _reload();
-                },
+              // Selector de periodo: desplegable con presets + personalizado.
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Periodo',
+                  prefixIcon: Icon(Icons.calendar_month_outlined),
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _presetSlug,
+                    isExpanded: true,
+                    items: [
+                      for (final (slug, label) in _presets)
+                        DropdownMenuItem(value: slug, child: Text(label)),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) _onPreset(v);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Mostrando: ${_period.label}',
+                    style: theme.textTheme.bodySmall),
               ),
               const SizedBox(height: 16),
               // Resumen.
@@ -136,8 +207,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              _tile(Icons.lightbulb_outline, 'Recomendaciones',
+              const SizedBox(height: 12),
+              GridView.extent(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                maxCrossAxisExtent: 240,
+                mainAxisExtent: 118,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                children: [
+                  _tile(Icons.lightbulb_outline, 'Recomendaciones',
                   'Qué reabastecer, ofertar o descontar', () {
                 _open('Recomendaciones', 'recomendaciones', () async {
                   final recs = await _repo.recommendations();
@@ -309,6 +388,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
+                ],
+              ),
             ],
           );
         },
@@ -325,13 +406,37 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
 
   Widget _tile(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    final theme = Theme.of(context);
     return Card(
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: theme.colorScheme.primary, size: 26),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  Text(subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.hintColor)),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -13,9 +13,17 @@ import 'loyalty_config_screen.dart';
 import 'reconciliation_screen.dart';
 import 'users_screen.dart';
 
-/// Panel de administración. Solo para rol admin: aunque se navegue directo,
-/// un no-admin ve "Acceso denegado" (la puerta se cierra aquí, no solo
-/// escondiendo el botón).
+/// Una entrada del panel de administración.
+class _AdminItem {
+  const _AdminItem(this.icon, this.title, this.subtitle, this.color, this.onTap);
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final void Function(BuildContext) onTap;
+}
+
+/// Panel de administración en rejilla (dashboard). Solo para rol admin.
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
 
@@ -42,109 +50,50 @@ class AdminScreen extends StatelessWidget {
       );
     }
 
+    void go(BuildContext c, Widget screen) =>
+        Navigator.of(c).push(MaterialPageRoute(builder: (_) => screen));
+
+    final items = <_AdminItem>[
+      _AdminItem(Icons.inventory_2_outlined, 'Catálogo',
+          'Productos, variantes y etiquetas', Colors.indigo,
+          (c) => go(c, const CatalogHomeScreen())),
+      _AdminItem(Icons.inventory_outlined, 'Inventario',
+          'Recepción, ajustes, conteo', Colors.teal,
+          (c) => go(c, const InventoryHomeScreen())),
+      _AdminItem(Icons.people_alt_outlined, 'Clientes',
+          'Fichas, historial y totales', Colors.blue,
+          (c) => go(c, const CustomersScreen())),
+      _AdminItem(Icons.stars_outlined, 'Programa de puntos',
+          'Reglas de lealtad', Colors.amber.shade800,
+          (c) => go(c, const LoyaltyConfigScreen())),
+      _AdminItem(Icons.bar_chart_outlined, 'Reportes',
+          'Ventas, margen, recomendaciones', Colors.deepPurple,
+          (c) => go(c, const ReportsScreen())),
+      _AdminItem(Icons.groups_outlined, 'Usuarios',
+          'Cajeros, gerentes y PIN', Colors.brown,
+          (c) => go(c, const UsersScreen())),
+      _AdminItem(Icons.cloud_outlined, 'Respaldo',
+          'Respaldar / restaurar (nube)', Colors.cyan.shade700,
+          (c) => go(c, const CloudBackupScreen())),
+      _AdminItem(Icons.rule, 'Reconciliación',
+          'Salud de datos', Colors.blueGrey,
+          (c) => go(c, const ReconciliationScreen())),
+      _AdminItem(Icons.auto_awesome_outlined, 'Catálogo de prueba',
+          '100 productos demo', Colors.pink.shade400, _loadDemoCatalog),
+    ];
+
     return Scaffold(
       appBar: AppBar(title: const Text('Administración')),
-      body: ListView(
+      body: GridView.builder(
         padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.inventory_2_outlined),
-              title: const Text('Catálogo'),
-              subtitle: const Text('Productos, variantes, códigos y etiquetas'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CatalogHomeScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.inventory_outlined),
-              title: const Text('Inventario'),
-              subtitle: const Text('Recepción, ajustes, conteo y stock bajo'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const InventoryHomeScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.cloud_outlined),
-              title: const Text('Respaldo en la nube'),
-              subtitle: const Text('Respaldar / restaurar (Supabase)'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CloudBackupScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.rule),
-              title: const Text('Reconciliación'),
-              subtitle: const Text('Stock negativo, folios, pagos que no cuadran'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ReconciliationScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.groups_outlined),
-              title: const Text('Usuarios'),
-              subtitle: const Text('Crear cajeros/gerentes, PIN, activar'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const UsersScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.people_alt_outlined),
-              title: const Text('Clientes'),
-              subtitle: const Text('Ficha, historial de compras y totales'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CustomersScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.stars_outlined),
-              title: const Text('Programa de puntos'),
-              subtitle: const Text('Reglas de ganar y canjear lealtad'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const LoyaltyConfigScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.bar_chart_outlined),
-              title: const Text('Reportes'),
-              subtitle: const Text('Ventas, margen, inventario muerto, export'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ReportsScreen()),
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.auto_awesome_outlined),
-              title: const Text('Cargar catálogo de prueba'),
-              subtitle: const Text('100 productos de demo con fotos y stock'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _loadDemoCatalog(context),
-            ),
-          ),
-        ],
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 220,
+          mainAxisExtent: 150,
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 14,
+        ),
+        itemCount: items.length,
+        itemBuilder: (context, i) => _AdminCard(item: items[i]),
       ),
     );
   }
@@ -170,8 +119,8 @@ class AdminScreen extends StatelessWidget {
       ),
     );
     if (ok != true) return;
-    messenger.showSnackBar(const SnackBar(
-        content: Text('Cargando catálogo de prueba…')));
+    messenger.showSnackBar(
+        const SnackBar(content: Text('Cargando catálogo de prueba…')));
     try {
       final n = await DemoSeedService(db).load(count: 100);
       messenger.showSnackBar(
@@ -179,5 +128,56 @@ class AdminScreen extends StatelessWidget {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     }
+  }
+}
+
+/// Tarjeta de acción del panel: icono en círculo de color, título y subtítulo.
+class _AdminCard extends StatelessWidget {
+  const _AdminCard({required this.item});
+  final _AdminItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => item.onTap(context),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: item.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(item.icon, color: item.color, size: 26),
+              ),
+              const SizedBox(height: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  Text(item.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.hintColor)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

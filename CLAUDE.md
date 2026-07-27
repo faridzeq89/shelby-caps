@@ -140,6 +140,21 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       analyze limpio. Dispositivo objetivo: Xiaomi Poco X7. **Pendiente hardware** (sin cambio):
       ESC/POS térmico, ZPL físico. Las fotos del demo son de relleno; el dueño las reemplaza.
 
+- [x] **Fase 13 — Restauración segura del respaldo**. Cerrada 2026-07-26 (con APK). Previene la
+      pérdida de datos al cambiar de tablet. `CloudBackupService`: bandera `backup_claimed` en
+      `app_settings`; **guardia** — `backupNow` NO sube si la tablet no está reclamada (una tablet
+      nueva/vacía ya no puede sobrescribir el respaldo bueno de la nube). `autoClaimIfHasData` (en
+      `main`, antes de `startPeriodic`) reclama solo si la base ya tiene ventas → installs existentes
+      siguen respaldando sin fricción; una tablet nueva queda sin reclamar hasta que el usuario
+      decida. `markClaimed` explícito. **Historial versionado**: además de `boutique.sqlite` (latest),
+      copias con fecha en `history/` espaciadas (cada 6 h, poda a 10) — best-effort, nunca rompe el
+      respaldo principal. UI Admin→Respaldo: aviso de "tablet nueva", botón "Empezar a respaldar esta
+      tablet"; "Respaldar ahora" solo cuando está reclamada; restaurar ya trae la bandera. 72 pruebas
+      verdes (5 nuevas de claim/guardia). **Pendiente/diferido:** el "login de negocio" (Supabase Auth)
+      quedó fuera — en single-tenant la guardia cubre el riesgo sin login; se retoma si se hace
+      multi-tienda (requiere que el dueño active email auth en Supabase). Sigue pendiente del dueño el
+      SQL de Supabase de la Fase 8 para que el respaldo en la nube opere en el dispositivo.
+
 ## Backlog resuelto (2026-07-26, post-fases, en `main`)
 Cuatro pendientes acumulados, cada uno con tests y commit propio. 60 pruebas verdes.
 - **Gestión de usuarios** (`UserRepository` + Admin→Usuarios): crear cajeros/gerentes con PIN

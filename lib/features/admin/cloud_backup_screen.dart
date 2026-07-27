@@ -53,13 +53,25 @@ class CloudBackupScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               )
             else ...[
-              FilledButton.icon(
-                onPressed: svc.state == SyncState.syncing
-                    ? null
-                    : () => svc.backupNow(),
-                icon: const Icon(Icons.cloud_upload),
-                label: const Text('Respaldar ahora'),
-              ),
+              if (!svc.isClaimedCached) ...[
+                _newTabletBanner(context),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () async {
+                    await svc.markClaimed();
+                    svc.backupNow();
+                  },
+                  icon: const Icon(Icons.cloud_upload),
+                  label: const Text('Empezar a respaldar esta tablet'),
+                ),
+              ] else
+                FilledButton.icon(
+                  onPressed: svc.state == SyncState.syncing
+                      ? null
+                      : () => svc.backupNow(),
+                  icon: const Icon(Icons.cloud_upload),
+                  label: const Text('Respaldar ahora'),
+                ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => _confirmRestore(context, svc),
@@ -67,6 +79,40 @@ class CloudBackupScreen extends StatelessWidget {
                 label: const Text('Restaurar desde la nube'),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _newTabletBanner(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      color: scheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.info_outline, color: scheme.onSecondaryContainer),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Esta tablet aún no respalda',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSecondaryContainer)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Si es una tablet NUEVA y ya tienes datos en la nube, restaura '
+              'primero (abajo) para no perderlos. Si es tu tablet principal, '
+              'toca "Empezar a respaldar esta tablet".',
+              style: TextStyle(color: scheme.onSecondaryContainer),
+            ),
           ],
         ),
       ),

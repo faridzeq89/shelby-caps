@@ -15,7 +15,11 @@ Future<void> main() async {
   final auth = AuthController(db);
   await auth.ensureSeedAdmin();
   await SeedService(db).run();
-  final backup = CloudBackupService(db, enabled: cloudEnabled)..startPeriodic();
+  final backup = CloudBackupService(db, enabled: cloudEnabled);
+  // Install existente (ya con ventas) reclama solo para seguir respaldando tras
+  // actualizar; una tablet nueva queda sin reclamar hasta que el usuario decida.
+  await backup.autoClaimIfHasData();
+  backup.startPeriodic();
   runApp(BoutiquePosApp(auth: auth, db: db, backup: backup));
 }
 

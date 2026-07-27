@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/image_service.dart';
 import 'import_screen.dart';
 import 'product_editor_screen.dart';
 
@@ -99,18 +100,21 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
                   textAlign: TextAlign.center),
             );
           }
-          return ListView.separated(
+          return GridView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 180,
+              mainAxisExtent: 232,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
             itemCount: data.products.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, i) {
               final p = data.products[i];
-              final cat = data.categoryNames[p.categoryId] ?? '—';
-              final count = data.variantCounts[p.id] ?? 0;
-              return ListTile(
-                title: Text(p.name),
-                subtitle: Text(
-                    '$cat · $count variantes · \$${(p.basePriceCents / 100).toStringAsFixed(2)}'),
-                trailing: const Icon(Icons.chevron_right),
+              return _CatalogTile(
+                product: p,
+                category: data.categoryNames[p.categoryId] ?? '—',
+                variantCount: data.variantCounts[p.id] ?? 0,
                 onTap: () => _openProduct(p.id),
               );
             },
@@ -119,6 +123,76 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
       ),
     );
   }
+}
+
+/// Mosaico de producto con foto (o marcador), nombre, categoría/variantes y precio.
+class _CatalogTile extends StatelessWidget {
+  const _CatalogTile({
+    required this.product,
+    required this.category,
+    required this.variantCount,
+    required this.onTap,
+  });
+  final Product product;
+  final String category;
+  final int variantCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final provider = productImageProvider(product.imagePath);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: provider != null
+                  ? Image(
+                      image: ResizeImage(provider,
+                          width: 360, allowUpscaling: false),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _placeholder(theme),
+                    )
+                  : _placeholder(theme),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500)),
+                  Text('$category · $variantCount var.',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.hintColor)),
+                  Text('\$${(product.basePriceCents / 100).toStringAsFixed(2)}',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholder(ThemeData theme) => Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Icon(Icons.checkroom,
+            size: 40, color: theme.colorScheme.onSurfaceVariant),
+      );
 }
 
 /// Alta de producto: nombre, categoría (existente o nueva), marca y precio base.

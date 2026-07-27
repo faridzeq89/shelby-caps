@@ -11,6 +11,23 @@ String roleLabel(UserRole r) => switch (r) {
       UserRole.cashier => 'Cajero',
     };
 
+Color roleColor(UserRole r) => switch (r) {
+      UserRole.admin => Colors.deepPurple,
+      UserRole.manager => Colors.teal,
+      UserRole.cashier => Colors.blueGrey,
+    };
+
+Widget _chip(String label, Color color) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+    );
+
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
 
@@ -88,15 +105,32 @@ class _UsersScreenState extends State<UsersScreen> {
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 child: ListTile(
                 leading: CircleAvatar(
-                  child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?'),
+                  backgroundColor: roleColor(u.role).withValues(alpha: 0.18),
+                  child: Text(
+                    u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                        color: roleColor(u.role),
+                        fontWeight: FontWeight.w700),
+                  ),
                 ),
                 title: Text(u.name,
                     style: TextStyle(
+                        fontWeight: FontWeight.w500,
                         decoration:
                             u.active ? null : TextDecoration.lineThrough)),
-                subtitle: Text(
-                    '${roleLabel(u.role)}${u.active ? '' : ' · inactivo'}'
-                    '${u.mustChangePin ? ' · PIN por cambiar' : ''}'),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      _chip(roleLabel(u.role), roleColor(u.role)),
+                      if (!u.active) _chip('Inactivo', Colors.grey),
+                      if (u.mustChangePin)
+                        _chip('PIN por cambiar', Colors.orange.shade800),
+                    ],
+                  ),
+                ),
                 trailing: PopupMenuButton<String>(
                   onSelected: (v) {
                     if (v == 'pin') _resetPin(u);

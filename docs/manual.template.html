@@ -1,0 +1,342 @@
+<title>Montana Boutique — Manual del punto de venta</title>
+<style>
+  :root {
+    --paper: #FBF7FA;
+    --surface: #FFFFFF;
+    --surface-2: #F5EEF3;
+    --ink: #241B21;
+    --muted: #6B5E67;
+    --border: #E9DCE6;
+    --accent: #8E2F6E;
+    --accent-strong: #6E2154;
+    --accent-soft: #F6E6F0;
+    --tip: #2E7D5B;
+    --tip-bg: #E7F3EC;
+    --warn: #9A6410;
+    --warn-bg: #FBF0DB;
+    --danger: #B23A48;
+    --danger-bg: #FBE7E9;
+    --shadow: 0 1px 2px rgba(40,20,35,.06), 0 6px 20px rgba(40,20,35,.06);
+    --radius: 14px;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #17121A; --surface: #221A24; --surface-2: #2C2130;
+      --ink: #F3EAF0; --muted: #B6A4B2; --border: #3A2C3A;
+      --accent: #D080B4; --accent-strong: #E7A9D0; --accent-soft: #35223140;
+      --tip: #6FD3A3; --tip-bg: #163127; --warn: #E0B368; --warn-bg: #332711;
+      --danger: #E98A95; --danger-bg: #341A1E;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #FBF7FA; --surface: #FFFFFF; --surface-2: #F5EEF3; --ink: #241B21;
+    --muted: #6B5E67; --border: #E9DCE6; --accent: #8E2F6E; --accent-strong: #6E2154;
+    --accent-soft: #F6E6F0; --tip: #2E7D5B; --tip-bg: #E7F3EC; --warn: #9A6410;
+    --warn-bg: #FBF0DB; --danger: #B23A48; --danger-bg: #FBE7E9;
+    --shadow: 0 1px 2px rgba(40,20,35,.06), 0 6px 20px rgba(40,20,35,.06);
+  }
+  :root[data-theme="dark"] {
+    --paper: #17121A; --surface: #221A24; --surface-2: #2C2130; --ink: #F3EAF0;
+    --muted: #B6A4B2; --border: #3A2C3A; --accent: #D080B4; --accent-strong: #E7A9D0;
+    --accent-soft: #35223140; --tip: #6FD3A3; --tip-bg: #163127; --warn: #E0B368;
+    --warn-bg: #332711; --danger: #E98A95; --danger-bg: #341A1E;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6; font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px 96px; }
+
+  /* Header */
+  header.masthead {
+    background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+    color: #fff; padding: 44px 20px 40px; text-align: center;
+  }
+  header.masthead .badge {
+    display:inline-block; font-size:12px; letter-spacing:.16em; text-transform:uppercase;
+    font-weight:700; opacity:.85; margin-bottom:12px;
+  }
+  header.masthead h1 { margin:0; font-size: clamp(28px, 6vw, 44px); font-weight:800; letter-spacing:-.02em; text-wrap:balance; }
+  header.masthead p { margin:10px auto 0; max-width:52ch; opacity:.92; }
+
+  h2 {
+    font-size: clamp(22px, 4vw, 28px); font-weight:800; letter-spacing:-.01em;
+    margin: 52px 0 6px; text-wrap:balance; scroll-margin-top: 16px;
+  }
+  h2 .num {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:1.7em; height:1.7em; margin-right:.5em; border-radius:8px;
+    background: var(--accent-soft); color: var(--accent); font-size:.62em; font-weight:800;
+    vertical-align: middle;
+  }
+  h3 { font-size:19px; font-weight:700; margin:30px 0 4px; color:var(--ink); }
+  .lead { color: var(--muted); margin-top:0; }
+  p, li { color: var(--ink); }
+  a { color: var(--accent); }
+
+  .eyebrow { font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:700; color:var(--accent); }
+
+  /* TOC */
+  nav.toc {
+    background: var(--surface); border:1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 20px 22px; margin-top: -28px; position:relative; z-index:2;
+  }
+  nav.toc h2 { margin:0 0 12px; font-size:14px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  nav.toc ol { list-style:none; margin:0; padding:0; columns: 2; column-gap:28px; }
+  @media (max-width:640px){ nav.toc ol { columns:1; } }
+  nav.toc li { break-inside:avoid; margin:0 0 6px; }
+  nav.toc a { text-decoration:none; color:var(--ink); display:flex; gap:10px; padding:4px 0; }
+  nav.toc a:hover { color:var(--accent); }
+  nav.toc a b { color:var(--accent); font-variant-numeric:tabular-nums; min-width:1.4em; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px 22px; }
+
+  /* Steps */
+  ol.steps { counter-reset: step; list-style:none; padding:0; margin: 14px 0; display:flex; flex-direction:column; gap:12px; }
+  ol.steps > li {
+    counter-increment: step; position:relative; padding:14px 16px 14px 54px;
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  }
+  ol.steps > li::before {
+    content: counter(step); position:absolute; left:14px; top:13px;
+    width:28px; height:28px; border-radius:50%; background:var(--accent); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
+  }
+  ol.steps > li b { color:var(--ink); }
+
+  ul.plain { padding-left: 1.1em; }
+  ul.plain li { margin: 5px 0; }
+
+  /* Callouts */
+  .callout { border-radius:12px; padding:14px 16px; margin:16px 0; border:1px solid; display:flex; gap:12px; }
+  .callout .ico { font-weight:800; flex:0 0 auto; }
+  .callout p { margin:0; }
+  .callout.tip { background:var(--tip-bg); border-color:color-mix(in srgb, var(--tip) 40%, transparent); }
+  .callout.tip .ico { color:var(--tip); }
+  .callout.warn { background:var(--warn-bg); border-color:color-mix(in srgb, var(--warn) 45%, transparent); }
+  .callout.warn .ico { color:var(--warn); }
+  .callout.important { background:var(--accent-soft); border-color:color-mix(in srgb, var(--accent) 35%, transparent); }
+  .callout.important .ico { color:var(--accent); }
+  .callout.danger { background:var(--danger-bg); border-color:color-mix(in srgb, var(--danger) 45%, transparent); }
+  .callout.danger .ico { color:var(--danger); }
+
+  /* Figures */
+  figure.shot { margin: 20px 0; text-align:center; }
+  figure.shot img {
+    max-width: 300px; width:100%; border-radius: 22px; border:1px solid var(--border);
+    box-shadow: var(--shadow); background: var(--surface);
+  }
+  figure.shot figcaption { color:var(--muted); font-size:14px; margin-top:8px; }
+
+  /* Pills */
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:13px; font-weight:600; border:1px solid var(--border); background:var(--surface-2); }
+  .pill.admin { color:var(--accent); border-color:color-mix(in srgb,var(--accent) 40%,transparent); }
+
+  hr { border:none; border-top:1px solid var(--border); margin:40px 0; }
+  code { background:var(--surface-2); padding:1px 7px; border-radius:6px; font-size:.9em; }
+  .kbd { display:inline-block; background:var(--surface); border:1px solid var(--border); border-bottom-width:2px; border-radius:7px; padding:1px 8px; font-size:.85em; font-weight:600; }
+  .foot { color:var(--muted); font-size:14px; text-align:center; margin-top:56px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px){ .grid2 { grid-template-columns:1fr; } }
+</style>
+
+<header class="masthead">
+  <div class="badge">Montana Boutique · Punto de venta</div>
+  <h1>Manual del sistema</h1>
+  <p>Todo lo que necesitas para dejar la tablet lista y operar la tienda: vender, cobrar, apartados, inventario, corte de caja y respaldo.</p>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#puesta"><b>1</b> Puesta en marcha de la tablet</a></li>
+      <li><a href="#base"><b>2</b> Conceptos base y el menú</a></li>
+      <li><a href="#vender"><b>3</b> Vender y cobrar</a></li>
+      <li><a href="#apartados"><b>4</b> Apartados</a></li>
+      <li><a href="#devoluciones"><b>5</b> Devoluciones y cambios</a></li>
+      <li><a href="#clientes"><b>6</b> Clientes y puntos</a></li>
+      <li><a href="#regalo"><b>7</b> Tarjetas de regalo</a></li>
+      <li><a href="#inventario"><b>8</b> Inventario</a></li>
+      <li><a href="#corte"><b>9</b> Corte de caja</a></li>
+      <li><a href="#reportes"><b>10</b> Reportes</a></li>
+      <li><a href="#admin"><b>11</b> Administración</a></li>
+      <li><a href="#respaldo"><b>12</b> Respaldo en la nube</a></li>
+      <li><a href="#problemas"><b>13</b> Problemas frecuentes</a></li>
+      <li><a href="#dia"><b>14</b> Rutina del día</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <h2 id="puesta"><span class="num">1</span>Puesta en marcha de la tablet</h2>
+  <p class="lead">Haz esto una sola vez, antes del primer día de ventas.</p>
+  <ol class="steps">
+    <li><b>Instala la app.</b> Copia el archivo <code>app-release.apk</code> a la tablet y ábrelo. Si Android pregunta, permite <b>“instalar apps de origen desconocido”</b> para el explorador de archivos.</li>
+    <li><b>Primer acceso.</b> Al abrir, la app pide un PIN. Entra con el PIN inicial de administrador <span class="kbd">1234</span>. Enseguida te obliga a <b>cambiarlo</b> por uno tuyo (anótalo en un lugar seguro).</li>
+    <li><b>Crea a tu personal.</b> Ve a <span class="pill admin">Admin</span> → <b>Usuarios</b> y da de alta a tus cajeras/os y gerentes, cada quien con su PIN. Así cada venta queda a nombre de quien la hizo.</li>
+    <li><b>Carga tu mercancía real.</b> En <span class="pill admin">Admin</span> → <b>Catálogo</b> agrega productos a mano, o usa <b>Importar</b> (pega tu lista desde Excel). Genera las variantes talla × color y su stock inicial. <i>El “Catálogo de prueba” de 100 productos es solo demostración: bórralo o ignóralo.</i></li>
+    <li><b>Ponles foto.</b> Al editar un producto puedes <b>tomar la foto con la cámara</b> o elegirla de la galería. Las fotos hacen la venta mucho más rápida.</li>
+    <li><b>Confirma el respaldo.</b> En <span class="pill admin">Admin</span> → <b>Respaldo en la nube</b> toca <b>“Respaldar ahora”</b>: debe quedar en <b>“Respaldo al día”</b>. Con eso, si se pierde la tablet, no pierdes tus datos.</li>
+  </ol>
+  <div class="callout important"><span class="ico">★</span><p><b>Regla de oro del respaldo:</b> esta tablet es la “fuente de verdad”. La app respalda sola tras cada venta y cada 15 minutos. En una tablet <b>nueva</b>, primero <b>Restaura</b> desde la nube; nunca empieces a respaldar una tablet vacía encima de tus datos buenos.</p></div>
+
+  <!-- 2 -->
+  <h2 id="base"><span class="num">2</span>Conceptos base y el menú</h2>
+  <h3>Roles</h3>
+  <ul class="plain">
+    <li><b>Cajero:</b> vende, cobra, hace apartados y devoluciones. No edita precios, no ve costos, no entra a Administración.</li>
+    <li><b>Gerente:</b> lo del cajero + autoriza descuentos grandes, cancelaciones y reembolsos en efectivo (con su PIN).</li>
+    <li><b>Administrador:</b> todo, incluido catálogo, usuarios, reportes y respaldo.</li>
+  </ul>
+  <div class="callout tip"><span class="ico">✔</span><p>Cuando un cajero necesita autorización (por ejemplo un descuento mayor al 15% o un reembolso en efectivo), la app pide el <b>PIN de un gerente</b> sin cerrar la sesión del cajero.</p></div>
+  <h3>El menú de abajo</h3>
+  <p>Siempre tienes cuatro botones: <b>Vender</b>, <b>Corte</b> (de caja), <b>Admin</b> (solo administradores) y <b>Salir</b>.</p>
+
+  <!-- 3 -->
+  <h2 id="vender"><span class="num">3</span>Vender y cobrar</h2>
+  <figure class="shot"><img alt="Pantalla de venta con vitrina de productos y carrito" src="{{IMG_VENTA}}"><figcaption>Pantalla de <b>Vender</b>: vitrina con fotos, buscador/escáner y el total con el botón <b>Cobrar</b>.</figcaption></figure>
+  <h3>Armar la venta</h3>
+  <ol class="steps">
+    <li><b>Agrega productos.</b> Tres formas: <b>escanea</b> el código de barras (o con la <b>cámara</b>), <b>busca</b> por nombre/SKU con la lupa, o toca el producto en la <b>vitrina</b>.</li>
+    <li><b>Elige talla y color.</b> Al tocar una prenda te muestra el stock y activa solo las combinaciones disponibles (si en talla CH solo hay azul y rosa, los demás colores se desactivan).</li>
+    <li><b>Ajusta cantidades</b> con los botones <b>+ / −</b> del carrito. El total con IVA se calcula solo.</li>
+  </ol>
+  <h3>Cobrar</h3>
+  <ol class="steps">
+    <li>Toca <b>Cobrar</b>. Elige la forma de pago: <b>Efectivo</b>, <b>Tarjeta</b>, <b>Transferencia</b> — o combínalas (pago dividido). En efectivo, escribe lo recibido y te dice el <b>cambio</b>.</li>
+    <li><b>Descuento</b> (opcional): escribe monto y motivo. Si pasa del 15% del total, pide PIN de gerente.</li>
+    <li><b>Cliente y puntos</b> (opcional): asigna un cliente para acumular/canjear puntos de lealtad.</li>
+    <li>Confirma. La venta <b>se guarda antes de imprimir</b>: aunque falle la impresora, la venta queda registrada. Puedes marcar <b>ticket de regalo</b> (sin precios).</li>
+  </ol>
+  <div class="callout warn"><span class="ico">!</span><p>La impresión térmica y de etiquetas se conectan cuando tengas la impresora física. Mientras, el ticket se genera como PDF que puedes ver o compartir.</p></div>
+
+  <!-- 4 -->
+  <h2 id="apartados"><span class="num">4</span>Apartados</h2>
+  <p class="lead">El cliente aparta prendas con un anticipo y las paga en abonos. Las piezas se <b>reservan</b> (no se pueden vender a otra persona) pero siguen en tu inventario hasta que se liquiden.</p>
+  <ol class="steps">
+    <li>En <b>Vender</b>, entra a <b>Apartados</b> (menú <span class="kbd">⋮</span> o barra superior) → <b>Nuevo apartado</b>.</li>
+    <li>Captura el <b>cliente</b> (nombre y teléfono), agrega las prendas y el <b>anticipo</b> (mínimo 30%). Imprime el comprobante con el saldo y la fecha límite.</li>
+    <li>Cuando el cliente vuelve, abre su apartado y registra <b>abonos</b> hasta llegar a saldo cero.</li>
+    <li>Con saldo en cero, toca <b>Liquidar y entregar</b>: la prenda sale del inventario y se imprime el ticket con todos los pagos.</li>
+    <li><b>Vencidos:</b> el botón <b>Procesar vencidos</b> libera las piezas de apartados pasados de fecha y convierte lo pagado en nota de crédito.</li>
+  </ol>
+
+  <!-- 5 -->
+  <h2 id="devoluciones"><span class="num">5</span>Devoluciones y cambios</h2>
+  <ol class="steps">
+    <li>En <b>Vender</b> → <b>Devoluciones y cambios</b>, escribe el <b>folio</b> de la venta (o escanea el ticket).</li>
+    <li>Elige cuántas piezas devolver de cada línea. Marca <b>“Dañada”</b> si la prenda no puede volver a venderse (no regresa al stock vendible).</li>
+    <li><b>Devolver:</b> elige <b>Efectivo</b> (pide PIN de gerente) o <b>Nota de crédito</b>.</li>
+    <li><b>Cambiar:</b> elige la prenda nueva; el sistema calcula la <b>diferencia</b>, la cobras (o queda a favor del cliente) y hace la devolución + venta nueva de un solo paso.</li>
+  </ol>
+  <div class="callout tip"><span class="ico">✔</span><p>Plazo de devolución: 15 días con ticket. El sistema no deja devolver dos veces la misma pieza.</p></div>
+
+  <!-- 6 -->
+  <h2 id="clientes"><span class="num">6</span>Clientes y puntos</h2>
+  <figure class="shot"><img alt="Lista de clientes" src="{{IMG_CLI}}"><figcaption><b>Admin → Clientes</b>: ficha, historial de compras y totales.</figcaption></figure>
+  <ul class="plain">
+    <li><b>Alta rápida:</b> desde la venta (botón de cliente) o en <span class="pill admin">Admin</span> → <b>Clientes</b> → <b>Nuevo cliente</b>. Solo nombre y teléfono.</li>
+    <li><b>Ficha del cliente:</b> muestra sus compras, cuánto ha gastado, su última visita y su <b>saldo de puntos</b>.</li>
+    <li><b>Puntos de lealtad:</b> se ganan solos en cada compra y se pueden <b>canjear como descuento</b> al cobrar. Las reglas (cuántos puntos por peso y su valor) se configuran en <span class="pill admin">Admin</span> → <b>Programa de puntos</b>.</li>
+  </ul>
+
+  <!-- 7 -->
+  <h2 id="regalo"><span class="num">7</span>Tarjetas de regalo</h2>
+  <ul class="plain">
+    <li><b>Vender una tarjeta:</b> en <b>Vender</b> → <b>Tarjetas de regalo</b> → <b>Vender tarjeta</b>. Se genera un código y el dinero entra al corte de caja.</li>
+    <li><b>Consultar saldo:</b> en la misma pantalla, teclea el código.</li>
+    <li><b>Pagar con tarjeta:</b> al cobrar, botón <b>“Pagar con tarjeta de regalo”</b> → teclea el código y aplica el saldo.</li>
+  </ul>
+
+  <!-- 8 -->
+  <h2 id="inventario"><span class="num">8</span>Inventario</h2>
+  <figure class="shot"><img alt="Menú de inventario" src="{{IMG_INV}}"><figcaption>Inventario: recepción, ajustes, conteo físico y alertas de stock bajo.</figcaption></figure>
+  <div class="grid2">
+    <div class="card"><h3 style="margin-top:0">Recepción</h3><p>Registra la mercancía que llega: escanea o busca, captura cantidades y (opcional) actualiza el costo. Suma al stock.</p></div>
+    <div class="card"><h3 style="margin-top:0">Ajustes</h3><p>Corrige existencias con <b>motivo obligatorio</b> (merma, dañado, robo, error). Queda auditado.</p></div>
+    <div class="card"><h3 style="margin-top:0">Conteo físico</h3><p>Cuenta una categoría, compara contra el sistema y aplica las diferencias en lote.</p></div>
+    <div class="card"><h3 style="margin-top:0">Stock bajo</h3><p>La <b>campana</b> en Vender avisa cuántas variantes están bajo su mínimo. Toca para ver la lista.</p></div>
+  </div>
+  <div class="callout important"><span class="ico">★</span><p>El inventario nunca se “edita” directo: cada cambio es un movimiento registrado (entrada, venta, devolución, ajuste). Así siempre sabes <b>por qué</b> cambió una existencia.</p></div>
+
+  <!-- 9 -->
+  <h2 id="corte"><span class="num">9</span>Corte de caja</h2>
+  <ol class="steps">
+    <li><b>Al abrir la tienda:</b> menú <b>Corte</b> → <b>Abrir caja</b> con el fondo inicial (el efectivo con el que arrancas).</li>
+    <li><b>Durante el día:</b> registra <b>retiros</b> y <b>depósitos</b> de efectivo. El resumen en vivo te muestra el efectivo esperado en el cajón.</li>
+    <li><b>Al cerrar:</b> <b>Cerrar caja</b>, cuenta el efectivo real y el sistema te dice la <b>diferencia</b> (sobrante o faltante) contra lo esperado.</li>
+  </ol>
+  <p>Desde aquí también puedes ver las <b>ventas del turno</b> y cancelar una (con autorización de gerente); la cancelación regresa el stock y queda registrada.</p>
+
+  <!-- 10 -->
+  <h2 id="reportes"><span class="num">10</span>Reportes</h2>
+  <figure class="shot"><img alt="Pantalla de reportes" src="{{IMG_REP}}"><figcaption><b>Admin → Reportes</b>: resumen del periodo y reportes accionables.</figcaption></figure>
+  <p>Elige el periodo (hoy, 7, 30, 60 días o personalizado). Disponibles:</p>
+  <ul class="plain">
+    <li><b>Resumen:</b> ventas netas, piezas, IVA, descuentos y devoluciones, con comparativo.</li>
+    <li><b>Más / menos vendidos</b> y <b>tallas y colores</b> que se venden y cuáles no.</li>
+    <li><b>Recomendaciones:</b> qué reabastecer, poner en oferta o descontar.</li>
+    <li><b>Inventario muerto:</b> lo que tiene existencia y no se vende.</li>
+    <li><b>Margen</b>, <b>diferencias de caja por cajero</b> y <b>tasa de devoluciones</b>.</li>
+  </ul>
+  <p>Todo se puede <b>exportar a Excel/CSV</b> con el botón de compartir.</p>
+
+  <!-- 11 -->
+  <h2 id="admin"><span class="num">11</span>Administración</h2>
+  <figure class="shot"><img alt="Panel de administración" src="{{IMG_ADMIN}}"><figcaption>Panel de <b>Admin</b> (solo administradores).</figcaption></figure>
+  <ul class="plain">
+    <li><b>Catálogo:</b> productos, variantes, precios/costos, códigos y etiquetas.</li>
+    <li><b>Inventario, Clientes, Programa de puntos, Reportes, Usuarios.</b></li>
+    <li><b>Respaldo en la nube</b> y <b>Reconciliación</b> (salud de datos: detecta stock negativo, sobre-reservado o pagos que no cuadran).</li>
+  </ul>
+
+  <!-- 12 -->
+  <h2 id="respaldo"><span class="num">12</span>Respaldo en la nube</h2>
+  <ul class="plain">
+    <li><b>Automático:</b> tras cada venta y cada 15 minutos. También puedes forzarlo con <b>Respaldar ahora</b>.</li>
+    <li><b>Tablet nueva / cambio de equipo:</b> instala la app, entra, ve a <b>Respaldo</b> → <b>Restaurar desde la nube</b>, y <b>cierra y reabre</b> la app. Tendrás todos tus datos.</li>
+  </ul>
+  <div class="callout danger"><span class="ico">▲</span><p>En una tablet nueva, <b>restaura primero</b>. Si tocas “Empezar a respaldar esta tablet” en un equipo vacío, sobrescribirías el respaldo bueno. La app te avisa cuando una tablet aún no está “reclamada”.</p></div>
+
+  <!-- 13 -->
+  <h2 id="problemas"><span class="num">13</span>Problemas frecuentes</h2>
+  <h3>“El respaldo marca error”</h3>
+  <p>Revisa que haya internet y que el proyecto de Supabase esté configurado (SQL aplicado). La app funciona igual sin internet; respalda cuando vuelva la conexión.</p>
+  <h3>“No imprime el ticket”</h3>
+  <p>La venta <b>ya quedó guardada</b>. La impresión es aparte; se habilita al conectar la impresora física.</p>
+  <h3>“Se siente lento”</h3>
+  <p>Asegúrate de usar el APK de producción (<code>app-release.apk</code>), no una versión de prueba. El release es mucho más fluido.</p>
+  <h3>“Un cajero no puede hacer algo”</h3>
+  <p>Es por su rol. Un gerente puede autorizar en el momento con su PIN.</p>
+
+  <!-- 14 -->
+  <h2 id="dia"><span class="num">14</span>Rutina del día</h2>
+  <div class="grid2">
+    <div class="card">
+      <div class="eyebrow">Al abrir</div>
+      <ul class="plain" style="margin-top:8px">
+        <li>Entra con tu PIN.</li>
+        <li><b>Corte → Abrir caja</b> con el fondo.</li>
+        <li>Revisa la <b>campana</b> de stock bajo.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Al cerrar</div>
+      <ul class="plain" style="margin-top:8px">
+        <li><b>Corte → Cerrar caja</b> y cuenta el efectivo.</li>
+        <li>Confirma que el <b>respaldo</b> esté al día.</li>
+        <li><b>Salir</b> de la sesión.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="foot">Montana Boutique · Manual del punto de venta · Guárdalo cerca de la caja.</p>
+</div>

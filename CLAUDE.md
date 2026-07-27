@@ -262,3 +262,11 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
 - `docs/produccion.md` — Fase 11: firma release, monitoreo, respaldo, contingencia, checklist.
 - `docs/aviso-privacidad.md` — aviso LFPDPPP simplificado para el mostrador.
 - `docs/guia-rapida.md` — guía de una página para la caja.
+- `docs/manual.html` — **manual completo con capturas** (puesta en marcha + uso de todo).
+  Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
+
+## Estado operativo (2026-07-26)
+Respaldo en la nube (Fase 8) **confirmado funcionando por el dueño** (SQL de Supabase aplicado
+en dev y prod; sube y restaura). App fluida en release. Pendientes del dueño: cargar inventario
+y fotos reales; DSN de Sentry (opcional). Pendientes de hardware: impresora ESC/POS y ZPL.
+Diferidos: traspasos multisucursal, login de negocio (Supabase Auth).

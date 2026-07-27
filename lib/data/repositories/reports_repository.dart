@@ -158,17 +158,22 @@ class ReportsRepository {
   Future<List<Recommendation>> recommendations() async {
     final now = DateTime.now();
     final cut30 = now.subtract(const Duration(days: 30));
+    // Agregación de ventas por variante UNA sola vez (CTE), en vez de dos
+    // subconsultas correlacionadas por cada variante.
     final rows = await _db.customSelect(
+      'WITH sales_agg AS ('
+      '  SELECT sl.variant_id AS vid, '
+      '    SUM(CASE WHEN s.created_at >= ? THEN sl.qty ELSE 0 END) AS sold30, '
+      '    MAX(s.created_at) AS last_sold '
+      '  FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id '
+      "  WHERE sl.qty > 0 AND s.status IN $_soldStatuses "
+      '  GROUP BY sl.variant_id) '
       'SELECT p.name AS pname, v.sku AS sku, '
       'COALESCE(vs.on_hand, 0) AS on_hand, COALESCE(vs.reserved, 0) AS reserved, '
-      '(SELECT COALESCE(SUM(sl.qty), 0) FROM sale_lines sl '
-      '   JOIN sales s ON s.id = sl.sale_id '
-      "   WHERE sl.variant_id = v.id AND sl.qty > 0 AND s.status IN $_soldStatuses "
-      '   AND s.created_at >= ?) AS sold30, '
-      '(SELECT MAX(s.created_at) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id '
-      "   WHERE sl.variant_id = v.id AND sl.qty > 0 AND s.status IN $_soldStatuses) AS last_sold "
+      'COALESCE(sa.sold30, 0) AS sold30, sa.last_sold AS last_sold '
       'FROM variants v JOIN products p ON p.id = v.product_id '
       'LEFT JOIN variant_stock vs ON vs.variant_id = v.id '
+      'LEFT JOIN sales_agg sa ON sa.vid = v.id '
       'WHERE v.active = 1',
       variables: [_d(cut30)],
       readsFrom: {_db.variants, _db.products, _db.sales, _db.saleLines, _db.inventoryMovements},
@@ -330,15 +335,19 @@ class ReportsRepository {
   Future<List<DeadStockItem>> deadStock({int days = 60}) async {
     final cutoff = DateTime.now().subtract(Duration(days: days));
     final rows = await _db.customSelect(
+      'WITH sales_agg AS ('
+      '  SELECT sl.variant_id AS vid, MAX(s.created_at) AS last_sold '
+      '  FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id '
+      "  WHERE sl.qty > 0 AND s.status IN $_soldStatuses "
+      '  GROUP BY sl.variant_id) '
       'SELECT p.name AS pname, v.sku AS sku, v.size AS size, v.color AS color, '
-      'COALESCE(vs.on_hand, 0) AS on_hand, '
-      '(SELECT MAX(s.created_at) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id '
-      "   WHERE sl.variant_id = v.id AND sl.qty > 0 AND s.status IN $_soldStatuses) AS last_sold "
+      'COALESCE(vs.on_hand, 0) AS on_hand, sa.last_sold AS last_sold '
       'FROM variants v '
       'JOIN products p ON p.id = v.product_id '
       'LEFT JOIN variant_stock vs ON vs.variant_id = v.id '
+      'LEFT JOIN sales_agg sa ON sa.vid = v.id '
       'WHERE v.active = 1 AND COALESCE(vs.on_hand, 0) > 0 '
-      'AND (last_sold IS NULL OR last_sold < ?) '
+      'AND (sa.last_sold IS NULL OR sa.last_sold < ?) '
       'ORDER BY on_hand DESC, p.name ASC '
       'LIMIT 200',
       variables: [_d(cutoff)],

@@ -209,6 +209,22 @@ Cuatro pendientes acumulados, cada uno con tests y commit propio. 60 pruebas ver
 - **Reconciliación** (Fase 8): `ReconciliationRepository` + Admin→Reconciliación: stock negativo,
   sobre-reservado, pagos que no cuadran (folios duplicados no aplica: `folio` es UNIQUE).
 
+## Mejoras post-Fase 16 (2026-07-26, en `main`, sin cambio de esquema)
+Todo con tests/analyze verdes (94 pruebas) y APK.
+- **Reportes ampliados** (`ReportsRepository` + `reports_screen`): **Menos vendidos**
+  (`variantSales(ascending: true)`), y **Recomendaciones** accionables
+  (`recommendations()`: reglas sobre ventas de 30 días + existencia → Reabastecer si vende ≥3 y
+  queda poco; Poner en oferta si tiene stock y sin venta 45+ días/nunca; Considerar descuento si
+  sobre-stock ≥10 con venta lenta). 4 tests nuevos.
+- **Rediseño de UI "premium"** (a pedido del dueño): `lib/core/theme.dart` reescrito — base blanca,
+  tarjetas con borde gris + drop shadow, inputs blancos, **botones morados** de alto contraste,
+  diálogos/menús/bottomSheets/popups redondeados con sombra. Estiliza TODA la app.
+- **Componente reutilizable** `lib/core/dashboard_tile.dart` (`DashboardTile` + `DashboardGrid`,
+  a prueba de overflow con `Flexible`): Admin, Inventario y Reportes ahora son **paneles en rejilla**.
+- **Filtros**: Catálogo (buscador + chips de categoría, y **rejilla con fotos** vía
+  `productImageProvider`); Usuarios (buscador + chips por rol, avatar/chips de color por rol/estado).
+  Clientes y Usuarios con filas en tarjetas. La pantalla de **Vender NO se tocó** (ya gustaba).
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

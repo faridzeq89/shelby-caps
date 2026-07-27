@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../local/database.dart';
+import 'loyalty_repository.dart';
 
 /// Una línea que entra al cobro (precio ya congelado al momento de agregar).
 class CheckoutLine {
@@ -46,6 +47,8 @@ class CheckoutResult {
     required this.taxCents,
     required this.totalCents,
     required this.changeCents,
+    this.earnedPoints = 0,
+    this.redeemedPoints = 0,
   });
 
   final String saleId;
@@ -55,6 +58,8 @@ class CheckoutResult {
   final int taxCents;
   final int totalCents; // neto (bruto - descuento)
   final int changeCents;
+  final int earnedPoints; // puntos de lealtad ganados en esta venta
+  final int redeemedPoints; // puntos canjeados como descuento
 }
 
 /// Registra ventas. El cobro es **una sola transacción**: venta + líneas + pago
@@ -74,8 +79,12 @@ class SalesRepository {
     String? discountReason,
     int? customerId,
     int? salespersonId,
+    int redeemPoints = 0,
   }) async {
     assert(lines.isNotEmpty, 'No se puede cobrar un carrito vacío');
+    if (redeemPoints > 0 && customerId == null) {
+      throw ArgumentError('No se pueden canjear puntos sin cliente');
+    }
 
     // Dos niveles de descuento:
     //  1) por línea (l.lineDiscountCents), aplicado antes del reparto;
@@ -83,9 +92,12 @@ class SalesRepository {
     //     para conservar el IVA por producto y que el total cuadre al centavo.
     final gross = lines.fold(0, (s, l) => s + l.grossCents);
     final baseSum = lines.fold(0, (s, l) => s + l.baseCents);
-    final saleDiscount = discountCents.clamp(0, baseSum);
+    // Canje de puntos: se aplica como descuento adicional (valor configurable).
+    final loyaltyCfg = await LoyaltyRepository(_db).config();
+    final redeemCents = redeemPoints * loyaltyCfg.redeemCentsPerPoint;
+    final saleDiscount = (discountCents + redeemCents).clamp(0, baseSum);
     final net = baseSum - saleDiscount;
-    final discount = gross - net; // descuento total (línea + venta)
+    final discount = gross - net; // descuento total (línea + venta + canje)
 
     var subtotal = 0, tax = 0;
     final lineRows = <SaleLinesCompanion>[];
@@ -196,6 +208,40 @@ class SalesRepository {
             ));
       }
 
+      // Lealtad: canje (si hay) y ganancia de puntos, sobre el neto pagado.
+      var earnedPoints = 0;
+      if (customerId != null) {
+        if (redeemPoints > 0) {
+          final balRow = await _db.customSelect(
+            'SELECT COALESCE(SUM(points), 0) AS b FROM loyalty_transactions '
+            'WHERE customer_id = ?',
+            variables: [Variable.withInt(customerId)],
+          ).getSingle();
+          if (balRow.read<int>('b') < redeemPoints) {
+            throw ArgumentError('Puntos insuficientes para canjear');
+          }
+          await _db.into(_db.loyaltyTransactions).insert(
+                LoyaltyTransactionsCompanion.insert(
+                  customerId: customerId,
+                  saleId: Value(saleId),
+                  points: -redeemPoints,
+                  type: LoyaltyType.redeem,
+                ),
+              );
+        }
+        earnedPoints = net * loyaltyCfg.earnPerPeso ~/ 100;
+        if (earnedPoints > 0) {
+          await _db.into(_db.loyaltyTransactions).insert(
+                LoyaltyTransactionsCompanion.insert(
+                  customerId: customerId,
+                  saleId: Value(saleId),
+                  points: earnedPoints,
+                  type: LoyaltyType.earn,
+                ),
+              );
+        }
+      }
+
       return CheckoutResult(
         saleId: saleId,
         folio: folio,
@@ -204,6 +250,8 @@ class SalesRepository {
         taxCents: tax,
         totalCents: net,
         changeCents: change,
+        earnedPoints: earnedPoints,
+        redeemedPoints: redeemPoints,
       );
     });
   }

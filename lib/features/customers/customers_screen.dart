@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/local/database.dart';
 import '../../data/repositories/customer_repository.dart';
+import '../../data/repositories/loyalty_repository.dart';
 
 String _money(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
@@ -123,11 +124,15 @@ class CustomerDetailScreen extends StatefulWidget {
 }
 
 class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
-  late final CustomerRepository _repo =
-      CustomerRepository(context.read<AppDatabase>());
+  late final AppDatabase _db = context.read<AppDatabase>();
+  late final CustomerRepository _repo = CustomerRepository(_db);
+  late final LoyaltyRepository _loyalty = LoyaltyRepository(_db);
   Customer? _customer;
   CustomerStats? _stats;
   List<Sale> _history = [];
+  int _points = 0;
+  List<LoyaltyTransaction> _loyaltyHistory = [];
+  LoyaltyConfig? _cfg;
 
   @override
   void initState() {
@@ -139,11 +144,17 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     final c = await _repo.byId(widget.customerId);
     final s = await _repo.stats(widget.customerId);
     final h = await _repo.history(widget.customerId);
+    final pts = await _loyalty.balance(widget.customerId);
+    final lh = await _loyalty.history(widget.customerId);
+    final cfg = await _loyalty.config();
     if (mounted) {
       setState(() {
         _customer = c;
         _stats = s;
         _history = h;
+        _points = pts;
+        _loyaltyHistory = lh;
+        _cfg = cfg;
       });
     }
   }
@@ -204,6 +215,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               ),
             ),
           const SizedBox(height: 12),
+          _pointsCard(context),
+          const SizedBox(height: 12),
           if (s != null)
             Row(
               children: [
@@ -240,10 +253,53 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                             fontWeight: FontWeight.w600, fontSize: 16)),
                   ),
                 )),
+          if (_loyaltyHistory.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Movimientos de puntos',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ..._loyaltyHistory.map((t) => ListTile(
+                  dense: true,
+                  leading: Icon(
+                      t.points >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline),
+                  title: Text(_loyaltyLabel(t.type)),
+                  subtitle: Text(
+                      DateFormat('dd/MM/yyyy HH:mm').format(t.createdAt)),
+                  trailing: Text('${t.points >= 0 ? '+' : ''}${t.points}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 16)),
+                )),
+          ],
         ],
       ),
     );
   }
+
+  Widget _pointsCard(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final value = _cfg == null ? null : _points * _cfg!.redeemCentsPerPoint;
+    return Card(
+      color: scheme.secondaryContainer,
+      child: ListTile(
+        leading: Icon(Icons.stars_rounded, color: scheme.onSecondaryContainer),
+        title: Text('$_points puntos',
+            style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                color: scheme.onSecondaryContainer)),
+        subtitle: value == null
+            ? null
+            : Text('Valen ${_money(value)} en descuento',
+                style: TextStyle(color: scheme.onSecondaryContainer)),
+      ),
+    );
+  }
+
+  String _loyaltyLabel(LoyaltyType t) => switch (t) {
+        LoyaltyType.earn => 'Puntos ganados',
+        LoyaltyType.redeem => 'Puntos canjeados',
+        LoyaltyType.adjust => 'Ajuste de puntos',
+      };
 
   Widget _statCard(BuildContext context, String label, String value) {
     return Expanded(

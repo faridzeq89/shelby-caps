@@ -49,6 +49,7 @@ class VariantStockData {
     StockCounts,
     StockCountLines,
     CashMovements,
+    LoyaltyTransactions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -57,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -92,6 +93,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 5) {
             // v4 → v5: imagen del producto (rediseño visual).
             await _addImagePathIfMissing(m);
+          }
+          if (from < 6) {
+            // v5 → v6: ledger de puntos de lealtad.
+            await m.createTable(loyaltyTransactions);
           }
           await _createExtras();
         },

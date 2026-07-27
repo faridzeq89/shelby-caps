@@ -28,6 +28,10 @@ enum StockCountStatus { open, applied, cancelled }
 
 enum CashMovementKind { deposit, withdrawal }
 
+/// Movimiento del ledger de puntos de lealtad. `earn` gana (+), `redeem` canjea
+/// (−), `adjust` corrección manual (con signo).
+enum LoyaltyType { earn, redeem, adjust }
+
 // ===========================================================================
 // Operación / seguridad
 // ===========================================================================
@@ -291,5 +295,16 @@ class CashMovements extends Table {
   IntColumn get amountCents => integer()();
   TextColumn get reason => text().nullable()();
   IntColumn get userId => integer().nullable().references(Profiles, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Ledger de puntos de lealtad (append-only). El saldo de un cliente es la suma
+/// de sus `points`. Ligado a la venta que los generó/canjeó cuando aplica.
+class LoyaltyTransactions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get customerId => integer().references(Customers, #id)();
+  TextColumn get saleId => text().nullable().references(Sales, #id)();
+  IntColumn get points => integer()(); // + gana, − canjea
+  TextColumn get type => textEnum<LoyaltyType>()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

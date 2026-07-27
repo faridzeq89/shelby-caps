@@ -8,6 +8,7 @@ import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/inventory_repository.dart';
+import '../../data/repositories/loyalty_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/cloud_backup_service.dart';
@@ -50,6 +51,7 @@ class _SaleScreenState extends State<SaleScreen> {
   late final SalesRepository _sales = SalesRepository(_db);
   late final InventoryRepository _inventory = InventoryRepository(_db);
   late final CustomerRepository _customers = CustomerRepository(_db);
+  late final LoyaltyRepository _loyalty = LoyaltyRepository(_db);
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _lines = <_CartLine>[];
@@ -181,10 +183,21 @@ class _SaleScreenState extends State<SaleScreen> {
 
   Future<void> _checkout() async {
     if (_lines.isEmpty || _locationId == null) return;
+    var availablePoints = 0;
+    var redeemCentsPerPoint = LoyaltyRepository.defaultRedeemCentsPerPoint;
+    if (_customer != null) {
+      availablePoints = await _loyalty.balance(_customer!.id);
+      redeemCentsPerPoint = (await _loyalty.config()).redeemCentsPerPoint;
+    }
+    if (!mounted) return;
     final payment = await showModalBottomSheet<_PaymentResult>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _PaymentSheet(grossCents: _total),
+      builder: (_) => _PaymentSheet(
+        grossCents: _total,
+        availablePoints: availablePoints,
+        redeemCentsPerPoint: redeemCentsPerPoint,
+      ),
     );
     if (payment == null) return;
 
@@ -207,6 +220,7 @@ class _SaleScreenState extends State<SaleScreen> {
         discountCents: payment.discountCents,
         discountReason: payment.discountReason,
         customerId: _customer?.id,
+        redeemPoints: payment.redeemPoints,
       );
     } catch (e) {
       _toast('Error al cobrar: $e');
@@ -276,6 +290,19 @@ class _SaleScreenState extends State<SaleScreen> {
             Text('Total: \$${(r.totalCents / 100).toStringAsFixed(2)}'),
             Text('Cambio: \$${(r.changeCents / 100).toStringAsFixed(2)}',
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            if (r.redeemedPoints > 0 || r.earnedPoints > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  [
+                    if (r.redeemedPoints > 0) 'Canjeó ${r.redeemedPoints} pts',
+                    if (r.earnedPoints > 0) 'Ganó ${r.earnedPoints} pts',
+                  ].join('  ·  '),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
             if (!printed)
               const Padding(
                 padding: EdgeInsets.only(top: 8),

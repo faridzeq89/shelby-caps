@@ -7,6 +7,7 @@ import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/customer_repository.dart';
+import '../../data/repositories/gift_card_repository.dart';
 import '../../data/repositories/inventory_repository.dart';
 import '../../data/repositories/loyalty_repository.dart';
 import '../../data/repositories/sales_repository.dart';
@@ -17,6 +18,7 @@ import '../customers/customers_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../inventory/low_stock_screen.dart';
 import '../scan/scanner_screen.dart';
+import 'gift_cards_screen.dart';
 import 'layaways_screen.dart';
 import 'returns_screen.dart';
 import 'ticket_service.dart';
@@ -52,6 +54,7 @@ class SaleScreenState extends State<SaleScreen> {
   late final InventoryRepository _inventory = InventoryRepository(_db);
   late final CustomerRepository _customers = CustomerRepository(_db);
   late final LoyaltyRepository _loyalty = LoyaltyRepository(_db);
+  late final GiftCardRepository _giftCards = GiftCardRepository(_db);
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _lines = <_CartLine>[];
@@ -197,6 +200,7 @@ class SaleScreenState extends State<SaleScreen> {
         grossCents: _total,
         customers: _customers,
         loyalty: _loyalty,
+        giftCards: _giftCards,
         initialCustomer: _customer,
       ),
     );
@@ -353,6 +357,13 @@ class SaleScreenState extends State<SaleScreen> {
             ),
             icon: const Icon(Icons.bookmark_border),
             tooltip: 'Apartados',
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const GiftCardsScreen()),
+            ),
+            icon: const Icon(Icons.card_giftcard),
+            tooltip: 'Tarjetas de regalo',
           ),
           IconButton(
             onPressed: () => Navigator.of(context).push(
@@ -903,6 +914,7 @@ String _methodLabel(PaymentMethod m) => switch (m) {
       PaymentMethod.card => 'Tarjeta',
       PaymentMethod.transfer => 'Transferencia',
       PaymentMethod.creditNote => 'Nota de crédito',
+      PaymentMethod.giftCard => 'Tarjeta de regalo',
     };
 
 class _PaymentResult {
@@ -927,11 +939,13 @@ class _PaymentSheet extends StatefulWidget {
     required this.grossCents,
     required this.customers,
     required this.loyalty,
+    required this.giftCards,
     this.initialCustomer,
   });
   final int grossCents;
   final CustomerRepository customers;
   final LoyaltyRepository loyalty;
+  final GiftCardRepository giftCards;
   final Customer? initialCustomer;
 
   @override
@@ -956,6 +970,11 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   int _availablePoints = 0;
   int _redeemCentsPerPoint = LoyaltyRepository.defaultRedeemCentsPerPoint;
   int _redeemPoints = 0;
+
+  // Pago con tarjeta de regalo.
+  int? _giftCardId;
+  String? _giftCardCode;
+  int _giftCardCents = 0;
 
   @override
   void initState() {
@@ -1014,7 +1033,57 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   int get _discountCents => _rawDiscountCents;
   int get _net =>
       (widget.grossCents - _discountCents - _redeemValue).clamp(0, widget.grossCents);
-  int get _nonCash => _cents(_card) + _cents(_transfer);
+  int get _nonCash => _cents(_card) + _cents(_transfer) + _giftCardCents;
+
+  /// Pide un código de tarjeta de regalo y aplica su saldo a lo que falta pagar.
+  Future<void> _addGiftCard() async {
+    final ctrl = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Tarjeta de regalo'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Código de la tarjeta'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.of(context).pop(ctrl.text.trim()),
+              child: const Text('Aplicar')),
+        ],
+      ),
+    );
+    if (code == null || code.isEmpty) return;
+    final found = await widget.giftCards.findByCode(code);
+    if (!mounted) return;
+    if (found == null || found.balanceCents <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Tarjeta no encontrada o sin saldo')));
+      return;
+    }
+    // Aplica lo que falta cubrir sin efectivo, hasta el saldo de la tarjeta.
+    final stillDue = _net - _cents(_card) - _cents(_transfer);
+    final apply = found.balanceCents < stillDue ? found.balanceCents : stillDue;
+    setState(() {
+      _giftCardId = found.card.id;
+      _giftCardCode = found.card.code;
+      _giftCardCents = apply < 0 ? 0 : apply;
+    });
+    _syncCash();
+  }
+
+  void _removeGiftCard() {
+    setState(() {
+      _giftCardId = null;
+      _giftCardCode = null;
+      _giftCardCents = 0;
+    });
+    _syncCash();
+  }
   int get _entered => _cents(_cash) + _nonCash;
   int get _change => _entered - _net;
   bool get _needsAuth =>
@@ -1082,6 +1151,9 @@ class _PaymentSheetState extends State<_PaymentSheet> {
       if (_cents(_card) > 0) PaymentInput(PaymentMethod.card, _cents(_card)),
       if (_cents(_transfer) > 0)
         PaymentInput(PaymentMethod.transfer, _cents(_transfer)),
+      if (_giftCardCents > 0 && _giftCardId != null)
+        PaymentInput(PaymentMethod.giftCard, _giftCardCents,
+            giftCardId: _giftCardId),
     ];
     if (!mounted) return;
     Navigator.of(context).pop(_PaymentResult(
@@ -1196,6 +1268,26 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             _amountField('Tarjeta', _card),
             const SizedBox(height: 8),
             _amountField('Transferencia', _transfer),
+            const SizedBox(height: 8),
+            _giftCardCents > 0
+                ? Row(
+                    children: [
+                      const Icon(Icons.card_giftcard, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                            'Tarjeta ${_giftCardCode ?? ''}: -\$${(_giftCardCents / 100).toStringAsFixed(2)}'),
+                      ),
+                      TextButton(
+                          onPressed: _removeGiftCard,
+                          child: const Text('Quitar')),
+                    ],
+                  )
+                : OutlinedButton.icon(
+                    onPressed: _addGiftCard,
+                    icon: const Icon(Icons.card_giftcard, size: 18),
+                    label: const Text('Pagar con tarjeta de regalo'),
+                  ),
             const SizedBox(height: 12),
             Text(
               _change >= 0

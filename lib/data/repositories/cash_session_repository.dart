@@ -107,6 +107,7 @@ class CashSessionRepository {
           card += p.amountCents;
         case PaymentMethod.transfer:
         case PaymentMethod.creditNote:
+        case PaymentMethod.giftCard:
           other += p.amountCents;
       }
     }

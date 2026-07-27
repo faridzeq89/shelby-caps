@@ -181,6 +181,21 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       ya no hay que reiniciar tras "Cargar catálogo de prueba". 83 pruebas verdes (6 nuevas de lealtad).
       Base para gift cards (Fase 16). Sin cambio de esquema (las tablas de lealtad ya existían).
 
+- [x] **Fase 16 — Tarjetas de regalo (gift cards)**. Cerrada 2026-07-26 (con APK). Esquema **v7**
+      (migración aditiva v6→v7): tablas `gift_cards` (código único generado por la app, `GR`+12 díg.)
+      y ledger append-only `gift_card_transactions` (issue/redeem/adjust, monto con signo). Enum
+      `GiftCardTxType` + `PaymentMethod.giftCard`. `GiftCardRepository`: `issue` (no abre transacción
+      propia, participa en la del que llama), `balance`, `findByCode`, `history`, `redeem` (valida
+      saldo), `adjust`. `SalesRepository.sellGiftCard`: emite la tarjeta **y** crea una venta sin
+      líneas con el pago → el dinero entra al **corte de caja** (folio + ticket). `checkout` acepta
+      `PaymentInput(giftCard, monto, giftCardId)` y **debita** la tarjeta en la misma transacción
+      (rollback si falta saldo). UI `lib/features/sales/gift_cards_screen.dart` (vender + consultar
+      saldo/historial), enlazada en la barra de Venta; en el `_PaymentSheet` botón **"Pagar con
+      tarjeta de regalo"** (teclea código → aplica saldo). Corte de caja clasifica giftCard como
+      "otros" (no efectivo del cajón). 90 pruebas verdes (7 nuevas: gift card ×6 + migración v7).
+      **Nota contable:** por simplicidad la emisión cuenta como venta del periodo; el canje es pago
+      no-efectivo (aceptable para boutique v1). Siguiente base: lealtad+gift cards ya cubren fidelización.
+
 ## Backlog resuelto (2026-07-26, post-fases, en `main`)
 Cuatro pendientes acumulados, cada uno con tests y commit propio. 60 pruebas verdes.
 - **Gestión de usuarios** (`UserRepository` + Admin→Usuarios): crear cajeros/gerentes con PIN

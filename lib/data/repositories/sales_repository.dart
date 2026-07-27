@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../local/database.dart';
+import 'gift_card_repository.dart';
 import 'loyalty_repository.dart';
 
 /// Una línea que entra al cobro (precio ya congelado al momento de agregar).
@@ -33,9 +34,12 @@ class CheckoutLine {
 
 /// Un pago que entra al cobro. Puede haber varios (pago dividido).
 class PaymentInput {
-  const PaymentInput(this.method, this.amountCents);
+  const PaymentInput(this.method, this.amountCents, {this.giftCardId});
   final PaymentMethod method;
   final int amountCents;
+
+  /// Tarjeta de regalo a debitar cuando `method == giftCard`.
+  final int? giftCardId;
 }
 
 class CheckoutResult {
@@ -189,6 +193,16 @@ class SalesRepository {
               cashierId: cashier.id,
             ));
       }
+
+      // Canje de tarjetas de regalo, en la misma transacción (valida saldo).
+      final giftRepo = GiftCardRepository(_db);
+      for (final p in payments.where((p) => p.method == PaymentMethod.giftCard)) {
+        if (p.giftCardId == null) {
+          throw ArgumentError('Pago con tarjeta de regalo sin identificarla');
+        }
+        await giftRepo.redeem(
+            cardId: p.giftCardId!, amountCents: p.amountCents, saleId: saleId);
+      }
       if (cashApplied > 0) {
         await _db.into(_db.payments).insert(PaymentsCompanion.insert(
               saleId: saleId,
@@ -253,6 +267,68 @@ class SalesRepository {
         earnedPoints: earnedPoints,
         redeemedPoints: redeemPoints,
       );
+    });
+  }
+
+  /// Vende (emite) una tarjeta de regalo: crea la tarjeta con su saldo y una
+  /// venta sin líneas con el pago, para que el dinero entre al corte de caja.
+  /// Todo en una sola transacción.
+  Future<({GiftCard card, String folio, int changeCents})> sellGiftCard({
+    required Profile cashier,
+    required int locationId,
+    required int amountCents,
+    required List<PaymentInput> payments,
+    int? customerId,
+  }) async {
+    if (amountCents <= 0) throw ArgumentError('El monto debe ser mayor a 0');
+    final nonCash = payments
+        .where((p) => p.method != PaymentMethod.cash)
+        .fold(0, (s, p) => s + p.amountCents);
+    if (nonCash > amountCents) {
+      throw ArgumentError('Los pagos distintos a efectivo superan el monto');
+    }
+    final cashApplied = amountCents - nonCash;
+    final cashEntered = payments
+        .where((p) => p.method == PaymentMethod.cash)
+        .fold(0, (s, p) => s + p.amountCents);
+    if (cashApplied > 0 && cashEntered < cashApplied) {
+      throw ArgumentError('Efectivo insuficiente');
+    }
+    final change = (cashEntered - cashApplied).clamp(0, cashEntered);
+    final saleId = _uuid.v4();
+    final prefix = await _devicePrefix();
+
+    return _db.transaction(() async {
+      final folio = await _nextFolio(prefix);
+      await _db.into(_db.sales).insert(SalesCompanion.insert(
+            id: saleId,
+            folio: folio,
+            locationId: locationId,
+            cashierId: cashier.id,
+            customerId: Value(customerId),
+            status: SaleStatus.completed,
+            subtotalCents: amountCents,
+            taxCents: 0,
+            totalCents: amountCents,
+            notes: const Value('Venta de tarjeta de regalo'),
+          ));
+      for (final p in payments.where((p) => p.method != PaymentMethod.cash)) {
+        await _db.into(_db.payments).insert(PaymentsCompanion.insert(
+            saleId: saleId,
+            method: p.method,
+            amountCents: p.amountCents,
+            cashierId: cashier.id));
+      }
+      if (cashApplied > 0) {
+        await _db.into(_db.payments).insert(PaymentsCompanion.insert(
+            saleId: saleId,
+            method: PaymentMethod.cash,
+            amountCents: cashApplied,
+            cashierId: cashier.id));
+      }
+      final card = await GiftCardRepository(_db).issue(
+          initialCents: amountCents, customerId: customerId, saleId: saleId);
+      return (card: card, folio: folio, changeCents: change);
     });
   }
 

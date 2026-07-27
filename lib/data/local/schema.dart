@@ -16,7 +16,7 @@ enum MovementType { receipt, sale, returned, adjustment, reserve, release, count
 
 enum SaleStatus { completed, layaway, cancelled, returned, partialReturn }
 
-enum PaymentMethod { cash, card, transfer, creditNote }
+enum PaymentMethod { cash, card, transfer, creditNote, giftCard }
 
 enum LayawayStatus { active, completed, expired, cancelled }
 
@@ -31,6 +31,10 @@ enum CashMovementKind { deposit, withdrawal }
 /// Movimiento del ledger de puntos de lealtad. `earn` gana (+), `redeem` canjea
 /// (−), `adjust` corrección manual (con signo).
 enum LoyaltyType { earn, redeem, adjust }
+
+/// Movimientos de una tarjeta de regalo. `issue` = emisión/recarga (+),
+/// `redeem` = canje en una venta (−), `adjust` = corrección manual.
+enum GiftCardTxType { issue, redeem, adjust }
 
 // ===========================================================================
 // Operación / seguridad
@@ -306,5 +310,25 @@ class LoyaltyTransactions extends Table {
   TextColumn get saleId => text().nullable().references(Sales, #id)();
   IntColumn get points => integer()(); // + gana, − canjea
   TextColumn get type => textEnum<LoyaltyType>()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Tarjeta de regalo (saldo prepagado). El `code` lo genera la app y es único;
+/// el saldo es la suma de sus `gift_card_transactions`.
+class GiftCards extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get code => text().unique()();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  IntColumn get customerId => integer().nullable().references(Customers, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Ledger append-only de la tarjeta de regalo. + emisión/recarga, − canje.
+class GiftCardTransactions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get cardId => integer().references(GiftCards, #id)();
+  TextColumn get saleId => text().nullable().references(Sales, #id)();
+  IntColumn get amountCents => integer()(); // + carga, − canje
+  TextColumn get type => textEnum<GiftCardTxType>()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

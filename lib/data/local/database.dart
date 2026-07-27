@@ -50,6 +50,8 @@ class VariantStockData {
     StockCountLines,
     CashMovements,
     LoyaltyTransactions,
+    GiftCards,
+    GiftCardTransactions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -58,7 +60,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -97,6 +99,11 @@ class AppDatabase extends _$AppDatabase {
           if (from < 6) {
             // v5 → v6: ledger de puntos de lealtad.
             await m.createTable(loyaltyTransactions);
+          }
+          if (from < 7) {
+            // v6 → v7: tarjetas de regalo (saldo prepagado) + su ledger.
+            await m.createTable(giftCards);
+            await m.createTable(giftCardTransactions);
           }
           await _createExtras();
         },

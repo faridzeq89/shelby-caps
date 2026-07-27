@@ -48,28 +48,25 @@ class DashboardTile extends StatelessWidget {
         child: Opacity(
           opacity: enabled ? 1 : 0.55,
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 iconBox,
                 const SizedBox(height: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600)),
-                    Text(subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.hintColor)),
-                  ],
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                // Flexible: si el subtítulo no cabe, se recorta en vez de desbordar.
+                Flexible(
+                  child: Text(subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.hintColor)),
                 ),
               ],
             ),
@@ -103,7 +100,7 @@ class DashboardGrid extends StatelessWidget {
       shrinkWrap: shrinkWrap,
       physics: physics,
       maxCrossAxisExtent: 230,
-      mainAxisExtent: 148,
+      mainAxisExtent: 158,
       crossAxisSpacing: 14,
       mainAxisSpacing: 14,
       children: children,

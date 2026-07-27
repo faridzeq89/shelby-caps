@@ -213,7 +213,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 maxCrossAxisExtent: 230,
-                mainAxisExtent: 148,
+                mainAxisExtent: 158,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
                 children: [

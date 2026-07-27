@@ -166,6 +166,21 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       Enlazado en Admin→Clientes. 77 pruebas verdes (5 nuevas de clientes). Base para lealtad/gift
       cards (Fases 15-16).
 
+- [x] **Fase 15 — Lealtad (puntos)**. Cerrada 2026-07-26 (con APK). Una sesión previa la dejó a
+      medias (se quedó sin uso): `sale_screen` usaba `availablePoints`/`redeemPoints` que el
+      `_PaymentSheet` no definía → **el proyecto NO compilaba**; se completó. `LoyaltyRepository`
+      sobre ledger append-only `loyalty_transactions` (earn/redeem/adjust): `balance`, `history`,
+      `config` (reglas en `app_settings`: `loyalty_earn_per_peso` default 1, `loyalty_redeem_cents_per_point`
+      default 10), `setConfig`, `adjust`. `checkout` **gana** puntos (net×earnPerPeso/100) y **canjea**
+      (`redeemPoints` como descuento extra = pts×redeemCentsPerPoint; valida saldo y exige cliente);
+      `CheckoutResult` trae `earnedPoints`/`redeemedPoints`. UI: `_PaymentSheet` permite **elegir/cambiar
+      cliente en el cobro** (arreglo pedido) y **canjear puntos** (botón máx/quitar); Admin→**Programa de
+      puntos** (`loyalty_config_screen`) edita reglas; ficha de cliente muestra saldo/valor/historial y
+      **ajuste manual** (regalo/corrección, gerente/admin). **Fix aparte:** la vitrina de venta recarga al
+      volver a la pestaña Vender (`GlobalKey<SaleScreenState>` + `reloadCatalog`), sin perder el carrito →
+      ya no hay que reiniciar tras "Cargar catálogo de prueba". 83 pruebas verdes (6 nuevas de lealtad).
+      Base para gift cards (Fase 16). Sin cambio de esquema (las tablas de lealtad ya existían).
+
 ## Backlog resuelto (2026-07-26, post-fases, en `main`)
 Cuatro pendientes acumulados, cada uno con tests y commit propio. 60 pruebas verdes.
 - **Gestión de usuarios** (`UserRepository` + Admin→Usuarios): crear cajeros/gerentes con PIN

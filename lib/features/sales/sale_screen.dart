@@ -332,6 +332,7 @@ class SaleScreenState extends State<SaleScreen> {
   // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 600;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Venta'),
@@ -347,32 +348,6 @@ class SaleScreenState extends State<SaleScreen> {
             tooltip: 'Stock bajo',
           ),
           IconButton(
-            onPressed: () => _openInventory(const InventoryHomeScreen()),
-            icon: const Icon(Icons.inventory_2_outlined),
-            tooltip: 'Inventario',
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LayawaysScreen()),
-            ),
-            icon: const Icon(Icons.bookmark_border),
-            tooltip: 'Apartados',
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const GiftCardsScreen()),
-            ),
-            icon: const Icon(Icons.card_giftcard),
-            tooltip: 'Tarjetas de regalo',
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ReturnsScreen()),
-            ),
-            icon: const Icon(Icons.assignment_return_outlined),
-            tooltip: 'Devoluciones y cambios',
-          ),
-          IconButton(
             onPressed: _pickCustomer,
             icon: Icon(
                 _customer == null ? Icons.person_add_alt : Icons.person),
@@ -385,6 +360,74 @@ class SaleScreenState extends State<SaleScreen> {
             icon: const Icon(Icons.search),
             tooltip: 'Buscar producto',
           ),
+          if (!narrow) ...[
+            IconButton(
+              onPressed: () => _openInventory(const InventoryHomeScreen()),
+              icon: const Icon(Icons.inventory_2_outlined),
+              tooltip: 'Inventario',
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LayawaysScreen()),
+              ),
+              icon: const Icon(Icons.bookmark_border),
+              tooltip: 'Apartados',
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const GiftCardsScreen()),
+              ),
+              icon: const Icon(Icons.card_giftcard),
+              tooltip: 'Tarjetas de regalo',
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReturnsScreen()),
+              ),
+              icon: const Icon(Icons.assignment_return_outlined),
+              tooltip: 'Devoluciones y cambios',
+            ),
+          ] else
+            PopupMenuButton<String>(
+              tooltip: 'Más',
+              onSelected: (v) {
+                switch (v) {
+                  case 'inv':
+                    _openInventory(const InventoryHomeScreen());
+                  case 'lay':
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const LayawaysScreen()));
+                  case 'gift':
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const GiftCardsScreen()));
+                  case 'ret':
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const ReturnsScreen()));
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: 'inv',
+                    child: ListTile(
+                        leading: Icon(Icons.inventory_2_outlined),
+                        title: Text('Inventario'))),
+                PopupMenuItem(
+                    value: 'lay',
+                    child: ListTile(
+                        leading: Icon(Icons.bookmark_border),
+                        title: Text('Apartados'))),
+                PopupMenuItem(
+                    value: 'gift',
+                    child: ListTile(
+                        leading: Icon(Icons.card_giftcard),
+                        title: Text('Tarjetas de regalo'))),
+                PopupMenuItem(
+                    value: 'ret',
+                    child: ListTile(
+                        leading: Icon(Icons.assignment_return_outlined),
+                        title: Text('Devoluciones y cambios'))),
+              ],
+            ),
         ],
       ),
       body: LayoutBuilder(

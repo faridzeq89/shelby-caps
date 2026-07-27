@@ -251,7 +251,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Nuevo usuario'),
-      content: Column(
+      content: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
@@ -281,6 +282,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
             Text(_error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ],
+        ),
       ),
       actions: [
         TextButton(

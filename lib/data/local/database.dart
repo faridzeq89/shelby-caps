@@ -60,7 +60,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -146,6 +146,10 @@ class AppDatabase extends _$AppDatabase {
         'ON inventory_movements (variant_id, location_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_sale_lines_sale ON sale_lines (sale_id)');
+    // Reportes (recomendaciones, inventario muerto, ventas por variante) filtran
+    // sale_lines por variant_id: sin este índice hacen escaneo completo y se traban.
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_sale_lines_variant ON sale_lines (variant_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_payments_sale ON payments (sale_id)');
     await customStatement(

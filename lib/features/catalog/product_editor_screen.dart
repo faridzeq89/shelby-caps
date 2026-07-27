@@ -135,7 +135,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
       builder: (_) => AlertDialog(
         title: const Text('ZPL para etiquetadora Zebra'),
         content: SizedBox(
-          width: 500,
+          width: double.maxFinite,
           child: SingleChildScrollView(
             child: SelectableText(zpl,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),

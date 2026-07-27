@@ -258,28 +258,36 @@ class LayawayRepository {
   }
 
   Future<List<LayawaySummary>> activeLayaways(int locationId) async {
+    // Una sola consulta: apartados + términos + nombre del cliente (left join).
     final rows = await (_db.select(_db.sales).join([
       innerJoin(_db.layawayTerms,
           _db.layawayTerms.saleId.equalsExp(_db.sales.id)),
+      leftOuterJoin(
+          _db.customers, _db.customers.id.equalsExp(_db.sales.customerId)),
     ])
           ..where(_db.sales.status.equalsValue(SaleStatus.layaway) &
               _db.sales.locationId.equals(locationId))
           ..orderBy([OrderingTerm.asc(_db.layawayTerms.expiresAt)]))
         .get();
-    final out = <LayawaySummary>[];
-    for (final r in rows) {
+    if (rows.isEmpty) return [];
+
+    // Pagos de todos los apartados en UNA consulta (evita N+1).
+    final saleIds = rows.map((r) => r.readTable(_db.sales).id).toList();
+    final paidBySale = <String, int>{};
+    final payRows = await (_db.select(_db.payments)
+          ..where((t) => t.saleId.isIn(saleIds)))
+        .get();
+    for (final p in payRows) {
+      paidBySale[p.saleId] = (paidBySale[p.saleId] ?? 0) + p.amountCents;
+    }
+
+    return rows.map((r) {
       final sale = r.readTable(_db.sales);
       final terms = r.readTable(_db.layawayTerms);
-      String? customerName;
-      if (sale.customerId != null) {
-        final c = await (_db.select(_db.customers)
-              ..where((t) => t.id.equals(sale.customerId!)))
-            .getSingleOrNull();
-        customerName = c?.name;
-      }
-      out.add(LayawaySummary(sale, terms, customerName, await balance(sale.id)));
-    }
-    return out;
+      final customer = r.readTableOrNull(_db.customers);
+      final bal = sale.totalCents - (paidBySale[sale.id] ?? 0);
+      return LayawaySummary(sale, terms, customer?.name, bal);
+    }).toList();
   }
 
   Future<List<SaleLine>> linesOf(String saleId) =>

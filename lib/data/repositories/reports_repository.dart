@@ -220,7 +220,8 @@ class ReportsRepository {
       }
     }
     out.sort((a, b) => a.kind.index.compareTo(b.kind.index));
-    return out;
+    // Tope para no pintar cientos de filas de golpe (traba la UI).
+    return out.length > 80 ? out.sublist(0, 80) : out;
   }
 
   // ---------------------------------------------------------------------------
@@ -338,7 +339,8 @@ class ReportsRepository {
       'LEFT JOIN variant_stock vs ON vs.variant_id = v.id '
       'WHERE v.active = 1 AND COALESCE(vs.on_hand, 0) > 0 '
       'AND (last_sold IS NULL OR last_sold < ?) '
-      'ORDER BY on_hand DESC, p.name ASC',
+      'ORDER BY on_hand DESC, p.name ASC '
+      'LIMIT 200',
       variables: [_d(cutoff)],
       readsFrom: {_db.variants, _db.products, _db.sales, _db.saleLines, _db.inventoryMovements},
     ).get();

@@ -9,6 +9,7 @@ import '../customers/customers_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
 import 'cloud_backup_screen.dart';
+import 'loyalty_config_screen.dart';
 import 'reconciliation_screen.dart';
 import 'users_screen.dart';
 
@@ -109,6 +110,17 @@ class AdminScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const CustomersScreen()),
+              ),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.stars_outlined),
+              title: const Text('Programa de puntos'),
+              subtitle: const Text('Reglas de ganar y canjear lealtad'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LoyaltyConfigScreen()),
               ),
             ),
           ),

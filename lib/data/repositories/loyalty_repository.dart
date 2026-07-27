@@ -57,6 +57,25 @@ class LoyaltyRepository {
     );
   }
 
+  /// Guarda las reglas del programa (solo se llama desde Admin).
+  Future<void> setConfig({
+    required int earnPerPeso,
+    required int redeemCentsPerPoint,
+  }) async {
+    if (earnPerPeso < 0 || redeemCentsPerPoint < 1) {
+      throw ArgumentError('Valores de lealtad inválidos');
+    }
+    await _putSetting('loyalty_earn_per_peso', earnPerPeso.toString());
+    await _putSetting(
+        'loyalty_redeem_cents_per_point', redeemCentsPerPoint.toString());
+  }
+
+  Future<void> _putSetting(String key, String value) {
+    return _db.into(_db.appSettings).insertOnConflictUpdate(
+          AppSettingsCompanion.insert(key: key, value: value),
+        );
+  }
+
   /// Ajuste manual de puntos (regalo, corrección). Positivo suma, negativo resta.
   Future<void> adjust(int customerId, int points) {
     return _db.into(_db.loyaltyTransactions).insert(

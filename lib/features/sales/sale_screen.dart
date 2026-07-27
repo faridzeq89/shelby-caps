@@ -42,10 +42,10 @@ class SaleScreen extends StatefulWidget {
   const SaleScreen({super.key});
 
   @override
-  State<SaleScreen> createState() => _SaleScreenState();
+  State<SaleScreen> createState() => SaleScreenState();
 }
 
-class _SaleScreenState extends State<SaleScreen> {
+class SaleScreenState extends State<SaleScreen> {
   late final AppDatabase _db = context.read<AppDatabase>();
   late final CatalogRepository _catalog = CatalogRepository(_db);
   late final SalesRepository _sales = SalesRepository(_db);
@@ -95,6 +95,13 @@ class _SaleScreenState extends State<SaleScreen> {
         _products = prods;
       });
     }
+  }
+
+  /// Recarga la vitrina sin perder el carrito. La llama el shell al volver a la
+  /// pestaña Vender (p. ej. tras cargar el catálogo de prueba desde Admin).
+  void reloadCatalog() {
+    _loadCatalog();
+    _refreshLowStock();
   }
 
   Future<void> _selectCategory(int? id) async {

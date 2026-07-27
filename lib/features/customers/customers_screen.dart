@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/loyalty_repository.dart';
+import '../../services/auth_controller.dart';
 
 String _money(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
@@ -171,6 +173,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         title: Text(c.name),
         actions: [
           IconButton(
+            tooltip: 'Ajustar puntos',
+            icon: const Icon(Icons.stars_outlined),
+            onPressed: _adjustPoints,
+          ),
+          IconButton(
             tooltip: 'Editar',
             icon: const Icon(Icons.edit_outlined),
             onPressed: () async {
@@ -273,6 +280,49 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         ],
       ),
     );
+  }
+
+  void _toast(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  /// Ajuste manual de puntos (regalo o corrección). Solo gerente/admin.
+  Future<void> _adjustPoints() async {
+    final role = context.read<AuthController>().currentUser?.role;
+    if (role == null || !Permissions.canManageCatalog(role)) {
+      _toast('Solo gerente o admin puede ajustar puntos');
+      return;
+    }
+    final ctrl = TextEditingController();
+    final pts = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Ajustar puntos'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType:
+              const TextInputType.numberWithOptions(signed: true),
+          decoration: const InputDecoration(
+            labelText: 'Puntos (+ suma, − resta)',
+            helperText: 'Ej. 50 para regalar, -20 para corregir',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(int.tryParse(ctrl.text.trim())),
+              child: const Text('Aplicar')),
+        ],
+      ),
+    );
+    if (pts == null || pts == 0) return;
+    await _loyalty.adjust(widget.customerId, pts);
+    if (!mounted) return;
+    _load();
+    _toast('Puntos ajustados: ${pts > 0 ? '+' : ''}$pts');
   }
 
   Widget _pointsCard(BuildContext context) {

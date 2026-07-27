@@ -21,6 +21,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // reconstruya y recargue (ventas/devoluciones recientes aparecen al instante).
   int _corteEpoch = 0;
   int _adminEpoch = 0;
+  // La venta NO se reconstruye (conserva el carrito); se recarga en sitio vía
+  // esta llave al volver a la pestaña (p. ej. tras cargar catálogo de prueba).
+  final _saleKey = GlobalKey<SaleScreenState>();
 
   Future<void> _confirmLogout(AuthController auth) async {
     final ok = await showDialog<bool>(
@@ -47,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isAdmin = auth.isAdmin;
 
     final pages = <Widget>[
-      const SaleScreen(),
+      SaleScreen(key: _saleKey),
       CashSessionScreen(key: ValueKey('corte-$_corteEpoch')),
       if (isAdmin) AdminScreen(key: ValueKey('admin-$_adminEpoch')),
     ];
@@ -85,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
           } else {
             setState(() {
               // Recarga la pestaña de datos al entrar.
+              if (i == 0) _saleKey.currentState?.reloadCatalog();
               if (i == 1) _corteEpoch++;
               if (i == 2) _adminEpoch++;
               _index = i;

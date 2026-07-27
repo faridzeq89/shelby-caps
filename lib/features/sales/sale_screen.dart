@@ -183,23 +183,19 @@ class _SaleScreenState extends State<SaleScreen> {
 
   Future<void> _checkout() async {
     if (_lines.isEmpty || _locationId == null) return;
-    var availablePoints = 0;
-    var redeemCentsPerPoint = LoyaltyRepository.defaultRedeemCentsPerPoint;
-    if (_customer != null) {
-      availablePoints = await _loyalty.balance(_customer!.id);
-      redeemCentsPerPoint = (await _loyalty.config()).redeemCentsPerPoint;
-    }
-    if (!mounted) return;
     final payment = await showModalBottomSheet<_PaymentResult>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _PaymentSheet(
         grossCents: _total,
-        availablePoints: availablePoints,
-        redeemCentsPerPoint: redeemCentsPerPoint,
+        customers: _customers,
+        loyalty: _loyalty,
+        initialCustomer: _customer,
       ),
     );
     if (payment == null) return;
+    // El cliente pudo elegirse/cambiarse dentro del cobro.
+    if (mounted) setState(() => _customer = payment.customer);
 
     CheckoutResult result;
     try {
@@ -908,16 +904,28 @@ class _PaymentResult {
     required this.discountCents,
     required this.discountReason,
     required this.gift,
+    required this.redeemPoints,
+    required this.customer,
   });
   final List<PaymentInput> payments;
   final int discountCents;
   final String? discountReason;
   final bool gift;
+  final int redeemPoints; // puntos de lealtad a canjear
+  final Customer? customer; // cliente elegido en el cobro
 }
 
 class _PaymentSheet extends StatefulWidget {
-  const _PaymentSheet({required this.grossCents});
+  const _PaymentSheet({
+    required this.grossCents,
+    required this.customers,
+    required this.loyalty,
+    this.initialCustomer,
+  });
   final int grossCents;
+  final CustomerRepository customers;
+  final LoyaltyRepository loyalty;
+  final Customer? initialCustomer;
 
   @override
   State<_PaymentSheet> createState() => _PaymentSheetState();
@@ -936,11 +944,69 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   bool _gift = false;
   bool _authorized = false;
 
+  // Lealtad / cliente (se puede elegir aquí mismo).
+  Customer? _customer;
+  int _availablePoints = 0;
+  int _redeemCentsPerPoint = LoyaltyRepository.defaultRedeemCentsPerPoint;
+  int _redeemPoints = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _customer = widget.initialCustomer;
+    if (_customer != null) _loadPoints();
+  }
+
+  Future<void> _loadPoints() async {
+    final pts = await widget.loyalty.balance(_customer!.id);
+    final cfg = await widget.loyalty.config();
+    if (!mounted) return;
+    setState(() {
+      _availablePoints = pts;
+      _redeemCentsPerPoint = cfg.redeemCentsPerPoint;
+    });
+  }
+
+  Future<void> _changeCustomer() async {
+    final c = await pickCustomer(context, widget.customers);
+    if (c == null || !mounted) return;
+    setState(() {
+      _customer = c;
+      _redeemPoints = 0;
+      _availablePoints = 0;
+    });
+    await _loadPoints();
+    _syncCash();
+  }
+
+  /// Puntos máximos canjeables: no más de los que tiene ni de lo que cubre el bruto.
+  int get _maxRedeemPoints {
+    final coverable =
+        ((widget.grossCents - _rawDiscountCents) / _redeemCentsPerPoint).floor();
+    final cap = coverable < 0 ? 0 : coverable;
+    return _availablePoints < cap ? _availablePoints : cap;
+  }
+
+  int get _redeemValue => _redeemPoints * _redeemCentsPerPoint;
+
+  void _setRedeem(int points) {
+    setState(() => _redeemPoints = points.clamp(0, _maxRedeemPoints));
+    _syncCash();
+  }
+
+  /// Ajusta el efectivo sugerido al neto tras descuento y canje.
+  void _syncCash() {
+    _cash.text = (_net / 100).toStringAsFixed(2);
+    setState(() {});
+  }
+
   int _cents(TextEditingController c) =>
       ((double.tryParse(c.text.trim()) ?? 0) * 100).round();
 
-  int get _discountCents => _cents(_discount).clamp(0, widget.grossCents);
-  int get _net => widget.grossCents - _discountCents;
+  int get _rawDiscountCents => _cents(_discount).clamp(0, widget.grossCents);
+  int get _discountCents => _rawDiscountCents;
+  int get _net =>
+      (widget.grossCents - _discountCents - _redeemValue).clamp(0, widget.grossCents);
   int get _nonCash => _cents(_card) + _cents(_transfer);
   int get _entered => _cents(_cash) + _nonCash;
   int get _change => _entered - _net;
@@ -1016,6 +1082,8 @@ class _PaymentSheetState extends State<_PaymentSheet> {
       discountCents: _discountCents,
       discountReason: _reason.text.trim().isEmpty ? null : _reason.text.trim(),
       gift: _gift,
+      redeemPoints: _redeemPoints,
+      customer: _customer,
     ));
   }
 
@@ -1041,11 +1109,39 @@ class _PaymentSheetState extends State<_PaymentSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Cliente (opcional): se puede elegir o cambiar aquí en el cobro.
+            InkWell(
+              onTap: _changeCustomer,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(_customer == null
+                        ? Icons.person_add_alt
+                        : Icons.person),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _customer?.name ?? 'Agregar cliente (opcional)',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    Text(_customer == null ? 'Elegir' : 'Cambiar',
+                        style: TextStyle(color: theme.colorScheme.primary)),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 8),
+            const SizedBox(height: 8),
             Text('A cobrar: \$${(_net / 100).toStringAsFixed(2)}',
                 style: theme.textTheme.titleLarge),
-            if (_discountCents > 0)
-              Text('Bruto \$${(widget.grossCents / 100).toStringAsFixed(2)}  ·  '
-                  'descuento \$${(_discountCents / 100).toStringAsFixed(2)}'
+            if (_discountCents > 0 || _redeemValue > 0)
+              Text(
+                  'Bruto \$${(widget.grossCents / 100).toStringAsFixed(2)}'
+                  '${_discountCents > 0 ? '  ·  descuento \$${(_discountCents / 100).toStringAsFixed(2)}' : ''}'
+                  '${_redeemValue > 0 ? '  ·  puntos -\$${(_redeemValue / 100).toStringAsFixed(2)}' : ''}'
                   '${_needsAuth ? '  (requiere gerente)' : ''}',
                   style: theme.textTheme.bodySmall),
             const SizedBox(height: 12),
@@ -1063,6 +1159,30 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 ),
               ],
             ),
+            if (_availablePoints > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _redeemPoints > 0
+                          ? 'Canjeando $_redeemPoints pts de $_availablePoints'
+                          : 'Puntos disponibles: $_availablePoints',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  if (_redeemPoints > 0)
+                    TextButton(
+                        onPressed: () => _setRedeem(0),
+                        child: const Text('Quitar')),
+                  FilledButton.tonal(
+                    onPressed:
+                        _maxRedeemPoints == 0 ? null : () => _setRedeem(_maxRedeemPoints),
+                    child: const Text('Canjear máx'),
+                  ),
+                ],
+              ),
+            ],
             const Divider(height: 24),
             _amountField('Efectivo', _cash),
             const SizedBox(height: 8),

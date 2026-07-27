@@ -155,6 +155,17 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       multi-tienda (requiere que el dueño active email auth en Supabase). Sigue pendiente del dueño el
       SQL de Supabase de la Fase 8 para que el respaldo en la nube opere en el dispositivo.
 
+- [x] **Fase 14 — Clientes (CRM ligero)**. Cerrada 2026-07-26 (con APK). **Sin cambio de esquema**:
+      usa `customers` y `sales.customerId` que ya existían (checkout ya aceptaba `customerId`).
+      `CustomerRepository`: crear/editar/buscar (nombre o teléfono), `history` (ventas del cliente),
+      `stats` (compras, gasto de por vida, última visita; cuenta estados completed/returned/
+      partialReturn). UI `lib/features/customers/`: `CustomersScreen` (lista con búsqueda + alta),
+      `CustomerDetailScreen` (datos + tarjetas de totales + historial), editor (alta/edición) y
+      `pickCustomer` (selector para la venta: buscar/elegir/crear al vuelo). En `sale_screen`: botón
+      de cliente en la barra + chip visible + se pasa `customerId` al cobro y se limpia tras la venta.
+      Enlazado en Admin→Clientes. 77 pruebas verdes (5 nuevas de clientes). Base para lealtad/gift
+      cards (Fases 15-16).
+
 ## Backlog resuelto (2026-07-26, post-fases, en `main`)
 Cuatro pendientes acumulados, cada uno con tests y commit propio. 60 pruebas verdes.
 - **Gestión de usuarios** (`UserRepository` + Admin→Usuarios): crear cajeros/gerentes con PIN

@@ -5,6 +5,7 @@ import '../../data/demo_seed.dart';
 import '../../data/local/database.dart';
 import '../../services/auth_controller.dart';
 import '../catalog/catalog_home_screen.dart';
+import '../customers/customers_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
 import 'cloud_backup_screen.dart';
@@ -97,6 +98,17 @@ class AdminScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const UsersScreen()),
+              ),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.people_alt_outlined),
+              title: const Text('Clientes'),
+              subtitle: const Text('Ficha, historial de compras y totales'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CustomersScreen()),
               ),
             ),
           ),

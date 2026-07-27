@@ -6,11 +6,13 @@ import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
+import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/inventory_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/cloud_backup_service.dart';
 import '../../services/image_service.dart';
+import '../customers/customers_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../inventory/low_stock_screen.dart';
 import '../scan/scanner_screen.dart';
@@ -47,11 +49,13 @@ class _SaleScreenState extends State<SaleScreen> {
   late final CatalogRepository _catalog = CatalogRepository(_db);
   late final SalesRepository _sales = SalesRepository(_db);
   late final InventoryRepository _inventory = InventoryRepository(_db);
+  late final CustomerRepository _customers = CustomerRepository(_db);
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _lines = <_CartLine>[];
   int? _locationId;
   int _lowStock = 0;
+  Customer? _customer; // cliente opcional asignado a la venta
 
   // Vitrina
   List<Category> _categories = [];
@@ -151,6 +155,11 @@ class _SaleScreenState extends State<SaleScreen> {
     if (code != null) await _onScan(code);
   }
 
+  Future<void> _pickCustomer() async {
+    final c = await pickCustomer(context, _customers);
+    if (c != null && mounted) setState(() => _customer = c);
+  }
+
   Future<void> _openSearch() async {
     final picked = await pickProductAndVariant(context, _catalog);
     if (picked != null) _addVariant(picked.$1, picked.$2);
@@ -197,6 +206,7 @@ class _SaleScreenState extends State<SaleScreen> {
         payments: payment.payments,
         discountCents: payment.discountCents,
         discountReason: payment.discountReason,
+        customerId: _customer?.id,
       );
     } catch (e) {
       _toast('Error al cobrar: $e');
@@ -244,7 +254,10 @@ class _SaleScreenState extends State<SaleScreen> {
 
     if (!mounted) return;
     await _showDone(result, printed);
-    setState(() => _lines.clear());
+    setState(() {
+      _lines.clear();
+      _customer = null;
+    });
     _refreshLowStock();
     _loadCatalog();
     _scanFocus.requestFocus();
@@ -317,6 +330,14 @@ class _SaleScreenState extends State<SaleScreen> {
             ),
             icon: const Icon(Icons.assignment_return_outlined),
             tooltip: 'Devoluciones y cambios',
+          ),
+          IconButton(
+            onPressed: _pickCustomer,
+            icon: Icon(
+                _customer == null ? Icons.person_add_alt : Icons.person),
+            tooltip: _customer == null
+                ? 'Asignar cliente'
+                : 'Cliente: ${_customer!.name}',
           ),
           IconButton(
             onPressed: _openSearch,
@@ -401,6 +422,18 @@ class _SaleScreenState extends State<SaleScreen> {
             ],
           ),
         ),
+        if (_customer != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: InputChip(
+                avatar: const Icon(Icons.person, size: 18),
+                label: Text(_customer!.name),
+                onDeleted: () => setState(() => _customer = null),
+              ),
+            ),
+          ),
         _categoryTabs(),
         Expanded(child: _productGrid()),
       ],

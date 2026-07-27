@@ -38,8 +38,32 @@ class UsersScreen extends StatefulWidget {
 class _UsersScreenState extends State<UsersScreen> {
   late final UserRepository _repo = UserRepository(context.read<AppDatabase>());
   late Future<List<Profile>> _future = _repo.listUsers();
+  String _query = '';
+  UserRole? _roleFilter;
 
   Profile get _actor => context.read<AuthController>().currentUser!;
+
+  Widget _roleChips() {
+    Widget rc(String label, UserRole? r) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            label: Text(label),
+            selected: _roleFilter == r,
+            onSelected: (_) => setState(() => _roleFilter = r),
+          ),
+        );
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          rc('Todos', null),
+          for (final r in UserRole.values) rc(roleLabel(r), r),
+        ],
+      ),
+    );
+  }
 
   void _reload() => setState(() => _future = _repo.listUsers());
 
@@ -95,9 +119,30 @@ class _UsersScreenState extends State<UsersScreen> {
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final users = snap.data!;
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+          final q = _query.trim().toLowerCase();
+          final users = snap.data!.where((u) {
+            if (_roleFilter != null && u.role != _roleFilter) return false;
+            if (q.isNotEmpty && !u.name.toLowerCase().contains(q)) return false;
+            return true;
+          }).toList();
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v),
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar por nombre…',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                ),
+              ),
+              _roleChips(),
+              Expanded(
+                child: users.isEmpty
+                    ? const Center(child: Text('Sin resultados'))
+                    : ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 88),
             itemCount: users.length,
             itemBuilder: (context, i) {
               final u = users[i];
@@ -146,6 +191,9 @@ class _UsersScreenState extends State<UsersScreen> {
               ),
               );
             },
+                      ),
+              ),
+            ],
           );
         },
       ),

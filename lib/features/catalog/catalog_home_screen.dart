@@ -27,6 +27,9 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
       CatalogRepository(context.read<AppDatabase>());
   late Future<_CatalogData> _future = _load();
 
+  String _query = '';
+  int? _categoryFilter; // null = todas
+
   Profile get _actor => context.read<AuthController>().currentUser!;
 
   Future<_CatalogData> _load() async {
@@ -62,6 +65,35 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
       builder: (_) => ProductEditorScreen(productId: id),
     ));
     _reload();
+  }
+
+  Widget _categoryChips(Map<int, String> categories) {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: const Text('Todo'),
+              selected: _categoryFilter == null,
+              onSelected: (_) => setState(() => _categoryFilter = null),
+            ),
+          ),
+          for (final e in categories.entries)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(e.value),
+                selected: _categoryFilter == e.key,
+                onSelected: (_) => setState(() => _categoryFilter = e.key),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -100,24 +132,52 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
                   textAlign: TextAlign.center),
             );
           }
-          return GridView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 180,
-              mainAxisExtent: 232,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-            ),
-            itemCount: data.products.length,
-            itemBuilder: (context, i) {
-              final p = data.products[i];
-              return _CatalogTile(
-                product: p,
-                category: data.categoryNames[p.categoryId] ?? '—',
-                variantCount: data.variantCounts[p.id] ?? 0,
-                onTap: () => _openProduct(p.id),
-              );
-            },
+          final q = _query.trim().toLowerCase();
+          final products = data.products.where((p) {
+            if (_categoryFilter != null && p.categoryId != _categoryFilter) {
+              return false;
+            }
+            if (q.isNotEmpty && !p.name.toLowerCase().contains(q)) return false;
+            return true;
+          }).toList();
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v),
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar producto…',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                ),
+              ),
+              _categoryChips(data.categoryNames),
+              Expanded(
+                child: products.isEmpty
+                    ? const Center(child: Text('Sin resultados'))
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 180,
+                          mainAxisExtent: 232,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemCount: products.length,
+                        itemBuilder: (context, i) {
+                          final p = products[i];
+                          return _CatalogTile(
+                            product: p,
+                            category: data.categoryNames[p.categoryId] ?? '—',
+                            variantCount: data.variantCounts[p.id] ?? 0,
+                            onTap: () => _openProduct(p.id),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),

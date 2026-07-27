@@ -137,11 +137,45 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+              _tile(Icons.lightbulb_outline, 'Recomendaciones',
+                  'Qué reabastecer, ofertar o descontar', () {
+                _open('Recomendaciones', 'recomendaciones', () async {
+                  final recs = await _repo.recommendations();
+                  return ReportTable(
+                    ['Acción', 'Producto', 'SKU', 'Motivo'],
+                    [
+                      for (final r in recs)
+                        [r.action, r.productName, r.sku, r.reason],
+                    ],
+                  );
+                });
+              }),
               _tile(Icons.trending_up, 'Más vendidos',
                   'Top por piezas en el periodo', () {
                 _open('Más vendidos', 'top_vendidos', () async {
                   final rows = await _repo.variantSales(_period.from, _period.to,
                       limit: 50);
+                  return ReportTable(
+                    ['Producto', 'Talla', 'Color', 'SKU', 'Piezas', 'Ingreso'],
+                    [
+                      for (final r in rows)
+                        [
+                          r.productName,
+                          r.size ?? '',
+                          r.color ?? '',
+                          r.sku,
+                          '${r.unitsSold}',
+                          ReportExport.money(r.revenueCents),
+                        ],
+                    ],
+                  );
+                });
+              }),
+              _tile(Icons.trending_down, 'Menos vendidos',
+                  'Los que se venden poco en el periodo', () {
+                _open('Menos vendidos', 'menos_vendidos', () async {
+                  final rows = await _repo.variantSales(_period.from, _period.to,
+                      limit: 50, ascending: true);
                   return ReportTable(
                     ['Producto', 'Talla', 'Color', 'SKU', 'Piezas', 'Ingreso'],
                     [

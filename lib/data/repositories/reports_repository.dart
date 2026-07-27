@@ -120,6 +120,25 @@ class SalespersonSales {
   final int revenueCents;
 }
 
+/// Tipo de recomendación (ordena la prioridad al mostrarlas).
+enum RecoKind { restock, promo, overstock }
+
+/// Una recomendación accionable derivada de ventas + existencia.
+class Recommendation {
+  const Recommendation({
+    required this.productName,
+    required this.sku,
+    required this.action,
+    required this.reason,
+    required this.kind,
+  });
+  final String productName;
+  final String sku;
+  final String action;
+  final String reason;
+  final RecoKind kind;
+}
+
 /// Consultas de reporte (solo lectura sobre el ledger y las ventas). No muta
 /// nada. Los estados de venta se guardan como el NOMBRE del enum
 /// (`completed`, `returned`, `partialReturn`, ...).
@@ -132,6 +151,77 @@ class ReportsRepository {
   static const _returnStatuses = "('returned','partialReturn')";
 
   Variable _d(DateTime t) => Variable.withDateTime(t);
+
+  // ---------------------------------------------------------------------------
+  // Recomendaciones accionables (reglas sobre ventas de 30 días + existencia)
+  // ---------------------------------------------------------------------------
+  Future<List<Recommendation>> recommendations() async {
+    final now = DateTime.now();
+    final cut30 = now.subtract(const Duration(days: 30));
+    final rows = await _db.customSelect(
+      'SELECT p.name AS pname, v.sku AS sku, '
+      'COALESCE(vs.on_hand, 0) AS on_hand, COALESCE(vs.reserved, 0) AS reserved, '
+      '(SELECT COALESCE(SUM(sl.qty), 0) FROM sale_lines sl '
+      '   JOIN sales s ON s.id = sl.sale_id '
+      "   WHERE sl.variant_id = v.id AND sl.qty > 0 AND s.status IN $_soldStatuses "
+      '   AND s.created_at >= ?) AS sold30, '
+      '(SELECT MAX(s.created_at) FROM sale_lines sl JOIN sales s ON s.id = sl.sale_id '
+      "   WHERE sl.variant_id = v.id AND sl.qty > 0 AND s.status IN $_soldStatuses) AS last_sold "
+      'FROM variants v JOIN products p ON p.id = v.product_id '
+      'LEFT JOIN variant_stock vs ON vs.variant_id = v.id '
+      'WHERE v.active = 1',
+      variables: [_d(cut30)],
+      readsFrom: {_db.variants, _db.products, _db.sales, _db.saleLines, _db.inventoryMovements},
+    ).get();
+
+    final out = <Recommendation>[];
+    for (final r in rows) {
+      final name = r.read<String>('pname');
+      final sku = r.read<String>('sku');
+      final available = r.read<int>('on_hand') - r.read<int>('reserved');
+      final sold30 = r.read<int>('sold30');
+      final lastSold = r.read<DateTime?>('last_sold');
+      final days = lastSold == null ? null : now.difference(lastSold).inDays;
+
+      // 1) Reabastecer: se vende rápido y queda poco (menos de ~1 mes de cobertura).
+      if (sold30 >= 3 && available >= 0 && available <= sold30) {
+        out.add(Recommendation(
+          productName: name,
+          sku: sku,
+          kind: RecoKind.restock,
+          action: 'Reabastecer',
+          reason:
+              'Vendió $sold30 en 30 días y quedan $available. Conviene subir inventario.',
+        ));
+        continue;
+      }
+      // 2) Poner en oferta: con existencia y sin venta reciente (45+ días o nunca).
+      if (available > 0 && (lastSold == null || (days ?? 99999) >= 45)) {
+        out.add(Recommendation(
+          productName: name,
+          sku: sku,
+          kind: RecoKind.promo,
+          action: 'Poner en oferta',
+          reason: lastSold == null
+              ? 'Nunca se ha vendido y hay $available en existencia.'
+              : 'Sin venta en $days días, con $available en existencia.',
+        ));
+        continue;
+      }
+      // 3) Descuento por sobre-stock lento: mucha existencia, venta lenta.
+      if (available >= 10 && sold30 >= 1 && sold30 <= 2) {
+        out.add(Recommendation(
+          productName: name,
+          sku: sku,
+          kind: RecoKind.overstock,
+          action: 'Considerar descuento',
+          reason: 'Existencia alta ($available) y venta lenta ($sold30 en 30 días).',
+        ));
+      }
+    }
+    out.sort((a, b) => a.kind.index.compareTo(b.kind.index));
+    return out;
+  }
 
   // ---------------------------------------------------------------------------
   // Resumen de periodo (día/semana/mes) — con soporte de comparativo

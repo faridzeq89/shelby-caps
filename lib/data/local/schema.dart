@@ -96,6 +96,9 @@ class Products extends Table {
   IntColumn get basePriceCents => integer()();
   // IVA por producto en puntos base: 1600 = 16.00%.
   IntColumn get taxRateBps => integer().withDefault(const Constant(1600))();
+  // Imagen del producto: ruta de archivo local (foto capturada/optimizada) o
+  // clave de asset ('assets/...') para el catálogo de demo. Nulo => sin foto.
+  TextColumn get imagePath => text().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

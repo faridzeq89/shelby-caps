@@ -43,7 +43,10 @@ android {
             if (hasReleaseKeystore) {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = (keystoreProperties["storeFile"] as String?)?.let { file(it) }
+                // Ruta relativa a `android/` (rootProject), no a `android/app/`,
+                // para que `storeFile=boutique-release.jks` apunte al keystore
+                // en la carpeta android. Las rutas absolutas también funcionan.
+                storeFile = (keystoreProperties["storeFile"] as String?)?.let { rootProject.file(it) }
                 storePassword = keystoreProperties["storePassword"] as String
             }
         }

@@ -34,6 +34,19 @@ class CatalogRepository {
   Future<Product?> productById(int id) =>
       (_db.select(_db.products)..where((t) => t.id.equals(id))).getSingleOrNull();
 
+  /// Productos activos para la vitrina, opcionalmente filtrados por categoría
+  /// ([categoryId] nulo = todas). Ordenados por nombre.
+  Future<List<Product>> productsByCategory(int? categoryId, {int limit = 500}) {
+    final q = _db.select(_db.products)
+      ..where((t) => t.active.equals(true))
+      ..orderBy([(t) => OrderingTerm(expression: t.name)])
+      ..limit(limit);
+    if (categoryId != null) {
+      q.where((t) => t.categoryId.equals(categoryId));
+    }
+    return q.get();
+  }
+
   Future<List<Variant>> variantsOf(int productId) =>
       (_db.select(_db.variants)..where((t) => t.productId.equals(productId)))
           .get();
@@ -272,6 +285,22 @@ class CatalogRepository {
           .write(ProductsCompanion(basePriceCents: Value(newPriceCents)));
       await _audit(actor, 'update_price', 'product', productId.toString(),
           'basePriceCents=$newPriceCents');
+    });
+  }
+
+  /// Guarda (o quita, con [path] nulo) la ruta de imagen del producto. La
+  /// optimización y el archivo los maneja la capa de UI (ImageService).
+  Future<void> updateProductImage({
+    required Profile actor,
+    required int productId,
+    required String? path,
+  }) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(imagePath: Value(path)));
+      await _audit(actor, 'update_image', 'product', productId.toString(),
+          path == null ? 'sin imagen' : 'imagen actualizada');
     });
   }
 

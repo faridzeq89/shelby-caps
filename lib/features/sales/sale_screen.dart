@@ -10,8 +10,10 @@ import '../../data/repositories/inventory_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/cloud_backup_service.dart';
+import '../../services/image_service.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../inventory/low_stock_screen.dart';
+import '../scan/scanner_screen.dart';
 import 'layaways_screen.dart';
 import 'returns_screen.dart';
 import 'ticket_service.dart';
@@ -51,6 +53,14 @@ class _SaleScreenState extends State<SaleScreen> {
   int? _locationId;
   int _lowStock = 0;
 
+  // Vitrina
+  List<Category> _categories = [];
+  List<Product> _products = [];
+  int? _categoryFilter; // null = todas
+
+  // Ancho a partir del cual mostramos los dos paneles (tablet horizontal).
+  static const _wideBreakpoint = 720.0;
+
   Profile get _cashier => context.read<AuthController>().currentUser!;
 
   int get _total => _lines.fold(0, (s, l) => s + l.net);
@@ -67,6 +77,24 @@ class _SaleScreenState extends State<SaleScreen> {
       if (mounted) setState(() => _locationId = loc?.id);
     });
     _refreshLowStock();
+    _loadCatalog();
+  }
+
+  Future<void> _loadCatalog() async {
+    final cats = await _catalog.categories();
+    final prods = await _catalog.productsByCategory(_categoryFilter);
+    if (mounted) {
+      setState(() {
+        _categories = cats;
+        _products = prods;
+      });
+    }
+  }
+
+  Future<void> _selectCategory(int? id) async {
+    setState(() => _categoryFilter = id);
+    final prods = await _catalog.productsByCategory(id);
+    if (mounted) setState(() => _products = prods);
   }
 
   Future<void> _refreshLowStock() async {
@@ -78,6 +106,7 @@ class _SaleScreenState extends State<SaleScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => screen));
     _refreshLowStock();
+    _loadCatalog();
     _scanFocus.requestFocus();
   }
 
@@ -117,10 +146,21 @@ class _SaleScreenState extends State<SaleScreen> {
     if (product != null) _addVariant(product, variant);
   }
 
+  Future<void> _scanWithCamera() async {
+    final code = await scanBarcodeWithCamera(context);
+    if (code != null) await _onScan(code);
+  }
+
   Future<void> _openSearch() async {
     final picked = await pickProductAndVariant(context, _catalog);
     if (picked != null) _addVariant(picked.$1, picked.$2);
     _scanFocus.requestFocus();
+  }
+
+  /// Al tocar un producto de la vitrina: elegir talla/color y agregar.
+  Future<void> _onTapProduct(Product product) async {
+    final variant = await pickVariant(context, _catalog, product);
+    if (variant != null) _addVariant(product, variant);
   }
 
   void _changeQty(_CartLine line, int delta) {
@@ -206,6 +246,7 @@ class _SaleScreenState extends State<SaleScreen> {
     await _showDone(result, printed);
     setState(() => _lines.clear());
     _refreshLowStock();
+    _loadCatalog();
     _scanFocus.requestFocus();
   }
 
@@ -239,6 +280,9 @@ class _SaleScreenState extends State<SaleScreen> {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Layout responsivo
+  // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -281,34 +325,162 @@ class _SaleScreenState extends State<SaleScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _scanCtrl,
-              focusNode: _scanFocus,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Escanea un código o busca y toca (+ Enter)',
-                prefixIcon: Icon(Icons.qr_code_scanner),
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: _onScan,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= _wideBreakpoint;
+          return wide ? _wideLayout() : _narrowLayout();
+        },
+      ),
+    );
+  }
+
+  /// Tablet: dos paneles (carrito 40% + vitrina 60%).
+  Widget _wideLayout() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Material(
+            elevation: 2,
+            child: Column(
+              children: [
+                _cartHeader(),
+                Expanded(child: _cartList()),
+                _summaryBar(showCheckout: true),
+              ],
             ),
           ),
-          Expanded(
-            child: _lines.isEmpty
-                ? const Center(child: Text('Carrito vacío'))
-                : ListView.separated(
-                    itemCount: _lines.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (_, i) => _cartTile(_lines[i]),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(flex: 3, child: _catalogPanel(autofocusScan: true)),
+      ],
+    );
+  }
+
+  /// Celular / vertical: vitrina full + barra de carrito inferior.
+  Widget _narrowLayout() {
+    return Column(
+      children: [
+        Expanded(child: _catalogPanel(autofocusScan: false)),
+        _mobileCartBar(),
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Vitrina (catálogo)
+  // -------------------------------------------------------------------------
+  Widget _catalogPanel({required bool autofocusScan}) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _scanCtrl,
+                  focusNode: _scanFocus,
+                  autofocus: autofocusScan,
+                  decoration: const InputDecoration(
+                    labelText: 'Escanea o busca (+ Enter)',
+                    prefixIcon: Icon(Icons.qr_code_scanner),
+                    border: OutlineInputBorder(),
+                    isDense: true,
                   ),
+                  onSubmitted: _onScan,
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonalIcon(
+                onPressed: _scanWithCamera,
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Cámara'),
+              ),
+            ],
           ),
-          _summaryBar(),
+        ),
+        _categoryTabs(),
+        Expanded(child: _productGrid()),
+      ],
+    );
+  }
+
+  Widget _categoryTabs() {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: const Text('Todo'),
+              selected: _categoryFilter == null,
+              onSelected: (_) => _selectCategory(null),
+            ),
+          ),
+          for (final c in _categories)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(c.name),
+                selected: _categoryFilter == c.id,
+                onSelected: (_) => _selectCategory(c.id),
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _productGrid() {
+    if (_products.isEmpty) {
+      return const Center(child: Text('Sin productos en esta categoría'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 160,
+        mainAxisExtent: 190,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemCount: _products.length,
+      itemBuilder: (_, i) => _ProductTile(
+        product: _products[i],
+        onTap: () => _onTapProduct(_products[i]),
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Carrito
+  // -------------------------------------------------------------------------
+  Widget _cartHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Carrito', style: Theme.of(context).textTheme.titleMedium),
+          Text('$_itemCount artículos',
+              style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+
+  Widget _cartList() {
+    if (_lines.isEmpty) {
+      return const Center(child: Text('Carrito vacío'));
+    }
+    return ListView.separated(
+      itemCount: _lines.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (_, i) => _cartTile(_lines[i]),
     );
   }
 
@@ -318,6 +490,7 @@ class _SaleScreenState extends State<SaleScreen> {
         ? '$unit c/u  ·  −\$${(line.lineDiscountCents / 100).toStringAsFixed(2)}  ·  = \$${(line.net / 100).toStringAsFixed(2)}'
         : '$unit c/u  ·  = \$${(line.lineTotal / 100).toStringAsFixed(2)}';
     return ListTile(
+      dense: true,
       title: Text(line.title),
       subtitle: Text(subtitle),
       trailing: Row(
@@ -338,6 +511,146 @@ class _SaleScreenState extends State<SaleScreen> {
               onPressed: () => _changeQty(line, 1),
               icon: const Icon(Icons.add_circle_outline)),
         ],
+      ),
+    );
+  }
+
+  /// Barra inferior del celular: contador, total y abrir carrito / cobrar.
+  Widget _mobileCartBar() {
+    final theme = Theme.of(context);
+    return Material(
+      elevation: 8,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Row(
+          children: [
+            IconButton.filledTonal(
+              onPressed: _lines.isEmpty ? null : _openCartSheet,
+              icon: Badge(
+                isLabelVisible: _itemCount > 0,
+                label: Text('$_itemCount'),
+                child: const Icon(Icons.shopping_cart_outlined),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Total', style: theme.textTheme.bodySmall),
+                  Text('\$${(_total / 100).toStringAsFixed(2)}',
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: _lines.isEmpty ? null : _checkout,
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Cobrar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Hoja inferior con el carrito editable (celular).
+  void _openCartSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          // Reconstruye la hoja cuando cambian cantidades desde ella.
+          void refresh() {
+            setSheet(() {});
+            setState(() {});
+          }
+
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.6,
+            maxChildSize: 0.9,
+            builder: (_, controller) => Column(
+              children: [
+                _cartHeader(),
+                Expanded(
+                  child: _lines.isEmpty
+                      ? const Center(child: Text('Carrito vacío'))
+                      : ListView.separated(
+                          controller: controller,
+                          itemCount: _lines.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final line = _lines[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(line.title),
+                              subtitle: Text(
+                                  '\$${(line.unitPriceCents / 100).toStringAsFixed(2)} c/u  ·  = \$${(line.net / 100).toStringAsFixed(2)}'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                      tooltip: 'Descuento',
+                                      onPressed: () async {
+                                        await _editLineDiscount(line);
+                                        refresh();
+                                      },
+                                      icon: Icon(Icons.local_offer_outlined,
+                                          color: line.lineDiscountCents > 0
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                              : null)),
+                                  IconButton(
+                                      onPressed: () {
+                                        _changeQty(line, -1);
+                                        refresh();
+                                      },
+                                      icon: const Icon(
+                                          Icons.remove_circle_outline)),
+                                  Text('${line.qty}',
+                                      style: const TextStyle(fontSize: 18)),
+                                  IconButton(
+                                      onPressed: () {
+                                        _changeQty(line, 1);
+                                        refresh();
+                                      },
+                                      icon:
+                                          const Icon(Icons.add_circle_outline)),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Total: \$${(_total / 100).toStringAsFixed(2)}',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      FilledButton.icon(
+                        onPressed: _lines.isEmpty
+                            ? null
+                            : () {
+                                Navigator.of(sheetCtx).pop();
+                                _checkout();
+                              },
+                        icon: const Icon(Icons.point_of_sale),
+                        label: const Text('Cobrar'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -410,7 +723,7 @@ class _SaleScreenState extends State<SaleScreen> {
     setState(() => line.lineDiscountCents = cents);
   }
 
-  Widget _summaryBar() {
+  Widget _summaryBar({required bool showCheckout}) {
     final theme = Theme.of(context);
     return Material(
       elevation: 8,
@@ -437,15 +750,17 @@ class _SaleScreenState extends State<SaleScreen> {
                         ?.copyWith(fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _lines.isEmpty ? null : _checkout,
-                icon: const Icon(Icons.point_of_sale),
-                label: const Text('Cobrar'),
+            if (showCheckout) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _lines.isEmpty ? null : _checkout,
+                  icon: const Icon(Icons.point_of_sale),
+                  label: const Text('Cobrar'),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -453,6 +768,68 @@ class _SaleScreenState extends State<SaleScreen> {
   }
 }
 
+/// Mosaico de producto de la vitrina: foto (o marcador), nombre y precio.
+class _ProductTile extends StatelessWidget {
+  const _ProductTile({required this.product, required this.onTap});
+  final Product product;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final provider = productImageProvider(product.imagePath);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.dividerColor),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: provider != null
+                  ? Image(
+                      // Miniatura en memoria (ResizeImage): no descomprime la
+                      // foto completa para pintar un mosaico chico.
+                      image: ResizeImage(provider, width: 320, allowUpscaling: false),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _placeholder(theme),
+                    )
+                  : _placeholder(theme),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500)),
+                  Text('\$${(product.basePriceCents / 100).toStringAsFixed(2)}',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.primary)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholder(ThemeData theme) => Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Icon(Icons.checkroom,
+            size: 40, color: theme.colorScheme.onSurfaceVariant),
+      );
+}
 
 // ===========================================================================
 // Cobro: pago dividido, descuento y ticket de regalo

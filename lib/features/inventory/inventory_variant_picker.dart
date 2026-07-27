@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
+import '../scan/scanner_screen.dart';
 
 /// Selector de variante para operaciones de inventario. A diferencia del
 /// selector de venta, aquí SÍ se pueden elegir variantes sin existencia (se
@@ -44,6 +45,11 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
     if (mounted) setState(() => _results = r);
   }
 
+  Future<void> _scanCamera() async {
+    final code = await scanBarcodeWithCamera(context);
+    if (code != null) await _onSubmit(code);
+  }
+
   Future<void> _onSubmit(String code) async {
     final variant = await widget.catalog.resolveByCode(code);
     if (variant == null) {
@@ -79,9 +85,14 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
             TextField(
               controller: _ctrl,
               autofocus: true,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Escanea o busca (nombre o SKU)',
-                prefixIcon: Icon(Icons.qr_code_scanner),
+                prefixIcon: const Icon(Icons.qr_code_scanner),
+                suffixIcon: IconButton(
+                  tooltip: 'Escanear con cámara',
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  onPressed: _scanCamera,
+                ),
               ),
               onChanged: _search,
               onSubmitted: _onSubmit,

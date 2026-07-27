@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Cámara: escáner de código de barras (mobile_scanner) y foto de producto
+         (image_picker). No obligatoria: equipos sin cámara siguen instalando. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <application
         android:label="Montana Boutique"
         android:name="${applicationName}"

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +8,7 @@ import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/image_service.dart';
 import 'label_service.dart';
 
 class ProductEditorScreen extends StatefulWidget {
@@ -38,6 +40,7 @@ class _EditorData {
 class _ProductEditorScreenState extends State<ProductEditorScreen> {
   late final AppDatabase _db = context.read<AppDatabase>();
   late final CatalogRepository _repo = CatalogRepository(_db);
+  final ImageService _images = ImageService();
   late Future<_EditorData> _future = _load();
   int? _locationId;
   String? _scanResult;
@@ -212,6 +215,103 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // Foto del producto
+  // --------------------------------------------------------------------------
+  Future<void> _changePhoto(_EditorData data) async {
+    final action = await showModalBottomSheet<_PhotoAction>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () => Navigator.pop(context, _PhotoAction.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de galería'),
+              onTap: () => Navigator.pop(context, _PhotoAction.gallery),
+            ),
+            if (data.product.imagePath != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Quitar foto'),
+                onTap: () => Navigator.pop(context, _PhotoAction.remove),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+    switch (action) {
+      case _PhotoAction.camera:
+        await _pickImage(ImageSource.camera, data);
+      case _PhotoAction.gallery:
+        await _pickImage(ImageSource.gallery, data);
+      case _PhotoAction.remove:
+        await _setPhoto(data, null);
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source, _EditorData data) async {
+    XFile? file;
+    try {
+      file = await ImagePicker()
+          .pickImage(source: source, maxWidth: 1600, imageQuality: 92);
+    } catch (e) {
+      _toast('No se pudo abrir la cámara/galería: $e');
+      return;
+    }
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    final path = await _images.saveOptimizedBytes(bytes);
+    if (path == null) {
+      _toast('La imagen no es válida');
+      return;
+    }
+    await _setPhoto(data, path);
+  }
+
+  /// Persiste la nueva ruta (o la quita con null) y borra el archivo anterior.
+  Future<void> _setPhoto(_EditorData data, String? path) async {
+    final old = data.product.imagePath;
+    try {
+      await _repo.updateProductImage(
+          actor: _actor, productId: data.product.id, path: path);
+      await _images.delete(old);
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  Widget _photoThumb(_EditorData data) {
+    final provider = productImageProvider(data.product.imagePath);
+    return InkWell(
+      onTap: () => _changePhoto(data),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+          image: provider != null
+              ? DecorationImage(
+                  image: ResizeImage(provider, width: 200, allowUpscaling: false),
+                  fit: BoxFit.cover)
+              : null,
+        ),
+        child: provider == null
+            ? const Icon(Icons.add_a_photo_outlined)
+            : null,
+      ),
+    );
+  }
+
   Future<int?> _askPesos(String title, int initialCents) async {
     final ctrl =
         TextEditingController(text: (initialCents / 100).toStringAsFixed(2));
@@ -327,6 +427,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
+            _photoThumb(data),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,6 +512,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     );
   }
 }
+
+enum _PhotoAction { camera, gallery, remove }
 
 // ===========================================================================
 // Diálogo del generador de matriz

@@ -116,8 +116,29 @@ SKU, apartados, devoluciones/cambios y corte de caja.
       (CSV con BOM UTF-8, compartido vía `Printing.sharePdf`). Enlazado desde Admin. 43 pruebas verdes
       (3 nuevas). Sin cambio de esquema (no requiere build_runner).
 - [~] **Fase 11 — Producción**. Documentación y config sin secretos preparadas 2026-07-25.
-      Pendiente del dueño: generar keystore + firmar APK release, y DSN de Sentry (requieren sus
-      credenciales; ver `docs/produccion.md`).
+      Pendiente del dueño: DSN de Sentry (requiere sus credenciales; ver `docs/produccion.md`).
+      La firma release quedó operativa en la Fase 12 (keystore en `android/boutique-release.jks`;
+      se corrigió la ruta de `storeFile` en `build.gradle.kts` para resolver contra `android/`).
+- [x] **Fase 12 — Rediseño visual + cámara + catálogo de prueba**. Cerrada 2026-07-26 (con APK
+      release firmado, 81.8 MB). Esquema **v5**: `products.image_path` (ruta local de la foto
+      optimizada o clave de asset `assets/...`) + migración v4→v5 idempotente (`_addImagePathIfMissing`,
+      `onUpgrade` refactorizado a pasos aditivos). **ImageService** (`lib/services/image_service.dart`):
+      optimiza fotos a JPEG ≤1000px calidad 82 (~30-50 KB), guarda en `product_images/`, borra;
+      helper `productImageProvider` (AssetImage vs FileImage). **Cámara escáner** (`mobile_scanner`,
+      `lib/features/scan/scanner_screen.dart`, on-device/offline) en venta y en el selector de
+      inventario (recepción/ajuste/conteo). **Captura de foto** en el editor de producto (tomar con
+      cámara o galería vía `image_picker`, miniatura + quitar; permiso CAMERA en el manifest, no
+      obligatorio). **Rediseño responsivo de venta** (`sale_screen.dart` con `LayoutBuilder`): tablet
+      ancha = dos paneles (carrito 40% + vitrina 60%); cel/angosto = vitrina full + barra de carrito
+      inferior con bottom sheet. Vitrina = `GridView.builder` de mosaicos con foto (miniatura en
+      memoria vía `ResizeImage`), pestañas de categoría, botón de cámara. **Catálogo de prueba**
+      (`lib/data/demo_seed.dart` + Admin→"Cargar catálogo de prueba"): 100 productos con variantes
+      talla×color, stock e imágenes (24 fotos libres reutilizadas en `assets/demo/`, ~788 KB;
+      genéricas para demo, el dueño pone las reales con la captura). **Optimización**: rejilla
+      perezosa, miniaturas en memoria, índices `idx_products_category`/`idx_products_name`, búsqueda
+      con debounce 250 ms. 67 pruebas verdes (7 nuevas: migración v5, ImageService ×4, demo seed ×2),
+      analyze limpio. Dispositivo objetivo: Xiaomi Poco X7. **Pendiente hardware** (sin cambio):
+      ESC/POS térmico, ZPL físico. Las fotos del demo son de relleno; el dueño las reemplaza.
 
 ## Backlog resuelto (2026-07-26, post-fases, en `main`)
 Cuatro pendientes acumulados, cada uno con tests y commit propio. 60 pruebas verdes.

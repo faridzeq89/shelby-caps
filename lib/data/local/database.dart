@@ -57,7 +57,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,10 +65,13 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
           await _createExtras();
         },
+        // Pasos aditivos e idempotentes: una base en cualquier versión previa
+        // aplica en orden todos los pasos que le faltan.
         onUpgrade: (m, from, to) async {
           if (from < 2) {
             // La v1 solo tenía `profiles` (con el PIN del admin ya cambiado);
-            // se conserva y se crea todo lo demás (incluye cash_movements).
+            // se conserva y se crea TODO lo demás con el esquema actual (ya
+            // incluye min_stock e image_path), así que aquí termina.
             for (final entity in allSchemaEntities) {
               if (entity is TableInfo && entity.actualTableName == 'profiles') {
                 continue;
@@ -76,15 +79,21 @@ class AppDatabase extends _$AppDatabase {
               await m.create(entity);
             }
             await _createExtras();
-          } else if (from < 3) {
-            // v2 → v3: solo faltaba la tabla de movimientos de efectivo.
+            return;
+          }
+          if (from < 3) {
+            // v2 → v3: tabla de movimientos de efectivo.
             await m.createTable(cashMovements);
-            // Encadena con v3 → v4 para bases que salten de v2 a v4.
-            await _addMinStockIfMissing(m);
-          } else if (from < 4) {
+          }
+          if (from < 4) {
             // v3 → v4: punto de reorden por variante (alertas de stock bajo).
             await _addMinStockIfMissing(m);
           }
+          if (from < 5) {
+            // v4 → v5: imagen del producto (rediseño visual).
+            await _addImagePathIfMissing(m);
+          }
+          await _createExtras();
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -103,6 +112,17 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Agrega `products.image_path` solo si aún no existe. Idempotente por el
+  /// mismo motivo que [_addMinStockIfMissing].
+  Future<void> _addImagePathIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('products')").get();
+    final hasColumn =
+        info.any((r) => r.read<String>('name') == 'image_path');
+    if (!hasColumn) {
+      await m.addColumn(products, products.imagePath);
+    }
+  }
+
   /// Índices, la vista `variant_stock` y los triggers de inmutabilidad del
   /// ledger. Idempotente (IF NOT EXISTS) para servir en creación y upgrade.
   Future<void> _createExtras() async {
@@ -115,6 +135,12 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_payments_sale ON payments (sale_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_variants_product ON variants (product_id)');
+    // Vitrina/búsqueda con catálogo grande: filtrar por categoría y ordenar por
+    // nombre sin escanear toda la tabla.
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_products_category ON products (category_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_products_name ON products (name)');
 
     await customStatement('''
       CREATE VIEW IF NOT EXISTS variant_stock AS

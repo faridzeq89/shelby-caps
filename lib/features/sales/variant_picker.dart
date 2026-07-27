@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../data/local/database.dart';
@@ -22,6 +24,17 @@ Future<(Product, Variant)?> pickProductAndVariant(
   return (product, variant);
 }
 
+/// Selector de variante para un producto YA elegido (p. ej. al tocar su mosaico
+/// en la vitrina). Devuelve la variante talla/color escogida, o null.
+Future<Variant?> pickVariant(
+    BuildContext context, CatalogRepository catalog, Product product) {
+  return showModalBottomSheet<Variant>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => _VariantPickerSheet(catalog: catalog, product: product),
+  );
+}
+
 class _ProductSearchSheet extends StatefulWidget {
   const _ProductSearchSheet({required this.catalog});
   final CatalogRepository catalog;
@@ -32,14 +45,24 @@ class _ProductSearchSheet extends StatefulWidget {
 
 class _ProductSearchSheetState extends State<_ProductSearchSheet> {
   List<Product> _results = [];
+  Timer? _debounce;
 
-  Future<void> _search(String q) async {
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _search(String q) {
+    _debounce?.cancel();
     if (q.trim().length < 2) {
       setState(() => _results = []);
       return;
     }
-    final r = await widget.catalog.searchProducts(q);
-    if (mounted) setState(() => _results = r);
+    _debounce = Timer(const Duration(milliseconds: 250), () async {
+      final r = await widget.catalog.searchProducts(q);
+      if (mounted) setState(() => _results = r);
+    });
   }
 
   @override

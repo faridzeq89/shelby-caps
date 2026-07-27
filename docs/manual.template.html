@@ -145,6 +145,15 @@
   .foot { color:var(--muted); font-size:14px; text-align:center; margin-top:56px; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   @media (max-width:640px){ .grid2 { grid-template-columns:1fr; } }
+
+  /* Impresión / PDF: conservar colores y evitar cortar bloques a la mitad. */
+  @page { margin: 12mm; }
+  @media print {
+    *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h2 { break-after: avoid; }
+    figure.shot, .callout, ol.steps > li, .card, nav.toc { break-inside: avoid; }
+    header.masthead { border-radius: 0; }
+  }
 </style>
 
 <header class="masthead">

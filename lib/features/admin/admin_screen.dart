@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/dashboard_tile.dart';
 import '../../data/demo_seed.dart';
 import '../../data/local/database.dart';
 import '../../services/auth_controller.dart';
@@ -84,16 +85,17 @@ class AdminScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Administración')),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 220,
-          mainAxisExtent: 150,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
-        ),
-        itemCount: items.length,
-        itemBuilder: (context, i) => _AdminCard(item: items[i]),
+      body: DashboardGrid(
+        children: [
+          for (final it in items)
+            DashboardTile(
+              icon: it.icon,
+              title: it.title,
+              subtitle: it.subtitle,
+              color: it.color,
+              onTap: () => it.onTap(context),
+            ),
+        ],
       ),
     );
   }
@@ -128,56 +130,5 @@ class AdminScreen extends StatelessWidget {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     }
-  }
-}
-
-/// Tarjeta de acción del panel: icono en círculo de color, título y subtítulo.
-class _AdminCard extends StatelessWidget {
-  const _AdminCard({required this.item});
-  final _AdminItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => item.onTap(context),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: item.color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(item.icon, color: item.color, size: 26),
-              ),
-              const SizedBox(height: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(item.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.hintColor)),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/dashboard_tile.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/reports_repository.dart';
 import 'report_export.dart';
@@ -211,10 +212,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
               GridView.extent(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                maxCrossAxisExtent: 240,
-                mainAxisExtent: 118,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+                maxCrossAxisExtent: 230,
+                mainAxisExtent: 148,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
                 children: [
                   _tile(Icons.lightbulb_outline, 'Recomendaciones',
                   'Qué reabastecer, ofertar o descontar', () {
@@ -406,39 +407,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
 
   Widget _tile(IconData icon, String title, String subtitle, VoidCallback onTap) {
-    final theme = Theme.of(context);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: theme.colorScheme.primary, size: 26),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.hintColor)),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return DashboardTile(
+        icon: icon, title: title, subtitle: subtitle, onTap: onTap);
   }
 }
 

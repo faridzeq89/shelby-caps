@@ -79,12 +79,14 @@ class _UsersScreenState extends State<UsersScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final users = snap.data!;
-          return ListView.separated(
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
             itemCount: users.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, i) {
               final u = users[i];
-              return ListTile(
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
                 leading: CircleAvatar(
                   child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?'),
                 ),
@@ -107,6 +109,7 @@ class _UsersScreenState extends State<UsersScreen> {
                         child: Text(u.active ? 'Desactivar' : 'Activar')),
                   ],
                 ),
+              ),
               );
             },
           );

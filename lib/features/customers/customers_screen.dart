@@ -87,17 +87,21 @@ class _CustomersScreenState extends State<CustomersScreen> {
           Expanded(
             child: _customers.isEmpty
                 ? const Center(child: Text('Sin clientes'))
-                : ListView.separated(
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                     itemCount: _customers.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final c = _customers[i];
-                      return ListTile(
-                        leading: CircleAvatar(child: Text(_initials(c.name))),
-                        title: Text(c.name),
-                        subtitle: c.phone != null ? Text(c.phone!) : null,
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _openDetail(c),
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        child: ListTile(
+                          leading:
+                              CircleAvatar(child: Text(_initials(c.name))),
+                          title: Text(c.name),
+                          subtitle: c.phone != null ? Text(c.phone!) : null,
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _openDetail(c),
+                        ),
                       );
                     },
                   ),

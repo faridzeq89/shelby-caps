@@ -276,9 +276,11 @@ Sin cambio de esquema (usa `app_settings`). `flutter analyze` limpio, **92 prueb
 - **`TicketService.buildPdf(data, {config})`**: el encabezado usa `config.title`; imprime el
   subtítulo y la leyenda final si no están vacíos; y dibuja el **QR** con `pw.BarcodeWidget`
   (`pw.Barcode.qrCode()`, sin dependencia nueva) cuando `qrData` tiene contenido.
-- **Call sites** cargan la config y la pasan: venta (`sale_screen`, vía `_db`) y liquidación de
-  apartado (`layaways_screen`). *(Pendiente menor: el comprobante de apartado `layaway_receipt.dart`
-  sigue con "Montana Boutique" fijo; no usa aún `TicketConfig`.)*
+- **Call sites** cargan la config y la pasan: venta (`sale_screen`, vía `_db`), liquidación de
+  apartado y **comprobante de apartado** (`layaways_screen` → `layaway_receipt.dart` ahora recibe
+  `TicketConfig`: usa título + subtítulo + QR; conserva "COMPROBANTE DE APARTADO" y "Conserve este
+  comprobante" propios del documento). Ambos comprobantes de apartado (crear + reimprimir) pasan la
+  config. Ya no queda "Montana Boutique" fijo en tickets ni comprobantes.
 - **Admin renombrada a "Impresoras & Tickets"** (`printers_screen.dart` + tarjeta en `admin_screen`):
   nueva sección **Personalización del ticket** (4 campos, se guardan solos onChanged) + botón
   **Vista previa** que arma un ticket de ejemplo con la config actual. La prueba de impresión usa

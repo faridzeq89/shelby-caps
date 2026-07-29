@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import 'ticket_service.dart';
+
 class LayawayReceiptLine {
   const LayawayReceiptLine(this.description, this.qty, this.lineTotalCents);
   final String description;
@@ -27,7 +29,7 @@ class LayawayReceiptService {
     required int paidCents,
     required int balanceCents,
     required DateTime dueDate,
-    String businessName = 'Montana Boutique',
+    TicketConfig config = const TicketConfig(),
   }) async {
     final doc = pw.Document();
     final df = DateFormat('dd/MM/yyyy');
@@ -53,9 +55,14 @@ class LayawayReceiptService {
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
           pw.Center(
-              child: pw.Text(businessName,
+              child: pw.Text(config.title,
                   style:
                       pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold))),
+          if (config.subheading.isNotEmpty)
+            pw.Center(
+                child: pw.Text(config.subheading,
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(fontSize: 9))),
           pw.Center(
               child: pw.Text('COMPROBANTE DE APARTADO',
                   style: pw.TextStyle(
@@ -80,6 +87,18 @@ class LayawayReceiptService {
           pw.Center(
               child: pw.Text('Conserve este comprobante',
                   style: const pw.TextStyle(fontSize: 8))),
+          if (config.qrData.isNotEmpty) ...[
+            pw.SizedBox(height: 8),
+            pw.Center(
+              child: pw.BarcodeWidget(
+                barcode: pw.Barcode.qrCode(),
+                data: config.qrData,
+                width: 90,
+                height: 90,
+                drawText: false,
+              ),
+            ),
+          ],
         ],
       ),
     ));

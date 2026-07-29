@@ -222,8 +222,10 @@ class _NewLayawayScreenState extends State<_NewLayawayScreen> {
         depositCents: depositCents,
       );
       // Comprobante.
+      final ticketCfg = await TicketConfig.load(_db);
       await Printing.layoutPdf(
         onLayout: (_) => LayawayReceiptService.build(
+          config: ticketCfg,
           folio: result.folio,
           customerName: _name.text.trim(),
           dateTime: DateTime.now(),
@@ -453,8 +455,10 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
 
   Future<void> _reprint(_Detail d) async {
     final paid = d.sale.totalCents - d.balance;
+    final ticketCfg = await TicketConfig.load(_db);
     await Printing.layoutPdf(
       onLayout: (_) => LayawayReceiptService.build(
+        config: ticketCfg,
         folio: d.sale.folio,
         customerName: d.customer?.name ?? 'Cliente',
         dateTime: d.sale.createdAt,

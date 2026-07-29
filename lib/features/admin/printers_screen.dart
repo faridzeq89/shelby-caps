@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_dropdown.dart';
 import '../../data/local/database.dart';
 import '../sales/ticket_service.dart';
 
@@ -29,9 +30,11 @@ class _PrintersScreenState extends State<PrintersScreen> {
   static const _kPaper = 'printer_paper_mm';
   static const _kDrawer = 'printer_open_drawer';
   static const _kPrinter = 'printer_name';
+  static const _kDrawerPin = 'printer_drawer_pin';
 
   String _paper = '80';
   bool _openDrawer = false;
+  String _drawerPin = '2';
   String? _printerName;
   List<Printer> _printers = const [];
   bool _scanning = false;
@@ -76,12 +79,14 @@ class _PrintersScreenState extends State<PrintersScreen> {
     final paper = await _get(_kPaper);
     final drawer = await _get(_kDrawer);
     final printer = await _get(_kPrinter);
+    final drawerPin = await _get(_kDrawerPin);
     final ticket = await TicketConfig.load(_db);
     if (!mounted) return;
     setState(() {
       _paper = paper ?? '80';
       _openDrawer = drawer == '1';
-      _printerName = printer;
+      _drawerPin = drawerPin ?? '2';
+      _printerName = (printer == null || printer.isEmpty) ? null : printer;
       _titleCtrl.text = ticket.title;
       _subheadingCtrl.text = ticket.subheading;
       _footerCtrl.text = ticket.footerLegend;
@@ -192,6 +197,23 @@ class _PrintersScreenState extends State<PrintersScreen> {
     }
   }
 
+  /// Items del dropdown de impresora: "Ninguna" (null) + las detectadas + la
+  /// guardada aunque ahora no esté conectada (para no perder el valor).
+  List<DropdownMenuItem<String?>> _printerItems() {
+    final names = <String>{
+      for (final p in _printers) p.name,
+      if (_printerName != null && _printerName!.isNotEmpty) _printerName!,
+    };
+    return [
+      const DropdownMenuItem<String?>(
+        value: null,
+        child: Text('Ninguna (elegir al imprimir)'),
+      ),
+      for (final n in names)
+        DropdownMenuItem<String?>(value: n, child: Text(n)),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -210,72 +232,64 @@ class _PrintersScreenState extends State<PrintersScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Text('Ancho de papel'),
-                            const Spacer(),
-                            DropdownButton<String>(
-                              value: _paper,
-                              items: const [
-                                DropdownMenuItem(
-                                    value: '58', child: Text('58 mm')),
-                                DropdownMenuItem(
-                                    value: '80', child: Text('80 mm')),
-                              ],
-                              onChanged: (v) async {
-                                if (v == null) return;
-                                setState(() => _paper = v);
-                                await _set(_kPaper, v);
-                              },
-                            ),
+                        AppDropdown<String>(
+                          label: 'Ancho de papel',
+                          icon: Icons.straighten,
+                          value: _paper,
+                          items: const [
+                            DropdownMenuItem(
+                                value: '58', child: Text('58 mm')),
+                            DropdownMenuItem(
+                                value: '80', child: Text('80 mm (recomendado)')),
                           ],
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            setState(() => _paper = v);
+                            await _set(_kPaper, v);
+                          },
                         ),
-                        const Divider(),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                _printerName == null
-                                    ? 'Sin impresora por defecto'
-                                    : 'Por defecto: $_printerName',
-                                style: Theme.of(context).textTheme.bodyMedium,
+                              child: AppDropdown<String?>(
+                                label: 'Impresora predeterminada',
+                                icon: Icons.print,
+                                value: _printerName,
+                                items: _printerItems(),
+                                onChanged: (v) async {
+                                  setState(() => _printerName = v);
+                                  await _set(_kPrinter, v ?? '');
+                                  _toast(v == null
+                                      ? 'Sin impresora fija (se elige al imprimir)'
+                                      : 'Impresora: $v');
+                                },
                               ),
                             ),
-                            TextButton.icon(
+                            const SizedBox(width: 8),
+                            IconButton.filledTonal(
                               onPressed: _scanning ? null : _scan,
+                              tooltip: 'Buscar impresoras',
                               icon: _scanning
                                   ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
+                                      width: 18,
+                                      height: 18,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2))
                                   : const Icon(Icons.refresh),
-                              label: const Text('Buscar'),
                             ),
                           ],
                         ),
                         if (_printers.isEmpty && !_scanning)
                           const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
+                            padding: EdgeInsets.only(top: 8),
                             child: Text(
                               'No se detectaron impresoras del sistema. Empareja '
-                              'la impresora Bluetooth en Ajustes de Android, o '
-                              'conéctala por USB, y vuelve a "Buscar".',
-                              style: TextStyle(fontSize: 13),
+                              'la impresora Bluetooth en Ajustes de Android (o '
+                              'conéctala por USB) y toca el botón de recargar. '
+                              'También puedes dejar "Ninguna" y elegir al imprimir.',
+                              style: TextStyle(fontSize: 12.5),
                             ),
-                          ),
-                        for (final p in _printers)
-                          ListTile(
-                            dense: true,
-                            leading: Icon(_printerName == p.name
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_unchecked),
-                            title: Text(p.name),
-                            onTap: () async {
-                              setState(() => _printerName = p.name);
-                              await _set(_kPrinter, p.name);
-                              _toast('Impresora por defecto: ${p.name}');
-                            },
                           ),
                         const SizedBox(height: 8),
                         Align(
@@ -382,6 +396,36 @@ class _PrintersScreenState extends State<PrintersScreen> {
                           setState(() => _openDrawer = v);
                           await _set(_kDrawer, v ? '1' : '0');
                         },
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        child: AppDropdown<String>(
+                          label: 'Pin de apertura del cajón',
+                          icon: Icons.cable,
+                          value: _drawerPin,
+                          items: const [
+                            DropdownMenuItem(
+                                value: '2',
+                                child: Text('Estándar (pin 2) — recomendado')),
+                            DropdownMenuItem(
+                                value: '5', child: Text('Alternativo (pin 5)')),
+                          ],
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            setState(() => _drawerPin = v);
+                            await _set(_kDrawerPin, v);
+                          },
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: Text(
+                          'La mayoría de impresoras (incluida la Qian recomendada) '
+                          'usan el pin 2. Si al cobrar el cajón no abre, cambia a '
+                          'pin 5. Aplica con la impresión ESC/POS directa.',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ],
                   ),

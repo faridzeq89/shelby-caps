@@ -286,6 +286,22 @@ Sin cambio de esquema (usa `app_settings`). `flutter analyze` limpio, **92 prueb
   **Vista previa** que arma un ticket de ejemplo con la config actual. La prueba de impresión usa
   el título configurado.
 
+## Opciones de hardware como dropdowns en Impresoras & Tickets (2026-07-29, en `main`)
+Sin cambio de esquema (`app_settings`). `flutter analyze` limpio, **92 pruebas verdes**, APK.
+Preparado para la futura integración ESC/POS por Bluetooth: la pantalla ya deja **elegir** con
+dropdowns (`AppDropdown`), con default en lo recomendado pero cambiable:
+- **Ancho de papel** (`printer_paper_mm`): 58 / **80 (default)**.
+- **Impresora predeterminada** (`printer_name`): dropdown "Ninguna (elegir al imprimir)" + las
+  detectadas por `Printing.listPrinters()` + la guardada aunque no esté conectada (helper
+  `_printerItems()`; el nombre vacío se normaliza a null al cargar para no romper el dropdown).
+  Botón de recargar al lado. *(La lista de dispositivos Bluetooth emparejados real llega con la
+  integración ESC/POS directa; hoy lista impresoras del sistema.)*
+- **Pin de apertura del cajón** (`printer_drawer_pin`): **Estándar pin 2 (default)** / Alternativo
+  pin 5. Nota en UI: la Qian usa pin 2; si el cajón no abre, probar pin 5. Aplica con ESC/POS directo.
+- **Nota de arquitectura**: la impresión NO está atada a un modelo. Hoy imprime PDF al sistema (sirve
+  con cualquier impresora que Android reconozca); la integración ESC/POS directa servirá para
+  cualquier térmica **ESC/POS + Bluetooth** (la Qian QOP-T80BL-RI es solo el modelo de prueba).
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

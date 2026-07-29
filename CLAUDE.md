@@ -251,6 +251,22 @@ Todo con tests/analyze verdes (94 pruebas) y APK.
   `SingleChildScrollView` (no overflow con teclado); `AppDropdown` reutilizable (borde redondeado).
 - Estas mejoras NO tienen tag de fase (son post-Fase 16); viven en `main`. 94 pruebas verdes.
 
+## Catálogo: archivar/borrar + Admin→Impresoras + semilla vacía (2026-07-29, en `main`)
+Sin cambio de esquema. `flutter analyze` limpio, **92 pruebas verdes** (bajó de 94: se
+eliminaron los 2 tests del catálogo demo).
+- **Archivar/borrar productos** (`CatalogRepository`): `setProductActive` (archiva/reactiva
+  producto + sus variantes, auditado); `productHasSales`/`productHasMovements`/`canDeleteProduct`;
+  `deleteProduct` = **borrado real SOLO si no tiene ventas ni movimientos**. Si hay historial
+  lanza y se archiva (el ledger es append-only inmutable, no se puede borrar de verdad).
+- **Editor de producto**: menú Archivar/Reactivar/Eliminar + distintivo **ARCHIVADO**; cuando
+  no se puede borrar (tiene historial) ofrece archivar.
+- **Admin→Impresoras** (`printers_screen.dart`, nueva): ancho de papel, listar/elegir impresora,
+  **imprimir prueba**, switch de cajón de dinero. (Es la pantalla para probar el hardware ESC/POS
+  pendiente.) Se quita el botón "Cargar catálogo de prueba" de Admin.
+- **Semilla**: deja de sembrar los ~12 productos por defecto (solo crea sucursal + prefijo de
+  dispositivo). Se **elimina `demo_seed.dart`** (los 100 productos demo) y su test → el catálogo
+  **arranca vacío**; el dueño carga inventario real (o importa CSV/Excel).
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.
@@ -265,8 +281,11 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
 - `docs/manual.html` — **manual completo con capturas** (puesta en marcha + uso de todo).
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
-## Estado operativo (2026-07-26)
+## Estado operativo (2026-07-29)
 Respaldo en la nube (Fase 8) **confirmado funcionando por el dueño** (SQL de Supabase aplicado
-en dev y prod; sube y restaura). App fluida en release. Pendientes del dueño: cargar inventario
-y fotos reales; DSN de Sentry (opcional). Pendientes de hardware: impresora ESC/POS y ZPL.
-Diferidos: traspasos multisucursal, login de negocio (Supabase Auth).
+en dev y prod; sube y restaura). App fluida en release. El catálogo ya **arranca vacío** (semilla
+sin productos demo). Pendientes del dueño: **cargar inventario y fotos reales** (o importar CSV/
+Excel); DSN de Sentry (opcional). Pendientes de hardware: **probar impresora ESC/POS** (usar
+Admin→Impresoras) y etiquetadora ZPL. **Sin arrancar:** cobro con Mercado Pago Point (candidato a
+Fase 17). Diferidos: traspasos multisucursal, login de
+negocio (Supabase Auth).

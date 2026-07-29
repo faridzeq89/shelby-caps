@@ -302,6 +302,19 @@ dropdowns (`AppDropdown`), con default en lo recomendado pero cambiable:
   con cualquier impresora que Android reconozca); la integración ESC/POS directa servirá para
   cualquier térmica **ESC/POS + Bluetooth** (la Qian QOP-T80BL-RI es solo el modelo de prueba).
 
+## Fix inventario: selector con lista/filtros + Ajuste no expulsa (2026-07-29, en `main`)
+Sin cambio de esquema. `flutter analyze` limpio, **92 pruebas verdes**, APK.
+- **`inventory_variant_picker.dart` rehecho**: ya no es solo búsqueda por nombre. Muestra por
+  defecto la **lista de productos** (sin teclear), con **chips de filtro por categoría** (Todas +
+  categorías), más búsqueda por nombre/SKU y escaneo (cámara/HID). Al tocar un producto se elige su
+  variante (si tiene una sola, directo; si varias, selector talla×color con existencia). Usa
+  `categories()`, `productsByCategory()`, `searchProducts()`, `variantsWithStock()`. Beneficia
+  también a Recepción y Conteo (comparten el picker).
+- **`adjust_stock_screen.dart`**: al aplicar el ajuste **ya NO hace `Navigator.pop`** (eso era lo que
+  "sacaba" de Ajuste). Ahora se queda, re-consulta `stockFor` y limpia (`_delta=0`, nota) para seguir
+  ajustando. El hub de inventario refresca el stock bajo al volver (su `_open` ya refresca en cada
+  pop), así que no se pierde la actualización del badge.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

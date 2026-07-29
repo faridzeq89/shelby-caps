@@ -6,8 +6,11 @@ import '../scan/scanner_screen.dart';
 
 /// Selector de variante para operaciones de inventario. A diferencia del
 /// selector de venta, aquí SÍ se pueden elegir variantes sin existencia (se
-/// recibe o ajusta justo cuando el stock está en cero). Acepta escaneo (Enter
-/// del lector HID) o búsqueda por nombre/SKU.
+/// recibe o ajusta justo cuando el stock está en cero).
+///
+/// Muestra por defecto la lista de productos (sin necesidad de teclear), con
+/// **filtros por categoría**, además de búsqueda por nombre/SKU y escaneo
+/// (cámara o lector HID). Al tocar un producto se elige su variante.
 Future<(Product, Variant)?> pickInventoryVariant(
     BuildContext context, CatalogRepository catalog) {
   return showModalBottomSheet<(Product, Variant)>(
@@ -27,8 +30,17 @@ class _InventoryVariantSheet extends StatefulWidget {
 
 class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
   final _ctrl = TextEditingController();
-  List<(Product, Variant)> _results = [];
+  List<Category> _categories = [];
+  int? _categoryId; // null = todas
+  List<Product> _products = [];
+  bool _loading = true;
   String? _note;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
 
   @override
   void dispose() {
@@ -36,13 +48,28 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
     super.dispose();
   }
 
-  Future<void> _search(String q) async {
-    if (q.trim().length < 2) {
-      setState(() => _results = []);
-      return;
+  Future<void> _init() async {
+    final cats = await widget.catalog.categories();
+    if (mounted) setState(() => _categories = cats);
+    await _load();
+  }
+
+  /// Carga la lista según búsqueda (si hay ≥2 letras) o categoría seleccionada.
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final q = _ctrl.text.trim();
+    final List<Product> list;
+    if (q.length >= 2) {
+      list = await widget.catalog.searchProducts(q);
+    } else {
+      list = await widget.catalog.productsByCategory(_categoryId);
     }
-    final r = await widget.catalog.searchVariants(q, limit: 30);
-    if (mounted) setState(() => _results = r);
+    if (mounted) {
+      setState(() {
+        _products = list;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _scanCamera() async {
@@ -62,11 +89,56 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
     }
   }
 
-  String _sub(Product p, Variant v) {
-    final talla = v.size ?? '';
-    final color = v.color ?? '';
-    final tc = '$talla $color'.trim();
-    return tc.isEmpty ? v.sku : '$tc  ·  ${v.sku}';
+  String _variantLabel(Variant v) {
+    final tc = '${v.size ?? ''} ${v.color ?? ''}'.trim();
+    return tc.isEmpty ? v.sku : tc;
+  }
+
+  /// Al tocar un producto: si tiene una sola variante la devuelve directo; si
+  /// tiene varias (talla×color), muestra un selector para elegirla.
+  Future<void> _pickVariant(Product p) async {
+    final variants = await widget.catalog.variantsWithStock(p.id);
+    if (!mounted) return;
+    if (variants.isEmpty) {
+      setState(() => _note = '"${p.name}" no tiene variantes activas');
+      return;
+    }
+    if (variants.length == 1) {
+      Navigator.of(context).pop((p, variants.first.$1));
+      return;
+    }
+    final chosen = await showModalBottomSheet<Variant>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(p.name,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final (v, stock) in variants)
+                    ListTile(
+                      leading: const Icon(Icons.style_outlined),
+                      title: Text(_variantLabel(v)),
+                      subtitle: Text('${v.sku}  ·  existencia: $stock'),
+                      onTap: () => Navigator.of(context).pop(v),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null && mounted) Navigator.of(context).pop((p, chosen));
   }
 
   @override
@@ -79,12 +151,12 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
         top: 12,
       ),
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.7,
+        height: MediaQuery.of(context).size.height * 0.75,
         child: Column(
           children: [
             TextField(
               controller: _ctrl,
-              autofocus: true,
+              autofocus: false,
               decoration: InputDecoration(
                 labelText: 'Escanea o busca (nombre o SKU)',
                 prefixIcon: const Icon(Icons.qr_code_scanner),
@@ -94,7 +166,7 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
                   onPressed: _scanCamera,
                 ),
               ),
-              onChanged: _search,
+              onChanged: (_) => _load(),
               onSubmitted: _onSubmit,
             ),
             if (_note != null)
@@ -105,18 +177,60 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
                         color: Theme.of(context).colorScheme.error)),
               ),
             const SizedBox(height: 8),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _results.length,
-                itemBuilder: (_, i) {
-                  final (p, v) = _results[i];
-                  return ListTile(
-                    title: Text(p.name),
-                    subtitle: Text(_sub(p, v)),
-                    onTap: () => Navigator.of(context).pop((p, v)),
-                  );
-                },
+            // Filtros por categoría (solo si no hay una búsqueda activa).
+            if (_ctrl.text.trim().length < 2 && _categories.isNotEmpty)
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: const Text('Todas'),
+                        selected: _categoryId == null,
+                        onSelected: (_) {
+                          setState(() => _categoryId = null);
+                          _load();
+                        },
+                      ),
+                    ),
+                    for (final c in _categories)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(c.name),
+                          selected: _categoryId == c.id,
+                          onSelected: (_) {
+                            setState(() => _categoryId = c.id);
+                            _load();
+                          },
+                        ),
+                      ),
+                  ],
+                ),
               ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _products.isEmpty
+                      ? const Center(
+                          child: Text('Sin productos en esta categoría'))
+                      : ListView.separated(
+                          itemCount: _products.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final p = _products[i];
+                            return ListTile(
+                              leading: const Icon(Icons.inventory_2_outlined),
+                              title: Text(p.name),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => _pickVariant(p),
+                            );
+                          },
+                        ),
             ),
           ],
         ),

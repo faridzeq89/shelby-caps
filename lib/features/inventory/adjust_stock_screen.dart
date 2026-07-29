@@ -70,9 +70,19 @@ class _AdjustStockScreenState extends State<AdjustStockScreen> {
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
       if (mounted) context.read<CloudBackupService>().backupSoon();
+      // Nos quedamos en Ajuste: refrescamos la existencia y limpiamos para
+      // seguir ajustando (misma variante u otra) sin salir de la pantalla.
+      final applied = _delta;
+      final stock = await _inventory.stockFor(v.id);
       if (!mounted) return;
-      _toast('Ajuste aplicado: ${_delta > 0 ? '+' : ''}$_delta');
-      Navigator.of(context).pop(true);
+      setState(() {
+        _onHand = stock.onHand;
+        _delta = 0;
+        _saving = false;
+      });
+      _note.clear();
+      _toast('Ajuste aplicado: ${applied > 0 ? '+' : ''}$applied · '
+          'existencia: ${stock.onHand}');
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);

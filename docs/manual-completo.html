@@ -1,36 +1,120 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manual — Montana Boutique (POS)</title>
 <style>
-  :root { --morado:#7a1f5c; --tinta:#1e1e1e; --gris:#666; --linea:#e3e3e3; }
-  * { box-sizing:border-box; }
-  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-         color:var(--tinta); line-height:1.55; margin:0; background:#fafafa; }
-  .wrap { max-width:900px; margin:0 auto; padding:32px 24px 80px; background:#fff; }
-  header.doc { text-align:center; border-bottom:3px solid var(--morado); padding-bottom:20px; margin-bottom:24px; }
-  header.doc h1 { color:var(--morado); margin:.2em 0; font-size:2em; }
-  header.doc p { color:var(--gris); margin:.2em 0; }
-  h2 { color:var(--morado); border-bottom:1px solid var(--linea); padding-bottom:6px; margin-top:40px; }
-  h3 { margin-top:26px; font-size:1.15em; }
-  .roles { background:#f6eef4; border-left:4px solid var(--morado); padding:12px 16px; border-radius:8px; }
-  .roles b { color:var(--morado); }
-  figure { margin:16px 0; text-align:center; }
-  figure img { max-width:320px; width:100%; border:1px solid var(--linea);
-               border-radius:14px; box-shadow:0 4px 14px rgba(0,0,0,.10); }
-  figure img.wide { max-width:640px; }
-  figcaption { color:var(--gris); font-size:.85em; margin-top:6px; }
-  .pend { max-width:320px; margin:16px auto; border:2px dashed #c9a3bd; border-radius:14px;
-          padding:28px 16px; text-align:center; color:#9a5c85; background:#fbf5f9; }
-  ul { padding-left:20px; } li { margin:4px 0; }
-  .tip { background:#eef6f0; border-left:4px solid #2e7d4f; padding:10px 14px; border-radius:8px; font-size:.95em; }
-  .grid2 { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; }
-  .grid2 figure { flex:1 1 260px; margin:8px 0; }
-  footer { margin-top:48px; border-top:1px solid var(--linea); padding-top:16px; color:var(--gris); font-size:.85em; text-align:center; }
-  @media print {
-    body { background:#fff; } .wrap { max-width:none; padding:0; }
-    h2 { break-after:avoid; } figure, .pend { break-inside:avoid; }
+  :root{
+    --morado:#7a1f5c; --morado-2:#9d3a7c; --tinta:#241f22; --gris:#6b636a;
+    --linea:#e7e1e6; --papel:#ffffff; --lienzo:#f4eff3; --menu:#2a1220;
+    --menu-tx:#e9d7e4; --menu-hover:#3d1930; --menu-activo:#7a1f5c;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       color:var(--tinta);line-height:1.6;background:var(--lienzo);}
+
+  /* ---- Menú lateral ---- */
+  .sidebar{position:fixed;top:0;left:0;width:270px;height:100vh;overflow-y:auto;
+           background:var(--menu);color:var(--menu-tx);padding:22px 0 32px;z-index:40;}
+  .brand{display:flex;align-items:center;gap:10px;padding:0 20px 16px;}
+  .brand .logo{width:38px;height:38px;border-radius:10px;flex:0 0 auto;
+       background:linear-gradient(135deg,var(--morado),var(--morado-2));
+       display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .brand b{font-size:1.02rem;line-height:1.2;color:#fff;}
+  .brand span{display:block;font-size:.72rem;color:#c9a9bf;font-weight:400;}
+  .toc{list-style:none;margin:8px 0 0;padding:0;}
+  .toc a{display:block;color:var(--menu-tx);text-decoration:none;font-size:.9rem;
+         padding:8px 20px;border-left:3px solid transparent;transition:background .15s;}
+  .toc a:hover{background:var(--menu-hover);}
+  .toc a.sub{padding-left:38px;font-size:.83rem;color:#c9a9bf;}
+  .toc a.active{background:var(--menu-hover);border-left-color:var(--morado-2);color:#fff;font-weight:600;}
+  .toc .grp{padding:14px 20px 4px;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:#8f6a83;}
+  .print-btn{margin:14px 20px 0;width:calc(100% - 40px);border:0;cursor:pointer;
+       background:linear-gradient(135deg,var(--morado),var(--morado-2));color:#fff;
+       font-size:.9rem;font-weight:600;padding:11px;border-radius:10px;}
+  .print-btn:hover{filter:brightness(1.08);}
+  .print-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+
+  /* ---- Botón de menú (móvil) ---- */
+  .menu-toggle{position:fixed;top:14px;left:14px;z-index:50;display:none;border:0;cursor:pointer;
+       background:var(--menu);color:#fff;width:44px;height:44px;border-radius:10px;font-size:20px;
+       box-shadow:0 3px 10px rgba(0,0,0,.25);}
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:39;display:none;}
+
+  /* ---- Contenido ---- */
+  .content{margin-left:270px;}
+  .wrap{max-width:820px;margin:0 auto;padding:40px 28px 90px;background:var(--papel);min-height:100vh;
+        box-shadow:0 0 40px rgba(0,0,0,.05);}
+  header.doc{border-bottom:3px solid var(--morado);padding-bottom:20px;margin-bottom:8px;}
+  header.doc h1{color:var(--morado);margin:.1em 0;font-size:2em;text-wrap:balance;}
+  header.doc p{color:var(--gris);margin:.2em 0;}
+  h2{color:var(--morado);border-bottom:1px solid var(--linea);padding-bottom:6px;margin-top:44px;
+     scroll-margin-top:20px;text-wrap:balance;}
+  h3{margin-top:26px;font-size:1.13em;scroll-margin-top:20px;}
+  p{max-width:68ch;}
+  .roles{background:var(--lienzo);border-left:4px solid var(--morado);padding:12px 16px;border-radius:8px;}
+  .roles b{color:var(--morado);}
+  figure{margin:16px 0;text-align:center;}
+  figure img{max-width:300px;width:100%;border:1px solid var(--linea);border-radius:14px;
+             box-shadow:0 4px 14px rgba(0,0,0,.10);}
+  figure img.wide{max-width:620px;}
+  figcaption{color:var(--gris);font-size:.85em;margin-top:6px;}
+  .pend{max-width:340px;margin:16px auto;border:2px dashed #c9a3bd;border-radius:14px;
+        padding:26px 16px;text-align:center;color:#9a5c85;background:#fbf5f9;font-size:.9em;}
+  .grid2{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;}
+  .grid2 figure{flex:1 1 250px;margin:8px 0;}
+  footer{margin-top:52px;border-top:1px solid var(--linea);padding-top:16px;color:var(--gris);
+         font-size:.85em;text-align:center;}
+
+  @media (max-width:820px){
+    .sidebar{transform:translateX(-100%);transition:transform .25s;box-shadow:4px 0 20px rgba(0,0,0,.3);}
+    body.nav-open .sidebar{transform:translateX(0);}
+    body.nav-open .backdrop{display:block;}
+    .menu-toggle{display:block;}
+    .content{margin-left:0;}
+    .wrap{padding-top:64px;}
+  }
+  @media (prefers-reduced-motion:reduce){.sidebar{transition:none;}}
+
+  @media print{
+    .sidebar,.menu-toggle,.backdrop,.print-btn{display:none !important;}
+    body{background:#fff;} .content{margin-left:0;}
+    .wrap{max-width:none;box-shadow:none;padding:0;}
+    h2{break-after:avoid;} figure,.pend,.grid2{break-inside:avoid;}
+    a{color:inherit;text-decoration:none;}
   }
 </style>
 
+<button class="menu-toggle" aria-label="Abrir menú" onclick="document.body.classList.toggle('nav-open')">☰</button>
+<div class="backdrop" onclick="document.body.classList.remove('nav-open')"></div>
+
+<nav class="sidebar" aria-label="Índice del manual">
+  <div class="brand">
+    <span class="logo">🛍️</span>
+    <b>Montana Boutique<span>Manual del POS</span></b>
+  </div>
+  <button class="print-btn" onclick="window.print()">⤓ Guardar / Imprimir PDF</button>
+  <ul class="toc" id="toc">
+    <li><a href="#acceso">1. Acceso y sesión</a></li>
+    <li><a href="#vender">2. Vender</a></li>
+    <li><a href="#devoluciones">3. Devoluciones y cambios</a></li>
+    <li><a href="#apartados">4. Apartados</a></li>
+    <li><a href="#tarjetas">5. Tarjetas de regalo</a></li>
+    <li><a href="#corte">6. Corte de caja</a></li>
+    <li><a href="#admin">7. Administración</a></li>
+    <li class="grp">Módulos de Admin</li>
+    <li><a class="sub" href="#catalogo">7.1 Catálogo</a></li>
+    <li><a class="sub" href="#inventario">7.2 Inventario</a></li>
+    <li><a class="sub" href="#clientes">7.3 Clientes</a></li>
+    <li><a class="sub" href="#puntos">7.4 Programa de puntos</a></li>
+    <li><a class="sub" href="#reportes">7.5 Reportes</a></li>
+    <li><a class="sub" href="#usuarios">7.6 Usuarios</a></li>
+    <li><a class="sub" href="#respaldo">7.7 Respaldo en la nube</a></li>
+    <li><a class="sub" href="#impresoras">7.8 Impresoras &amp; Tickets</a></li>
+  </ul>
+</nav>
+
+<div class="content">
 <div class="wrap">
 <header class="doc">
   <h1>Montana Boutique — Manual del POS</h1>
@@ -43,7 +127,7 @@
   <b>Admin</b> — todo, incluido el panel de Administración.
 </p>
 
-<h2>1. Acceso y sesión</h2>
+<section><h2 id="acceso">1. Acceso y sesión</h2>
 <p>La primera vez, la app crea un <b>administrador</b> con <b>PIN 1234</b> y obliga a cambiarlo.
 El catálogo arranca vacío.</p>
 <h3>Iniciar sesión</h3>
@@ -53,8 +137,9 @@ El catálogo arranca vacío.</p>
 <p>Barra inferior: <b>Vender</b>, <b>Corte</b>, <b>Admin</b> (solo administradores) y <b>Salir</b>.
 El carrito se conserva al cambiar de pestaña.</p>
 <figure><img src="fotos/foto-02.jpeg" alt="Navegación"><figcaption>Barra de navegación (Vender / Corte / Admin / Salir)</figcaption></figure>
+</section>
 
-<h2>2. Vender (punto de venta)</h2>
+<section><h2 id="vender">2. Vender (punto de venta)</h2>
 <p>En tablet ancha se ven dos paneles (carrito + vitrina); en teléfono la vitrina ocupa todo y el
 carrito va abajo. Desde la barra superior se llega a Inventario, Apartados, Tarjetas de regalo y
 Devoluciones (en teléfono, en el menú ⋮).</p>
@@ -74,37 +159,42 @@ Devoluciones (en teléfono, en el menú ⋮).</p>
 <b>pagar con tarjeta de regalo</b>, <b>canjear puntos</b> y asignar cliente. La venta se guarda
 antes de imprimir; puede ser ticket normal o de regalo (sin precios).</p>
 <figure><img src="fotos/foto-06.jpeg" alt="Hoja de cobro"><figcaption>Hoja de cobro</figcaption></figure>
+</section>
 
-<h2>3. Devoluciones y cambios</h2>
+<section><h2 id="devoluciones">3. Devoluciones y cambios</h2>
 <p>Se abre desde la barra de Vender. Se busca la venta por <b>folio</b>; se hace
 <b>reembolso en efectivo</b> (autorización de gerente) o <b>nota de crédito</b>. La
 <b>pieza dañada</b> se saca del stock vendible. El <b>cambio</b> es devolución + venta nueva en una
 sola operación (se cobra/acredita la diferencia).</p>
 <div class="pend">📷 Captura pendiente<br><small>Pantalla de Devoluciones (buscar por folio)</small></div>
+</section>
 
-<h2>4. Apartados</h2>
+<section><h2 id="apartados">4. Apartados</h2>
 <p>Se abre desde la barra de Vender. <b>Nuevo apartado</b>: cliente + piezas + <b>anticipo (mín. 30%)</b>;
 reserva las piezas e imprime comprobante. <b>Abonos</b> parciales. <b>Liquidar</b> al saldar
 (ticket final). <b>Procesar vencidos</b> libera reservas y pasa lo pagado a nota de crédito.</p>
 <div class="pend">📷 Captura pendiente<br><small>Lista de Apartados / Nuevo apartado</small></div>
+</section>
 
-<h2>5. Tarjetas de regalo</h2>
+<section><h2 id="tarjetas">5. Tarjetas de regalo</h2>
 <p>Se abre desde la barra de Vender. Se <b>emite</b> una tarjeta con código único (el dinero entra al
 corte de caja) y se <b>consulta</b> saldo. En el cobro se puede <b>pagar con tarjeta de regalo</b>.</p>
 <figure><img src="fotos/foto-09.jpeg" alt="Pago con tarjeta de regalo"><figcaption>Pagar con tarjeta de regalo (en el cobro)</figcaption></figure>
 <div class="pend">📷 Captura pendiente<br><small>Pantalla de Tarjetas de regalo (vender / consultar saldo)</small></div>
+</section>
 
-<h2>6. Corte de caja</h2>
+<section><h2 id="corte">6. Corte de caja</h2>
 <p>Pestaña <b>Corte</b>. Se <b>abre</b> con un fondo, se registran <b>retiros/depósitos</b>, se ven las
 ventas del turno (con opción de cancelar) y se <b>cierra con arqueo</b> (esperado vs contado).</p>
 <figure><img src="fotos/foto-10.jpeg" alt="Corte de caja"><figcaption>Corte de caja</figcaption></figure>
+</section>
 
-<h2>7. Administración</h2>
+<section><h2 id="admin">7. Administración</h2>
 <p>Panel en rejilla, solo administradores: Catálogo, Inventario, Clientes, Programa de puntos,
 Reportes, Usuarios, Respaldo, Reconciliación e Impresoras &amp; Tickets.</p>
 <div class="pend">📷 Captura pendiente<br><small>Panel de Administración (rejilla de módulos)</small></div>
 
-<h3>7.1 Catálogo</h3>
+<h3 id="catalogo">7.1 Catálogo</h3>
 <p>Buscador + filtros por categoría, rejilla con fotos. Alta de <b>productos</b> (nombre, categoría,
 precio con IVA incluido, costo, foto que se optimiza sola), <b>generador de matriz talla×color</b>,
 código de proveedor, etiquetas PDF/ZPL, archivar/eliminar e <b>importar CSV/Excel</b>.</p>
@@ -115,22 +205,22 @@ código de proveedor, etiquetas PDF/ZPL, archivar/eliminar e <b>importar CSV/Exc
   <figure><img src="fotos/foto-15.jpeg" alt="Importar"><figcaption>Importar CSV/Excel</figcaption></figure>
 </div>
 
-<h3>7.2 Inventario</h3>
+<h3 id="inventario">7.2 Inventario</h3>
 <p>Recepción, ajustes (con motivo), conteo físico y stock bajo. El selector muestra la
 <b>lista de productos con filtros por categoría</b> (además de búsqueda y escaneo).</p>
 <div class="pend">📷 Captura pendiente<br><small>Inventario (hub) &nbsp;·&nbsp; Ajuste de stock &nbsp;·&nbsp; Conteo físico</small></div>
 <figure><img src="fotos/foto-17.jpeg" alt="Selector de variante con lista y filtros"><figcaption>Selector con lista de productos y filtros por categoría</figcaption></figure>
 
-<h3>7.3 Clientes (CRM)</h3>
+<h3 id="clientes">7.3 Clientes (CRM)</h3>
 <p>Lista con búsqueda y alta; ficha con datos, totales (compras, gasto, última visita), historial y
 puntos con ajuste manual.</p>
 <div class="pend">📷 Captura pendiente<br><small>Ficha de cliente (totales + historial)</small></div>
 
-<h3>7.4 Programa de puntos</h3>
+<h3 id="puntos">7.4 Programa de puntos</h3>
 <p>Reglas: puntos que se ganan por peso y valor de canje por punto (el canje se hace en el cobro).</p>
 <figure><img src="fotos/foto-20.jpeg" alt="Programa de puntos"><figcaption>Reglas de lealtad</figcaption></figure>
 
-<h3>7.5 Reportes</h3>
+<h3 id="reportes">7.5 Reportes</h3>
 <p>Periodo (Hoy/7/30/60/personalizado) y resumen con comparativo. Incluye ventas por variante
 (más/menos vendidos, tallas y colores), margen, dead stock, arqueos, devoluciones, ventas por
 vendedor, recomendaciones y exportar CSV.</p>
@@ -139,11 +229,11 @@ vendedor, recomendaciones y exportar CSV.</p>
   <figure><img src="fotos/foto-21b.jpeg" alt="Recomendaciones"><figcaption>Recomendaciones accionables</figcaption></figure>
 </div>
 
-<h3>7.6 Usuarios</h3>
+<h3 id="usuarios">7.6 Usuarios</h3>
 <p>Solo admin: crear cajeros/gerentes con PIN, activar/desactivar y reset de PIN.</p>
 <figure><img src="fotos/foto-22.jpeg" alt="Usuarios"><figcaption>Usuarios y roles</figcaption></figure>
 
-<h3>7.7 Respaldo en la nube</h3>
+<h3 id="respaldo">7.7 Respaldo en la nube</h3>
 <p>Estado del respaldo, reclamar tablet, respaldar y restaurar. <b>Configurar conexión (Supabase)</b>:
 se pega la URL y la llave anon; al cerrar y reabrir la app queda conectada, sin recompilar.</p>
 <div class="grid2">
@@ -151,15 +241,42 @@ se pega la URL y la llave anon; al cerrar y reabrir la app queda conectada, sin 
   <figure><img src="fotos/foto-23b.jpeg" alt="Conexión Supabase"><figcaption>Configurar conexión (Supabase)</figcaption></figure>
 </div>
 
-<h3>7.8 Impresoras &amp; Tickets</h3>
+<h3 id="impresoras">7.8 Impresoras &amp; Tickets</h3>
 <p>Ancho de papel, impresora predeterminada, imprimir prueba, y <b>personalización del ticket</b>
 (título, subtítulo, leyenda final y QR) con vista previa. Cajón: interruptor + pin de apertura.</p>
 <div class="grid2">
   <figure><img src="fotos/foto-24.jpeg" alt="Impresoras y tickets"><figcaption>Impresora, papel y personalización</figcaption></figure>
   <figure><img src="fotos/foto-25.jpeg" alt="Ticket y cajón"><figcaption>QR, vista previa y cajón (pin)</figcaption></figure>
 </div>
+</section>
 
 <footer>
-  Montana Boutique — Manual del POS · Generado el 29/07/2026 · Para imprimir: Ctrl/Cmd + P
+  Montana Boutique — Manual del POS · Generado el 29/07/2026
 </footer>
 </div>
+</div>
+
+<script>
+  // Resalta la sección activa en el menú y cierra el menú móvil al elegir.
+  (function(){
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    var byId = {};
+    links.forEach(function(a){ byId[a.getAttribute('href').slice(1)] = a; });
+    var targets = links.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); })
+                       .filter(Boolean);
+    if ('IntersectionObserver' in window){
+      var obs = new IntersectionObserver(function(entries){
+        entries.forEach(function(e){
+          if (e.isIntersecting){
+            links.forEach(function(a){ a.classList.remove('active'); });
+            if (byId[e.target.id]) byId[e.target.id].classList.add('active');
+          }
+        });
+      }, { rootMargin:'-10% 0px -80% 0px', threshold:0 });
+      targets.forEach(function(t){ obs.observe(t); });
+    }
+    document.querySelector('.toc').addEventListener('click', function(e){
+      if (e.target.tagName === 'A') document.body.classList.remove('nav-open');
+    });
+  })();
+</script>

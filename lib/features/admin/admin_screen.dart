@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/dashboard_tile.dart';
-import '../../data/demo_seed.dart';
-import '../../data/local/database.dart';
 import '../../services/auth_controller.dart';
 import '../catalog/catalog_home_screen.dart';
 import '../customers/customers_screen.dart';
@@ -11,6 +9,7 @@ import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
 import 'cloud_backup_screen.dart';
 import 'loyalty_config_screen.dart';
+import 'printers_screen.dart';
 import 'reconciliation_screen.dart';
 import 'users_screen.dart';
 
@@ -79,8 +78,9 @@ class AdminScreen extends StatelessWidget {
       _AdminItem(Icons.rule, 'Reconciliación',
           'Salud de datos', Colors.blueGrey,
           (c) => go(c, const ReconciliationScreen())),
-      _AdminItem(Icons.auto_awesome_outlined, 'Catálogo de prueba',
-          '100 productos demo', Colors.pink.shade400, _loadDemoCatalog),
+      _AdminItem(Icons.print_outlined, 'Impresoras',
+          'Tickets, prueba y cajón', Colors.green.shade700,
+          (c) => go(c, const PrintersScreen())),
     ];
 
     return Scaffold(
@@ -100,35 +100,4 @@ class AdminScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _loadDemoCatalog(BuildContext context) async {
-    final db = context.read<AppDatabase>();
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cargar catálogo de prueba'),
-        content: const Text(
-            'Agrega 100 productos de demostración (con fotos y stock) para '
-            'probar la app. Puedes borrarlos después. ¿Continuar?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancelar')),
-          FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Cargar')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    messenger.showSnackBar(
-        const SnackBar(content: Text('Cargando catálogo de prueba…')));
-    try {
-      final n = await DemoSeedService(db).load(count: 100);
-      messenger.showSnackBar(
-          SnackBar(content: Text('$n productos de prueba cargados')));
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
 }

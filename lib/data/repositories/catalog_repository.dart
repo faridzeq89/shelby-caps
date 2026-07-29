@@ -305,6 +305,85 @@ class CatalogRepository {
   }
 
   // -------------------------------------------------------------------------
+  // Archivar / borrar producto
+  // -------------------------------------------------------------------------
+
+  /// Archiva (o reactiva con [active]=true) un producto y TODAS sus variantes.
+  /// Soft-delete: sale de la vitrina y de la búsqueda, pero conserva el historial
+  /// (ventas, ledger). Reversible. Es la vía correcta para "quitar" un producto
+  /// que ya se vendió o tiene movimientos de inventario.
+  Future<void> setProductActive(
+      Profile actor, int productId, bool active) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(active: Value(active)));
+      await (_db.update(_db.variants)
+            ..where((t) => t.productId.equals(productId)))
+          .write(VariantsCompanion(active: Value(active)));
+      await _audit(actor, active ? 'reactivate' : 'archive', 'product',
+          productId.toString(), active ? 'reactivado' : 'archivado');
+    });
+  }
+
+  /// ¿El producto tiene VENTAS (líneas de venta en alguna de sus variantes)?
+  Future<bool> productHasSales(int productId) async {
+    final row = await _db.customSelect(
+      'SELECT COUNT(*) AS n FROM sale_lines sl '
+      'JOIN variants v ON v.id = sl.variant_id WHERE v.product_id = ?',
+      variables: [Variable.withInt(productId)],
+      readsFrom: {_db.saleLines, _db.variants},
+    ).getSingle();
+    return row.read<int>('n') > 0;
+  }
+
+  /// ¿El producto tiene MOVIMIENTOS de inventario? El ledger es append-only e
+  /// INMUTABLE (triggers): si hay movimientos, el producto NO se puede borrar de
+  /// verdad — solo archivar.
+  Future<bool> productHasMovements(int productId) async {
+    final row = await _db.customSelect(
+      'SELECT COUNT(*) AS n FROM inventory_movements m '
+      'JOIN variants v ON v.id = m.variant_id WHERE v.product_id = ?',
+      variables: [Variable.withInt(productId)],
+      readsFrom: {_db.inventoryMovements, _db.variants},
+    ).getSingle();
+    return row.read<int>('n') > 0;
+  }
+
+  /// True si el producto se puede BORRAR de verdad: sin ventas y sin movimientos
+  /// de inventario (p. ej. un alta por error). Si no, archívalo.
+  Future<bool> canDeleteProduct(int productId) async {
+    return !(await productHasSales(productId)) &&
+        !(await productHasMovements(productId));
+  }
+
+  /// Borrado REAL. Solo para productos SIN ventas ni movimientos de inventario.
+  /// Si tiene historial lanza [StateError] (el historial es inmutable): en ese
+  /// caso usa [setProductActive] para archivar. Borra códigos, variantes y el
+  /// producto en una transacción.
+  Future<void> deleteProduct(Profile actor, int productId) async {
+    _requireCatalog(actor);
+    if (!await canDeleteProduct(productId)) {
+      throw StateError(
+          'El producto tiene ventas o movimientos de inventario y no se puede '
+          'borrar (el historial es inmutable). Archívalo en su lugar.');
+    }
+    await _db.transaction(() async {
+      final vs = await variantsOf(productId);
+      for (final v in vs) {
+        await (_db.delete(_db.barcodes)..where((t) => t.variantId.equals(v.id)))
+            .go();
+        await (_db.delete(_db.stockCountLines)
+              ..where((t) => t.variantId.equals(v.id)))
+            .go();
+        await (_db.delete(_db.variants)..where((t) => t.id.equals(v.id))).go();
+      }
+      await (_db.delete(_db.products)..where((t) => t.id.equals(productId))).go();
+      await _audit(actor, 'delete', 'product', productId.toString(), 'borrado');
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Internos
   // -------------------------------------------------------------------------
   Future<void> _audit(Profile actor, String action, String entityType,

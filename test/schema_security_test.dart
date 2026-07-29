@@ -124,20 +124,19 @@ void main() {
     expect(rounded.baseCents + rounded.taxCents, 10000); // sin centavos perdidos
   });
 
-  test('la semilla carga catálogo con stock disponible', () async {
+  test('la semilla base crea sucursal y prefijo, con catálogo VACÍO', () async {
     await SeedService(db).run();
 
+    // Sucursal y prefijo de folios quedan listos.
+    final locations = await db.select(db.locations).get();
+    expect(locations, isNotEmpty);
+    final prefix = await (db.select(db.appSettings)
+          ..where((t) => t.key.equals('device_prefix')))
+        .getSingleOrNull();
+    expect(prefix?.value, SeedService.defaultDevicePrefix);
+
+    // Ya NO se siembra catálogo de ejemplo: arranca vacío.
     final products = await db.select(db.products).get();
-    final variants = await db.select(db.variants).get();
-    expect(products, isNotEmpty);
-    expect(variants.length, greaterThan(products.length));
-
-    // Toda variante sembrada tiene código y stock disponible > 0.
-    final inv = InventoryRepository(db);
-    final stock = await inv.stockFor(variants.first.id);
-    expect(stock.available, greaterThan(0));
-
-    final codes = await db.select(db.barcodes).get();
-    expect(codes.length, greaterThanOrEqualTo(variants.length));
+    expect(products, isEmpty);
   });
 }

@@ -216,6 +216,86 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   }
 
   // --------------------------------------------------------------------------
+  // Archivar / borrar producto
+  // --------------------------------------------------------------------------
+  Future<void> _toggleArchive(_EditorData data) async {
+    final activate = !data.product.active;
+    try {
+      await _repo.setProductActive(_actor, data.product.id, activate);
+      _toast(activate ? 'Producto reactivado' : 'Producto archivado');
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  Future<void> _delete(_EditorData data) async {
+    final canDelete = await _repo.canDeleteProduct(data.product.id);
+    if (!mounted) return;
+    if (!canDelete) {
+      // Tiene historial → no se puede borrar (ledger inmutable). Ofrecer archivar.
+      final archive = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('No se puede borrar'),
+          content: const Text(
+              'Este producto ya tiene ventas o movimientos de inventario, y el '
+              'historial es inmutable. Puedes ARCHIVARLO: desaparece de la venta '
+              'y la búsqueda pero conserva su historial. ¿Archivar?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar')),
+            FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Archivar')),
+          ],
+        ),
+      );
+      if (archive == true) await _toggleArchiveTo(data, false);
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar producto'),
+        content: Text(
+            '¿Borrar "${data.product.name}" de forma permanente? No tiene ventas '
+            'ni movimientos, así que se puede eliminar por completo. Esta acción '
+            'no se puede deshacer.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _repo.deleteProduct(_actor, data.product.id);
+      if (!mounted) return;
+      _toast('Producto eliminado');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  Future<void> _toggleArchiveTo(_EditorData data, bool active) async {
+    try {
+      await _repo.setProductActive(_actor, data.product.id, active);
+      _toast(active ? 'Producto reactivado' : 'Producto archivado');
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Foto del producto
   // --------------------------------------------------------------------------
   Future<void> _changePhoto(_EditorData data) async {
@@ -383,10 +463,28 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               ),
               PopupMenuButton<String>(
                 onSelected: (v) {
-                  if (v == 'zpl') _showZpl(data);
+                  switch (v) {
+                    case 'zpl':
+                      _showZpl(data);
+                    case 'archive':
+                      _toggleArchive(data);
+                    case 'delete':
+                      _delete(data);
+                  }
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'zpl', child: Text('Ver ZPL (Zebra)')),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                      value: 'zpl', child: Text('Ver ZPL (Zebra)')),
+                  PopupMenuItem(
+                    value: 'archive',
+                    child: Text(data.product.active
+                        ? 'Archivar producto'
+                        : 'Reactivar producto'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Eliminar producto'),
+                  ),
                 ],
               ),
             ],
@@ -433,6 +531,19 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (!data.product.active)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Chip(
+                        label: const Text('ARCHIVADO'),
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.orange.shade100,
+                        labelStyle: TextStyle(
+                            color: Colors.orange.shade900,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11),
+                      ),
+                    ),
                   if (data.product.brand != null)
                     Text(data.product.brand!,
                         style: Theme.of(context).textTheme.bodySmall),

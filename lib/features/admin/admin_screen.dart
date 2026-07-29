@@ -78,8 +78,8 @@ class AdminScreen extends StatelessWidget {
       _AdminItem(Icons.rule, 'Reconciliación',
           'Salud de datos', Colors.blueGrey,
           (c) => go(c, const ReconciliationScreen())),
-      _AdminItem(Icons.print_outlined, 'Impresoras',
-          'Tickets, prueba y cajón', Colors.green.shade700,
+      _AdminItem(Icons.print_outlined, 'Impresoras & Tickets',
+          'Personalizar ticket, prueba y cajón', Colors.green.shade700,
           (c) => go(c, const PrintersScreen())),
     ];
 

@@ -416,8 +416,11 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
     try {
       await _repo.settle(actor: _user, saleId: widget.saleId);
       // Ticket final con los pagos acumulados.
+      final ticketCfg = await TicketConfig.load(_db);
       await Printing.layoutPdf(
-        onLayout: (_) => TicketService.buildPdf(TicketData(
+        onLayout: (_) => TicketService.buildPdf(
+          config: ticketCfg,
+          TicketData(
           folio: d.sale.folio,
           dateTime: DateTime.now(),
           cashierName: _user.name,

@@ -267,6 +267,23 @@ eliminaron los 2 tests del catálogo demo).
   dispositivo). Se **elimina `demo_seed.dart`** (los 100 productos demo) y su test → el catálogo
   **arranca vacío**; el dueño carga inventario real (o importa CSV/Excel).
 
+## Personalización del ticket + Admin→Impresoras & Tickets (2026-07-29, en `main`)
+Sin cambio de esquema (usa `app_settings`). `flutter analyze` limpio, **92 pruebas verdes**, APK.
+- **`TicketConfig`** (en `ticket_service.dart`): título, subtítulo, leyenda final y **QR**, con
+  `TicketConfig.load(db)` que lee de `app_settings` (claves `ticket_title`/`ticket_subheading`/
+  `ticket_footer`/`ticket_qr`) y cae a los valores por defecto si faltan (retrocompatible). Se quitó
+  `businessName` de `TicketData` (la marca ahora vive en `TicketConfig`).
+- **`TicketService.buildPdf(data, {config})`**: el encabezado usa `config.title`; imprime el
+  subtítulo y la leyenda final si no están vacíos; y dibuja el **QR** con `pw.BarcodeWidget`
+  (`pw.Barcode.qrCode()`, sin dependencia nueva) cuando `qrData` tiene contenido.
+- **Call sites** cargan la config y la pasan: venta (`sale_screen`, vía `_db`) y liquidación de
+  apartado (`layaways_screen`). *(Pendiente menor: el comprobante de apartado `layaway_receipt.dart`
+  sigue con "Montana Boutique" fijo; no usa aún `TicketConfig`.)*
+- **Admin renombrada a "Impresoras & Tickets"** (`printers_screen.dart` + tarjeta en `admin_screen`):
+  nueva sección **Personalización del ticket** (4 campos, se guardan solos onChanged) + botón
+  **Vista previa** que arma un ticket de ejemplo con la config actual. La prueba de impresión usa
+  el título configurado.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

@@ -5,11 +5,13 @@ import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/local/database.dart';
+import '../sales/ticket_service.dart';
 
-/// Admin → Impresoras. Configura la impresora de tickets (ancho de papel),
-/// muestra las impresoras del sistema (Android / Bluetooth emparejadas) para
-/// elegir una por defecto, permite una impresión de prueba, y guarda si el
-/// cajón de dinero debe abrirse al cobrar en efectivo.
+/// Admin → Impresoras & Tickets. Configura la impresora de tickets (ancho de
+/// papel), muestra las impresoras del sistema (Android / Bluetooth emparejadas)
+/// para elegir una por defecto, permite una impresión de prueba, guarda si el
+/// cajón de dinero debe abrirse al cobrar en efectivo, y **personaliza el
+/// ticket** (título, subtítulo, leyenda final y QR) con vista previa.
 ///
 /// Nota: la app imprime tickets como PDF al sistema (el usuario elige impresora
 /// en el diálogo de Android). La impresión térmica ESC/POS DIRECTA por Bluetooth
@@ -35,11 +37,26 @@ class _PrintersScreenState extends State<PrintersScreen> {
   bool _scanning = false;
   bool _loaded = false;
 
+  // Personalización del ticket.
+  final _titleCtrl = TextEditingController();
+  final _subheadingCtrl = TextEditingController();
+  final _footerCtrl = TextEditingController();
+  final _qrCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
     _scan();
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _subheadingCtrl.dispose();
+    _footerCtrl.dispose();
+    _qrCtrl.dispose();
+    super.dispose();
   }
 
   Future<String?> _get(String key) async {
@@ -59,11 +76,16 @@ class _PrintersScreenState extends State<PrintersScreen> {
     final paper = await _get(_kPaper);
     final drawer = await _get(_kDrawer);
     final printer = await _get(_kPrinter);
+    final ticket = await TicketConfig.load(_db);
     if (!mounted) return;
     setState(() {
       _paper = paper ?? '80';
       _openDrawer = drawer == '1';
       _printerName = printer;
+      _titleCtrl.text = ticket.title;
+      _subheadingCtrl.text = ticket.subheading;
+      _footerCtrl.text = ticket.footerLegend;
+      _qrCtrl.text = ticket.qrData;
       _loaded = true;
     });
   }
@@ -102,7 +124,9 @@ class _PrintersScreenState extends State<PrintersScreen> {
               build: (_) => pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
-                  pw.Text('Montana Boutique',
+                  pw.Text(_titleCtrl.text.trim().isEmpty
+                      ? 'Montana Boutique'
+                      : _titleCtrl.text.trim(),
                       style: pw.TextStyle(
                           fontSize: 14, fontWeight: pw.FontWeight.bold)),
                   pw.SizedBox(height: 6),
@@ -124,10 +148,54 @@ class _PrintersScreenState extends State<PrintersScreen> {
     }
   }
 
+  /// Vista previa del ticket con la personalización actual y una venta de ejemplo.
+  Future<void> _previewTicket() async {
+    final cfg = TicketConfig(
+      title: _titleCtrl.text.trim().isEmpty
+          ? 'Montana Boutique'
+          : _titleCtrl.text.trim(),
+      subheading: _subheadingCtrl.text.trim(),
+      footerLegend: _footerCtrl.text,
+      qrData: _qrCtrl.text.trim(),
+    );
+    final sample = TicketData(
+      folio: 'T1-000123',
+      dateTime: DateTime.now(),
+      cashierName: 'Vista previa',
+      lines: const [
+        TicketLine(
+            description: 'Blusa manga larga (M / Negro)',
+            qty: 1,
+            unitPriceCents: 29900,
+            lineTotalCents: 29900),
+        TicketLine(
+            description: 'Pantalón mezclilla (30)',
+            qty: 2,
+            unitPriceCents: 45000,
+            lineTotalCents: 90000),
+      ],
+      subtotalCents: 119900,
+      discountCents: 0,
+      taxCents: 16538,
+      totalCents: 119900,
+      payments: const [('Efectivo', 120000)],
+      changeCents: 100,
+      gift: false,
+    );
+    try {
+      await Printing.layoutPdf(
+        name: 'vista_previa_ticket',
+        onLayout: (_) => TicketService.buildPdf(sample, config: cfg),
+      );
+    } catch (e) {
+      _toast('No se pudo generar la vista previa: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Impresoras')),
+      appBar: AppBar(title: const Text('Impresoras & Tickets')),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -216,6 +284,80 @@ class _PrintersScreenState extends State<PrintersScreen> {
                             onPressed: _testPrint,
                             icon: const Icon(Icons.print_outlined),
                             label: const Text('Imprimir prueba'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('Personalización del ticket',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: _titleCtrl,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Título (nombre del negocio)',
+                            hintText: 'Montana Boutique',
+                          ),
+                          onChanged: (v) =>
+                              _set(TicketConfig.kTitle, v.trim()),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _subheadingCtrl,
+                          maxLines: 3,
+                          minLines: 1,
+                          decoration: const InputDecoration(
+                            labelText: 'Subtítulo',
+                            hintText:
+                                'Dirección, teléfono o eslogan (varias líneas)',
+                          ),
+                          onChanged: (v) =>
+                              _set(TicketConfig.kSubheading, v),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _footerCtrl,
+                          maxLines: 2,
+                          minLines: 1,
+                          decoration: const InputDecoration(
+                            labelText: 'Leyenda final',
+                            hintText: '¡Gracias por su compra!',
+                          ),
+                          onChanged: (v) => _set(TicketConfig.kFooter, v),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _qrCtrl,
+                          keyboardType: TextInputType.url,
+                          decoration: const InputDecoration(
+                            labelText: 'QR (URL o texto)',
+                            hintText:
+                                'https://instagram.com/tu_boutique — vacío = sin QR',
+                          ),
+                          onChanged: (v) => _set(TicketConfig.kQr, v.trim()),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Los cambios se guardan solos. Usa la vista previa para '
+                          'ver cómo queda el ticket.',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: _previewTicket,
+                            icon: const Icon(Icons.receipt_long),
+                            label: const Text('Vista previa'),
                           ),
                         ),
                       ],

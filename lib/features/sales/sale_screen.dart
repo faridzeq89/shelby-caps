@@ -263,10 +263,12 @@ class SaleScreenState extends State<SaleScreen> {
       gift: payment.gift,
     );
 
+    final ticketCfg = await TicketConfig.load(_db);
+
     var printed = true;
     try {
       await Printing.layoutPdf(
-        onLayout: (_) => TicketService.buildPdf(ticket),
+        onLayout: (_) => TicketService.buildPdf(ticket, config: ticketCfg),
         name: 'ticket_${result.folio}',
       );
     } catch (_) {

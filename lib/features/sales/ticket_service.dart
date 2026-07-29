@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../data/local/database.dart';
+
 class TicketLine {
   const TicketLine({
     required this.description,
@@ -15,6 +17,48 @@ class TicketLine {
   final int qty;
   final int unitPriceCents;
   final int lineTotalCents;
+}
+
+/// Personalización del ticket (marca), editable en Admin → Impresoras & Tickets.
+/// Se guarda en `app_settings`. Todo es opcional salvo el título; los campos
+/// vacíos simplemente no se imprimen.
+class TicketConfig {
+  const TicketConfig({
+    this.title = 'Montana Boutique',
+    this.subheading = '',
+    this.footerLegend = '¡Gracias por su compra!',
+    this.qrData = '',
+  });
+
+  final String title; // encabezado (nombre del negocio)
+  final String subheading; // bajo el título: dirección, teléfono, eslogan…
+  final String footerLegend; // leyenda al pie
+  final String qrData; // contenido del QR (URL/texto); vacío = sin QR
+
+  static const kTitle = 'ticket_title';
+  static const kSubheading = 'ticket_subheading';
+  static const kFooter = 'ticket_footer';
+  static const kQr = 'ticket_qr';
+
+  /// Lee la configuración desde `app_settings`. Si una clave no existe usa el
+  /// valor por defecto (retrocompatibilidad con instalaciones previas).
+  static Future<TicketConfig> load(AppDatabase db) async {
+    Future<String?> get(String key) async {
+      final row = await (db.select(db.appSettings)
+            ..where((t) => t.key.equals(key)))
+          .getSingleOrNull();
+      return row?.value;
+    }
+
+    const def = TicketConfig();
+    final title = (await get(kTitle))?.trim();
+    return TicketConfig(
+      title: (title != null && title.isNotEmpty) ? title : def.title,
+      subheading: (await get(kSubheading))?.trim() ?? def.subheading,
+      footerLegend: (await get(kFooter)) ?? def.footerLegend,
+      qrData: (await get(kQr))?.trim() ?? def.qrData,
+    );
+  }
 }
 
 class TicketData {
@@ -30,7 +74,6 @@ class TicketData {
     required this.payments,
     required this.changeCents,
     required this.gift,
-    this.businessName = 'Montana Boutique',
   });
 
   final String folio;
@@ -44,7 +87,6 @@ class TicketData {
   final List<(String, int)> payments; // (etiqueta, monto)
   final int changeCents;
   final bool gift;
-  final String businessName;
 }
 
 /// Genera el ticket como PDF en formato rollo (80mm). El envío a impresora
@@ -55,7 +97,10 @@ class TicketService {
 
   static String _money(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
-  static Future<Uint8List> buildPdf(TicketData t) async {
+  static Future<Uint8List> buildPdf(
+    TicketData t, {
+    TicketConfig config = const TicketConfig(),
+  }) async {
     final doc = pw.Document();
     final fmt = DateFormat('dd/MM/yyyy HH:mm');
 
@@ -81,10 +126,18 @@ class TicketService {
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
             pw.Center(
-              child: pw.Text(t.businessName,
+              child: pw.Text(config.title,
                   style:
                       pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
             ),
+            if (config.subheading.isNotEmpty) ...[
+              pw.SizedBox(height: 2),
+              pw.Center(
+                child: pw.Text(config.subheading,
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(fontSize: 9)),
+              ),
+            ],
             pw.SizedBox(height: 4),
             pw.Text('Folio: ${t.folio}', style: const pw.TextStyle(fontSize: 9)),
             pw.Text(fmt.format(t.dateTime),
@@ -122,11 +175,26 @@ class TicketService {
               for (final p in t.payments) row(p.$1, _money(p.$2)),
               if (t.changeCents > 0) row('Cambio', _money(t.changeCents)),
             ],
-            pw.SizedBox(height: 8),
-            pw.Center(
-              child: pw.Text('¡Gracias por su compra!',
-                  style: const pw.TextStyle(fontSize: 9)),
-            ),
+            if (config.footerLegend.isNotEmpty) ...[
+              pw.SizedBox(height: 8),
+              pw.Center(
+                child: pw.Text(config.footerLegend,
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(fontSize: 9)),
+              ),
+            ],
+            if (config.qrData.isNotEmpty) ...[
+              pw.SizedBox(height: 8),
+              pw.Center(
+                child: pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(),
+                  data: config.qrData,
+                  width: 90,
+                  height: 90,
+                  drawText: false,
+                ),
+              ),
+            ],
           ],
         ),
       ),

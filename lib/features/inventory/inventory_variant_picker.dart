@@ -60,7 +60,7 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
     final q = _ctrl.text.trim();
     final List<Product> list;
     if (q.length >= 2) {
-      list = await widget.catalog.searchProducts(q);
+      list = await widget.catalog.searchProductsOrCategory(q);
     } else {
       list = await widget.catalog.productsByCategory(_categoryId);
     }
@@ -158,7 +158,7 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
               controller: _ctrl,
               autofocus: false,
               decoration: InputDecoration(
-                labelText: 'Escanea o busca (nombre o SKU)',
+                labelText: 'Escanea o busca (producto, SKU o categoría)',
                 prefixIcon: const Icon(Icons.qr_code_scanner),
                 suffixIcon: IconButton(
                   tooltip: 'Escanear con cámara',

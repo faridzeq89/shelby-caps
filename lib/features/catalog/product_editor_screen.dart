@@ -648,16 +648,28 @@ class _MatrixDialog extends StatefulWidget {
 class _MatrixDialogState extends State<_MatrixDialog> {
   static const _presetSizes = ['CH', 'M', 'G', 'XG', '28', '30', '32', '34'];
   final _selectedSizes = <String>{};
+  final _customSizes = TextEditingController();
   final _colors = TextEditingController();
   final _cost = TextEditingController();
   final _stock = TextEditingController(text: '0');
 
   @override
   void dispose() {
+    _customSizes.dispose();
     _colors.dispose();
     _cost.dispose();
     _stock.dispose();
     super.dispose();
+  }
+
+  /// Tallas finales = chips elegidos + las que el usuario escriba (sin duplicar,
+  /// conservando el orden: primero los presets marcados, luego las nuevas).
+  List<String> _allSizes() {
+    final custom = _customSizes.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty);
+    return <String>{..._selectedSizes, ...custom}.toList();
   }
 
   List<String> _parseColors() => _colors.text
@@ -688,6 +700,14 @@ class _MatrixDialogState extends State<_MatrixDialog> {
                     }),
                   ),
               ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _customSizes,
+              decoration: const InputDecoration(
+                labelText: 'Otras tallas (separadas por coma)',
+                hintText: 'XCH, XXG, 36, 38, Unitalla…',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -720,10 +740,11 @@ class _MatrixDialogState extends State<_MatrixDialog> {
         ),
         FilledButton(
           onPressed: () {
+            final sizes = _allSizes();
             final colors = _parseColors();
-            if (_selectedSizes.isEmpty || colors.isEmpty) return;
+            if (sizes.isEmpty || colors.isEmpty) return;
             Navigator.of(context).pop(_MatrixResult(
-              _selectedSizes.toList(),
+              sizes,
               colors,
               ((double.tryParse(_cost.text.trim()) ?? 0) * 100).round(),
               int.tryParse(_stock.text.trim()) ?? 0,

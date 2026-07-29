@@ -111,6 +111,25 @@ class CatalogRepository {
     return result;
   }
 
+  /// Como [searchProducts] pero además coincide por **nombre de categoría**
+  /// (para inventario: "buscar por nombre de producto o categoría").
+  Future<List<Product>> searchProductsOrCategory(String query,
+      {int limit = 60}) async {
+    final result = await searchProducts(query, limit: limit);
+    final ids = result.map((p) => p.id).toSet();
+    final q = '%${query.trim()}%';
+    final cats = await (_db.select(_db.categories)
+          ..where((t) => t.name.like(q)))
+        .get();
+    for (final c in cats) {
+      final prods = await productsByCategory(c.id, limit: limit);
+      for (final p in prods) {
+        if (ids.add(p.id)) result.add(p);
+      }
+    }
+    return result;
+  }
+
   /// Variantes activas de un producto con su existencia disponible (del ledger).
   Future<List<(Variant, int)>> variantsWithStock(int productId) async {
     final variants = await (_db.select(_db.variants)

@@ -139,11 +139,6 @@ class _ReceiveStockScreenState extends State<ReceiveStockScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Recepción de mercancía')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _saving ? null : _add,
-        icon: const Icon(Icons.add),
-        label: const Text('Agregar variante'),
-      ),
       body: Column(
         children: [
           Padding(
@@ -154,6 +149,17 @@ class _ReceiveStockScreenState extends State<ReceiveStockScreen> {
                 labelText: 'Referencia (factura / proveedor, opcional)',
                 prefixIcon: Icon(Icons.receipt_long_outlined),
                 border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _saving ? null : _add,
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar variante'),
               ),
             ),
           ),

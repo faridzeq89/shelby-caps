@@ -329,6 +329,19 @@ Resuelve: un APK ya instalado puede conectarse a Supabase sin generar otro APK n
   para cambiar de proyecto/tienda o migrar de tablet. La llave anon es semi-pública (va en el APK de
   todos modos); vive en la base local (viaja en el respaldo).
 
+## Tallas personalizadas + fixes de Recepción (2026-07-29, en `main`)
+Sin cambio de esquema. `flutter analyze` limpio, **92 pruebas verdes**, APK.
+- **Tallas propias en la matriz de variantes** (`product_editor_screen.dart`, `_MatrixDialog`): antes
+  las tallas eran fijas (8 presets CH/M/G/XG/28-34, sin forma de agregar). Ahora hay campo **"Otras
+  tallas (separadas por coma)"**; las finales = chips marcados + las escritas (`_allSizes()`, sin
+  duplicar). Los colores ya eran libres.
+- **Recepción — botón "Recibir" tapado**: el FAB flotante "Agregar variante" cubría el botón
+  "Recibir" en la esquina inferior derecha (parecía que "no había botón para aplicar"). Se **quitó el
+  FAB** y "Agregar variante" es ahora un botón visible bajo la referencia; "Recibir" queda libre.
+- **Buscar por categoría en inventario**: `CatalogRepository.searchProductsOrCategory()` (nombre/SKU
+  de producto **+ nombre de categoría**); el selector de inventario (`inventory_variant_picker`, usado
+  por Recepción/Ajuste/Conteo) lo usa. Label actualizado a "producto, SKU o categoría".
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

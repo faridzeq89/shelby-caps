@@ -1,0 +1,165 @@
+<meta charset="utf-8">
+<title>Manual — Montana Boutique (POS)</title>
+<style>
+  :root { --morado:#7a1f5c; --tinta:#1e1e1e; --gris:#666; --linea:#e3e3e3; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         color:var(--tinta); line-height:1.55; margin:0; background:#fafafa; }
+  .wrap { max-width:900px; margin:0 auto; padding:32px 24px 80px; background:#fff; }
+  header.doc { text-align:center; border-bottom:3px solid var(--morado); padding-bottom:20px; margin-bottom:24px; }
+  header.doc h1 { color:var(--morado); margin:.2em 0; font-size:2em; }
+  header.doc p { color:var(--gris); margin:.2em 0; }
+  h2 { color:var(--morado); border-bottom:1px solid var(--linea); padding-bottom:6px; margin-top:40px; }
+  h3 { margin-top:26px; font-size:1.15em; }
+  .roles { background:#f6eef4; border-left:4px solid var(--morado); padding:12px 16px; border-radius:8px; }
+  .roles b { color:var(--morado); }
+  figure { margin:16px 0; text-align:center; }
+  figure img { max-width:320px; width:100%; border:1px solid var(--linea);
+               border-radius:14px; box-shadow:0 4px 14px rgba(0,0,0,.10); }
+  figure img.wide { max-width:640px; }
+  figcaption { color:var(--gris); font-size:.85em; margin-top:6px; }
+  .pend { max-width:320px; margin:16px auto; border:2px dashed #c9a3bd; border-radius:14px;
+          padding:28px 16px; text-align:center; color:#9a5c85; background:#fbf5f9; }
+  ul { padding-left:20px; } li { margin:4px 0; }
+  .tip { background:#eef6f0; border-left:4px solid #2e7d4f; padding:10px 14px; border-radius:8px; font-size:.95em; }
+  .grid2 { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; }
+  .grid2 figure { flex:1 1 260px; margin:8px 0; }
+  footer { margin-top:48px; border-top:1px solid var(--linea); padding-top:16px; color:var(--gris); font-size:.85em; text-align:center; }
+  @media print {
+    body { background:#fff; } .wrap { max-width:none; padding:0; }
+    h2 { break-after:avoid; } figure, .pend { break-inside:avoid; }
+  }
+</style>
+
+<div class="wrap">
+<header class="doc">
+  <h1>Montana Boutique — Manual del POS</h1>
+  <p>Guía de uso de todas las funciones del punto de venta</p>
+</header>
+
+<p class="roles">
+  <b>Roles:</b> &nbsp;<b>Cajero</b> — vende, cobra, hace su corte. &nbsp;·&nbsp;
+  <b>Gerente</b> — lo del cajero + autoriza descuentos, cancelaciones y ajustes. &nbsp;·&nbsp;
+  <b>Admin</b> — todo, incluido el panel de Administración.
+</p>
+
+<h2>1. Acceso y sesión</h2>
+<p>La primera vez, la app crea un <b>administrador</b> con <b>PIN 1234</b> y obliga a cambiarlo.
+El catálogo arranca vacío.</p>
+<h3>Iniciar sesión</h3>
+<p>Cada usuario entra con su <b>PIN</b> (4–6 dígitos). El teclado vibra al tocar.</p>
+<figure><img src="fotos/foto-01.jpeg" alt="Acceso PIN"><figcaption>Pantalla de acceso</figcaption></figure>
+<h3>Navegación</h3>
+<p>Barra inferior: <b>Vender</b>, <b>Corte</b>, <b>Admin</b> (solo administradores) y <b>Salir</b>.
+El carrito se conserva al cambiar de pestaña.</p>
+<figure><img src="fotos/foto-02.jpeg" alt="Navegación"><figcaption>Barra de navegación (Vender / Corte / Admin / Salir)</figcaption></figure>
+
+<h2>2. Vender (punto de venta)</h2>
+<p>En tablet ancha se ven dos paneles (carrito + vitrina); en teléfono la vitrina ocupa todo y el
+carrito va abajo. Desde la barra superior se llega a Inventario, Apartados, Tarjetas de regalo y
+Devoluciones (en teléfono, en el menú ⋮).</p>
+<figure><img class="wide" src="fotos/foto-03.jpeg" alt="Pantalla Vender tablet"><figcaption>Pantalla de venta (tablet, dos paneles)</figcaption></figure>
+<h3>Agregar por escaneo</h3>
+<p>Con la <b>cámara</b> o con un <b>lector</b>: al leer el código se agrega la variante exacta
+(talla/color) al carrito automáticamente.</p>
+<figure><img src="fotos/foto-04.jpeg" alt="Escaneo con cámara"><figcaption>Escaneo con la cámara</figcaption></figure>
+<h3>Buscar y elegir variante</h3>
+<p>Botón <b>Buscar</b>: por nombre o SKU; eliges el producto y su talla/color.</p>
+<div class="grid2">
+  <figure><img src="fotos/foto-05.jpeg" alt="Buscar producto"><figcaption>Buscar por nombre / SKU</figcaption></figure>
+  <figure><img src="fotos/foto-05b.jpeg" alt="Elegir variante"><figcaption>Elegir talla y color</figcaption></figure>
+</div>
+<h3>Cobro</h3>
+<p>Efectivo con <b>cambio</b>, <b>pagos divididos</b> (efectivo/tarjeta/transferencia),
+<b>pagar con tarjeta de regalo</b>, <b>canjear puntos</b> y asignar cliente. La venta se guarda
+antes de imprimir; puede ser ticket normal o de regalo (sin precios).</p>
+<figure><img src="fotos/foto-06.jpeg" alt="Hoja de cobro"><figcaption>Hoja de cobro</figcaption></figure>
+
+<h2>3. Devoluciones y cambios</h2>
+<p>Se abre desde la barra de Vender. Se busca la venta por <b>folio</b>; se hace
+<b>reembolso en efectivo</b> (autorización de gerente) o <b>nota de crédito</b>. La
+<b>pieza dañada</b> se saca del stock vendible. El <b>cambio</b> es devolución + venta nueva en una
+sola operación (se cobra/acredita la diferencia).</p>
+<div class="pend">📷 Captura pendiente<br><small>Pantalla de Devoluciones (buscar por folio)</small></div>
+
+<h2>4. Apartados</h2>
+<p>Se abre desde la barra de Vender. <b>Nuevo apartado</b>: cliente + piezas + <b>anticipo (mín. 30%)</b>;
+reserva las piezas e imprime comprobante. <b>Abonos</b> parciales. <b>Liquidar</b> al saldar
+(ticket final). <b>Procesar vencidos</b> libera reservas y pasa lo pagado a nota de crédito.</p>
+<div class="pend">📷 Captura pendiente<br><small>Lista de Apartados / Nuevo apartado</small></div>
+
+<h2>5. Tarjetas de regalo</h2>
+<p>Se abre desde la barra de Vender. Se <b>emite</b> una tarjeta con código único (el dinero entra al
+corte de caja) y se <b>consulta</b> saldo. En el cobro se puede <b>pagar con tarjeta de regalo</b>.</p>
+<figure><img src="fotos/foto-09.jpeg" alt="Pago con tarjeta de regalo"><figcaption>Pagar con tarjeta de regalo (en el cobro)</figcaption></figure>
+<div class="pend">📷 Captura pendiente<br><small>Pantalla de Tarjetas de regalo (vender / consultar saldo)</small></div>
+
+<h2>6. Corte de caja</h2>
+<p>Pestaña <b>Corte</b>. Se <b>abre</b> con un fondo, se registran <b>retiros/depósitos</b>, se ven las
+ventas del turno (con opción de cancelar) y se <b>cierra con arqueo</b> (esperado vs contado).</p>
+<figure><img src="fotos/foto-10.jpeg" alt="Corte de caja"><figcaption>Corte de caja</figcaption></figure>
+
+<h2>7. Administración</h2>
+<p>Panel en rejilla, solo administradores: Catálogo, Inventario, Clientes, Programa de puntos,
+Reportes, Usuarios, Respaldo, Reconciliación e Impresoras &amp; Tickets.</p>
+<div class="pend">📷 Captura pendiente<br><small>Panel de Administración (rejilla de módulos)</small></div>
+
+<h3>7.1 Catálogo</h3>
+<p>Buscador + filtros por categoría, rejilla con fotos. Alta de <b>productos</b> (nombre, categoría,
+precio con IVA incluido, costo, foto que se optimiza sola), <b>generador de matriz talla×color</b>,
+código de proveedor, etiquetas PDF/ZPL, archivar/eliminar e <b>importar CSV/Excel</b>.</p>
+<div class="grid2">
+  <figure><img src="fotos/foto-12.jpeg" alt="Catálogo"><figcaption>Catálogo (rejilla + filtros)</figcaption></figure>
+  <figure><img src="fotos/foto-13.jpeg" alt="Nuevo producto"><figcaption>Nuevo producto</figcaption></figure>
+  <figure><img src="fotos/foto-14.jpeg" alt="Variantes"><figcaption>Variantes (talla×color) y precio/costo</figcaption></figure>
+  <figure><img src="fotos/foto-15.jpeg" alt="Importar"><figcaption>Importar CSV/Excel</figcaption></figure>
+</div>
+
+<h3>7.2 Inventario</h3>
+<p>Recepción, ajustes (con motivo), conteo físico y stock bajo. El selector muestra la
+<b>lista de productos con filtros por categoría</b> (además de búsqueda y escaneo).</p>
+<div class="pend">📷 Captura pendiente<br><small>Inventario (hub) &nbsp;·&nbsp; Ajuste de stock &nbsp;·&nbsp; Conteo físico</small></div>
+<figure><img src="fotos/foto-17.jpeg" alt="Selector de variante con lista y filtros"><figcaption>Selector con lista de productos y filtros por categoría</figcaption></figure>
+
+<h3>7.3 Clientes (CRM)</h3>
+<p>Lista con búsqueda y alta; ficha con datos, totales (compras, gasto, última visita), historial y
+puntos con ajuste manual.</p>
+<div class="pend">📷 Captura pendiente<br><small>Ficha de cliente (totales + historial)</small></div>
+
+<h3>7.4 Programa de puntos</h3>
+<p>Reglas: puntos que se ganan por peso y valor de canje por punto (el canje se hace en el cobro).</p>
+<figure><img src="fotos/foto-20.jpeg" alt="Programa de puntos"><figcaption>Reglas de lealtad</figcaption></figure>
+
+<h3>7.5 Reportes</h3>
+<p>Periodo (Hoy/7/30/60/personalizado) y resumen con comparativo. Incluye ventas por variante
+(más/menos vendidos, tallas y colores), margen, dead stock, arqueos, devoluciones, ventas por
+vendedor, recomendaciones y exportar CSV.</p>
+<div class="grid2">
+  <figure><img src="fotos/foto-21.jpeg" alt="Reportes"><figcaption>Reportes (periodo + resumen)</figcaption></figure>
+  <figure><img src="fotos/foto-21b.jpeg" alt="Recomendaciones"><figcaption>Recomendaciones accionables</figcaption></figure>
+</div>
+
+<h3>7.6 Usuarios</h3>
+<p>Solo admin: crear cajeros/gerentes con PIN, activar/desactivar y reset de PIN.</p>
+<figure><img src="fotos/foto-22.jpeg" alt="Usuarios"><figcaption>Usuarios y roles</figcaption></figure>
+
+<h3>7.7 Respaldo en la nube</h3>
+<p>Estado del respaldo, reclamar tablet, respaldar y restaurar. <b>Configurar conexión (Supabase)</b>:
+se pega la URL y la llave anon; al cerrar y reabrir la app queda conectada, sin recompilar.</p>
+<div class="grid2">
+  <figure><img src="fotos/foto-23.jpeg" alt="Respaldo"><figcaption>Respaldo en la nube</figcaption></figure>
+  <figure><img src="fotos/foto-23b.jpeg" alt="Conexión Supabase"><figcaption>Configurar conexión (Supabase)</figcaption></figure>
+</div>
+
+<h3>7.8 Impresoras &amp; Tickets</h3>
+<p>Ancho de papel, impresora predeterminada, imprimir prueba, y <b>personalización del ticket</b>
+(título, subtítulo, leyenda final y QR) con vista previa. Cajón: interruptor + pin de apertura.</p>
+<div class="grid2">
+  <figure><img src="fotos/foto-24.jpeg" alt="Impresoras y tickets"><figcaption>Impresora, papel y personalización</figcaption></figure>
+  <figure><img src="fotos/foto-25.jpeg" alt="Ticket y cajón"><figcaption>QR, vista previa y cajón (pin)</figcaption></figure>
+</div>
+
+<footer>
+  Montana Boutique — Manual del POS · Generado el 29/07/2026 · Para imprimir: Ctrl/Cmd + P
+</footer>
+</div>

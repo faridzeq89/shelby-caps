@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/local/database.dart';
 import '../../services/cloud_backup_service.dart';
 
 class CloudBackupScreen extends StatelessWidget {
@@ -46,10 +47,18 @@ class CloudBackupScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const SupabaseConfigScreen())),
+              icon: const Icon(Icons.key_outlined),
+              label: const Text('Configurar conexión (Supabase)'),
+            ),
+            const SizedBox(height: 16),
             if (svc.state == SyncState.disabled)
               const Text(
-                'El respaldo no está configurado (falta .env con las llaves de '
-                'Supabase, o no hay conexión).',
+                'El respaldo aún no está conectado. Toca "Configurar conexión '
+                '(Supabase)", pega tu URL y llave anon, y luego cierra y reabre '
+                'la app. (Sin esto, la app funciona 100% local.)',
                 textAlign: TextAlign.center,
               )
             else ...[
@@ -175,5 +184,177 @@ class CloudBackupScreen extends StatelessWidget {
             .showSnackBar(SnackBar(content: Text('No se pudo restaurar: $e')));
       }
     }
+  }
+}
+
+/// Captura de la conexión a Supabase (URL + llave anon) **dentro de la app**, sin
+/// recompilar. Se guarda en `app_settings` y el arranque la lee con prioridad
+/// sobre el `.env`. Requiere reiniciar la app para conectar.
+class SupabaseConfigScreen extends StatefulWidget {
+  const SupabaseConfigScreen({super.key});
+
+  @override
+  State<SupabaseConfigScreen> createState() => _SupabaseConfigScreenState();
+}
+
+class _SupabaseConfigScreenState extends State<SupabaseConfigScreen> {
+  late final AppDatabase _db = context.read<AppDatabase>();
+  final _url = TextEditingController();
+  final _key = TextEditingController();
+  bool _loaded = false;
+  bool _saving = false;
+
+  static const _kUrl = 'supabase_url';
+  static const _kAnon = 'supabase_anon';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _key.dispose();
+    super.dispose();
+  }
+
+  Future<String?> _get(String k) async {
+    final r = await (_db.select(_db.appSettings)..where((t) => t.key.equals(k)))
+        .getSingleOrNull();
+    return r?.value;
+  }
+
+  Future<void> _set(String k, String v) async {
+    await _db.into(_db.appSettings).insertOnConflictUpdate(
+          AppSettingsCompanion.insert(key: k, value: v),
+        );
+  }
+
+  Future<void> _load() async {
+    _url.text = (await _get(_kUrl)) ?? '';
+    _key.text = (await _get(_kAnon)) ?? '';
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  void _toast(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _restartDialog({required String msg}) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Guardado'),
+        content: Text(msg),
+        actions: [
+          FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Entendido')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    final url = _url.text.trim();
+    final key = _key.text.trim();
+    if (!url.startsWith('http') || !url.contains('.')) {
+      _toast('URL inválida (debe empezar con https:// …)');
+      return;
+    }
+    if (key.length < 20) {
+      _toast('La llave anon parece incompleta');
+      return;
+    }
+    setState(() => _saving = true);
+    await _set(_kUrl, url);
+    await _set(_kAnon, key);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    await _restartDialog(
+        msg: 'Conexión guardada. Cierra por completo la app y vuelve a abrirla '
+            'para conectar con Supabase.\n\nRecuerda haber corrido el SQL de '
+            'configuración (docs/supabase-setup.md) en ese proyecto.');
+  }
+
+  Future<void> _clear() async {
+    await _set(_kUrl, '');
+    await _set(_kAnon, '');
+    _url.clear();
+    _key.clear();
+    await _restartDialog(
+        msg: 'Conexión borrada. Al reiniciar, la app quedará 100% local '
+            '(sin respaldo en la nube).');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Conexión a Supabase')),
+      body: !_loaded
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Pega la URL y la llave anon de tu proyecto de Supabase '
+                    '(Settings → API → Project URL y anon public). NO uses la '
+                    'llave service_role. Al guardar, cierra y reabre la app para '
+                    'que conecte.',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _url,
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Project URL',
+                    hintText: 'https://xxxxx.supabase.co',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _key,
+                  minLines: 2,
+                  maxLines: 4,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Llave anon (public)',
+                    hintText: 'eyJhbGciOi...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.save_outlined),
+                  label: const Text('Guardar conexión'),
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: _saving ? null : _clear,
+                  icon: const Icon(Icons.link_off),
+                  label: const Text('Quitar conexión (volver a local)'),
+                ),
+              ],
+            ),
+    );
   }
 }

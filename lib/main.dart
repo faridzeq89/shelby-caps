@@ -10,8 +10,8 @@ import 'services/cloud_backup_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final cloudEnabled = await _initSupabase();
   final db = AppDatabase();
+  final cloudEnabled = await _initSupabase(db);
   final auth = AuthController(db);
   await auth.ensureSeedAdmin();
   await SeedService(db).run();
@@ -23,15 +23,37 @@ Future<void> main() async {
   runApp(BoutiquePosApp(auth: auth, db: db, backup: backup));
 }
 
-/// Inicializa Supabase desde `.env`. Si no hay `.env` o falla, la app sigue
-/// funcionando 100% local (respaldo deshabilitado).
-Future<bool> _initSupabase() async {
+/// Lee un valor de `app_settings`, o null si no existe / está vacío.
+Future<String?> _setting(AppDatabase db, String key) async {
+  final row = await (db.select(db.appSettings)..where((t) => t.key.equals(key)))
+      .getSingleOrNull();
+  final v = row?.value.trim();
+  return (v == null || v.isEmpty) ? null : v;
+}
+
+/// Inicializa Supabase. Prioridad: **configuración guardada en la app**
+/// (Admin → Respaldo → Configurar conexión, en `app_settings`), que permite
+/// conectar sin recompilar; si no hay, cae al `.env` empaquetado al compilar.
+/// Si no hay ninguna, la app sigue 100% local (respaldo deshabilitado).
+Future<bool> _initSupabase(AppDatabase db) async {
   try {
-    await dotenv.load(fileName: '.env');
-    final env = (dotenv.maybeGet('SUPABASE_ENV') ?? 'dev').toUpperCase();
-    final url = dotenv.maybeGet('SUPABASE_URL_$env') ?? '';
-    final key = dotenv.maybeGet('SUPABASE_ANON_$env') ?? '';
-    if (url.isEmpty || key.isEmpty) return false;
+    String? url = await _setting(db, 'supabase_url');
+    String? key = await _setting(db, 'supabase_anon');
+    if (url == null || key == null) {
+      try {
+        await dotenv.load(fileName: '.env');
+        final env = (dotenv.maybeGet('SUPABASE_ENV') ?? 'dev').toUpperCase();
+        url ??= (dotenv.maybeGet('SUPABASE_URL_$env')?.trim().isNotEmpty ?? false)
+            ? dotenv.maybeGet('SUPABASE_URL_$env')!.trim()
+            : null;
+        key ??= (dotenv.maybeGet('SUPABASE_ANON_$env')?.trim().isNotEmpty ?? false)
+            ? dotenv.maybeGet('SUPABASE_ANON_$env')!.trim()
+            : null;
+      } catch (_) {
+        // Sin .env empaquetado: no pasa nada, seguimos con lo que haya.
+      }
+    }
+    if (url == null || key == null) return false;
     // Llave anon (JWT legacy). El parámetro anonKey sigue funcionando para estas.
     // ignore: deprecated_member_use
     await Supabase.initialize(url: url, anonKey: key);

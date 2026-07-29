@@ -315,6 +315,20 @@ Sin cambio de esquema. `flutter analyze` limpio, **92 pruebas verdes**, APK.
   ajustando. El hub de inventario refresca el stock bajo al volver (su `_open` ya refresca en cada
   pop), así que no se pierde la actualización del badge.
 
+## Config de Supabase dentro de la app (sin recompilar) (2026-07-29, en `main`)
+Sin cambio de esquema (usa `app_settings`). `flutter analyze` limpio, **92 pruebas verdes**, APK.
+Resuelve: un APK ya instalado puede conectarse a Supabase sin generar otro APK ni reinstalar.
+- **`main.dart`**: `main()` ahora crea la `AppDatabase` **antes** de Supabase; `_initSupabase(db)` lee
+  primero las llaves de `app_settings` (`supabase_url`, `supabase_anon`) y, si no hay, cae al `.env`
+  empaquetado (retrocompatible). Si no hay ninguna → 100% local. Helper `_setting(db, key)`.
+- **`cloud_backup_screen.dart`**: botón **"Configurar conexión (Supabase)"** siempre visible +
+  pantalla `SupabaseConfigScreen` (captura URL + llave anon, valida, guarda en `app_settings`, ofrece
+  "quitar conexión" para volver a local). Mensaje de estado deshabilitado actualizado.
+- **Flujo**: Admin → Respaldo → Configurar conexión → pegar URL + anon → guardar → **cerrar y reabrir
+  la app** (Supabase se inicializa al arrancar). Un reinicio, sin build ni reinstall. Sirve también
+  para cambiar de proyecto/tienda o migrar de tablet. La llave anon es semi-pública (va en el APK de
+  todos modos); vive en la base local (viaja en el respaldo).
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

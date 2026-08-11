@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/ui_kit.dart';
 import '../../services/auth_controller.dart';
-import '../admin/catalog_web_screen.dart';
 import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
 import '../admin/loyalty_config_screen.dart';
@@ -110,10 +109,6 @@ class AppDrawer extends StatelessWidget {
           if (isAdmin)
             _item(context, Icons.local_shipping_outlined, 'Proveedores',
                 onTap: () => push(const SuppliersScreen())),
-          if (isAdmin)
-            _item(context, Icons.shopping_bag_outlined, 'Catálogo web',
-                trailing: 'web', onTap: () => push(const CatalogWebScreen())),
-
           _group('Clientes y dinero'),
           _item(context, Icons.people_alt_outlined, 'Clientes',
               onTap: () => push(const CustomersScreen())),

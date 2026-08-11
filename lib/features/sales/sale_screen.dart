@@ -15,6 +15,7 @@ import '../../data/repositories/loyalty_repository.dart';
 import '../../data/repositories/quote_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/catalog_sync_service.dart';
 import '../../services/cloud_backup_service.dart';
 import '../../services/image_service.dart';
 import '../customers/customers_screen.dart';
@@ -379,7 +380,10 @@ class SaleScreenState extends State<SaleScreen> {
     }
 
     // Respaldo en la nube tras la venta (sin bloquear).
-    if (mounted) context.read<CloudBackupService>().backupSoon();
+    if (mounted) {
+        context.read<CloudBackupService>().backupSoon();
+        context.read<CatalogSyncService>().publishSoon();
+      }
 
     // La venta YA quedó registrada. La impresión es aparte: si falla, no se
     // pierde la venta.

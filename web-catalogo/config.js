@@ -9,6 +9,25 @@ window.CATALOGO_CONFIG = {
   SHOP_NAME: "SHELBY CAPS",
   ADDRESS: "Calle Monterrey 455 Col. Rdz, Reynosa",
 
+  // WhatsApp de la tienda para recibir pedidos. Solo dígitos, con lada de país
+  // (52 = México) + los 10 dígitos. Se usa para armar la liga wa.me con el
+  // pedido prellenado.
+  WHATSAPP: "528997034922",
+
+  // Foto de portada del catálogo (arriba de todo). Vacío = sin portada.
+  COVER: "img/portada.svg",
+
+  // Banners promocionales que rotan solos, estilo Uber Eats. NO son productos:
+  // son solo imágenes. `link` es opcional (a dónde manda al tocarlo).
+  BANNERS: [
+    { image: "img/banner-1.svg", alt: "Mayoreo desde 6 piezas" },
+    { image: "img/banner-2.svg", alt: "Gorras personalizadas" },
+    { image: "img/banner-3.svg", alt: "Servicio de limpieza de gorras" },
+  ],
+
+  // Segundos que dura cada banner antes de pasar al siguiente.
+  BANNER_SECONDS: 5,
+
   // Horario por día (0 = domingo … 6 = sábado). `null` = cerrado ese día.
   // Con esto la barra dice "Abierto" o "Abre mar, 11:00 a. m. - 7:00 p. m.".
   OPENING_HOURS: {

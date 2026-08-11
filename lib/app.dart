@@ -7,6 +7,7 @@ import 'features/auth/change_pin_screen.dart';
 import 'features/auth/pin_login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'services/auth_controller.dart';
+import 'services/catalog_sync_service.dart';
 import 'services/cloud_backup_service.dart';
 
 /// Raíz de la app. Recibe la base y un [AuthController] ya sembrado para poder
@@ -27,6 +28,12 @@ class BoutiquePosApp extends StatelessWidget {
         Provider<AppDatabase>.value(value: db),
         ChangeNotifierProvider.value(value: auth),
         ChangeNotifierProvider<CloudBackupService>.value(value: backupSvc),
+        // Una sola instancia: el retraso antes de publicar vive en ella, y con
+        // instancias sueltas cada pantalla tendría su propio temporizador.
+        Provider<CatalogSyncService>(
+          create: (_) => CatalogSyncService(db),
+          dispose: (_, s) => s.dispose(),
+        ),
       ],
       child: MaterialApp(
         title: 'SHELBY CAPS',

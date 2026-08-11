@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_dropdown.dart';
@@ -6,6 +9,7 @@ import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/catalog_sync_service.dart';
 import '../../services/image_service.dart';
 import '../inventory/inventory_home_screen.dart';
 import 'import_screen.dart';
@@ -53,9 +57,56 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
     return _CatalogData(products, categories, counts, stock);
   }
 
-  void _reload() => setState(() {
-        _future = _load();
-      });
+  void _reload() {
+    context.read<CatalogSyncService>().publishSoon();
+    setState(() {
+      _future = _load();
+    });
+  }
+
+  /// Muestra la liga de la tienda para mandársela a un cliente. El catálogo se
+  /// publica solo, así que aquí no hay nada que "subir": solo copiar y pegar.
+  Future<void> _share() async {
+    final sync = context.read<CatalogSyncService>();
+    final url = await sync.storeUrl();
+    // Se fuerza una publicación inmediata para que quien reciba la liga vea lo
+    // que hay ahora mismo, sin esperar el retraso normal.
+    unawaited(sync.publishNow());
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Compartir la tienda'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Manda esta liga a tus clientes. Se actualiza sola '
+                'cuando cambias precios, fotos o existencias.'),
+            const SizedBox(height: 12),
+            SelectableText(url,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, color: AppColors.brassDeep)),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar')),
+          FilledButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: url));
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Liga copiada')));
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('Copiar liga'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _newProduct() async {
     final productId = await showDialog<int>(
@@ -117,6 +168,11 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
                 tooltip: 'Menú'),
         title: const Text('Inventario'),
         actions: [
+          IconButton(
+            tooltip: 'Compartir la tienda en línea',
+            icon: const Icon(Icons.share_outlined),
+            onPressed: _share,
+          ),
           IconButton(
             tooltip: 'Operaciones (recepción, ajustes, conteo)',
             icon: const Icon(Icons.tune),

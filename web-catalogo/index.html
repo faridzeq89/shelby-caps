@@ -38,6 +38,15 @@
   </div>
 </section>
 
+<!-- Portada de la tienda -->
+<figure class="cover" id="cover" hidden></figure>
+
+<!-- Banners promocionales (rotan solos). No son productos. -->
+<section class="banners" id="banners" hidden aria-label="Promociones">
+  <div class="btrack" id="btrack"></div>
+  <div class="dots" id="bdots"></div>
+</section>
+
 <!-- Filtros: categorías, orden y vista. -->
 <nav class="chips" id="chips" aria-label="Categorías"></nav>
 
@@ -120,8 +129,94 @@
     <div class="sheet-body" id="cartBody"></div>
     <footer class="sheet-foot col">
       <div class="totals" id="cartTotals"></div>
-      <button class="add wide" id="checkout">Continuar al pago</button>
+      <button class="add wide" id="checkout">Hacer pedido</button>
     </footer>
+  </div>
+</div>
+
+<!-- Datos de contacto y forma de entrega -->
+<div class="sheet" id="checkoutSheet" hidden role="dialog" aria-modal="true" aria-labelledby="coTitle">
+  <div class="sheet-card">
+    <header class="sheet-head">
+      <button class="icon" id="coBack" aria-label="Volver al carrito">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19 8 12l7-7"/></svg>
+      </button>
+      <h2 id="coTitle">Datos de contacto</h2>
+      <span style="width:40px"></span>
+    </header>
+    <div class="sheet-body">
+      <div class="form">
+        <p class="flabel">Selecciona cómo quieres recibir tu pedido</p>
+        <label class="opt" id="optPickup">
+          <span class="oicon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+          </span>
+          <span class="otext">Para llevar / Recoger</span>
+          <input type="radio" name="entrega" value="pickup" checked />
+          <span class="dot-radio" aria-hidden="true"></span>
+        </label>
+        <label class="opt" id="optDelivery">
+          <span class="oicon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 7h11v8H3zM14 10h4l3 3v2h-7z"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17.5" cy="17.5" r="1.6"/></svg>
+          </span>
+          <span class="otext">Domicilio</span>
+          <input type="radio" name="entrega" value="delivery" />
+          <span class="dot-radio" aria-hidden="true"></span>
+        </label>
+
+        <label class="flabel" for="coName">Nombre <b>*</b></label>
+        <input id="coName" autocomplete="name" />
+        <p class="ferr" id="errName" hidden>Este campo es requerido</p>
+
+        <label class="flabel" for="coPhone">Celular <b>*</b></label>
+        <input id="coPhone" inputmode="tel" autocomplete="tel" placeholder="10 dígitos" />
+        <p class="ferr" id="errPhone" hidden>El número de celular no es válido</p>
+
+        <div id="addrBox" hidden>
+          <label class="flabel" for="coAddr">Dirección <b>*</b></label>
+          <input id="coAddr" autocomplete="street-address" placeholder="Escribe tu dirección" />
+          <p class="ferr" id="errAddr" hidden>Este campo es requerido</p>
+        </div>
+
+        <label class="flabel" for="coNotes">Comentarios de la orden</label>
+        <textarea id="coNotes" rows="3"></textarea>
+      </div>
+    </div>
+    <footer class="sheet-foot">
+      <button class="add wide" id="coSend">
+        <span id="coCount"></span><span>Hacer pedido</span><b id="coTotal"></b>
+      </button>
+    </footer>
+  </div>
+</div>
+
+<!-- Cómo quiere pagar -->
+<div class="sheet" id="paySheet" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
+  <div class="sheet-card">
+    <header class="sheet-head">
+      <button class="icon" id="payBack" aria-label="Volver">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19 8 12l7-7"/></svg>
+      </button>
+      <h2 id="payTitle">Realiza tu pedido</h2>
+      <span style="width:40px"></span>
+    </header>
+    <div class="sheet-body">
+      <div class="form">
+        <button class="payopt" id="payWa">
+          <span class="oicon wa" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-3.2-6.4"/><path d="M8.5 9.5c0 4 2 6 6 6l1.5-1.5-2-1.5-1 1c-1 -.5-1.8-1.3-2.3-2.3l1-1L10 8 8.5 9.5Z"/></svg>
+          </span>
+          <span class="otext">Ir a WhatsApp</span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+        </button>
+        <button class="payopt" id="payMp" disabled>
+          <span class="oicon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+          </span>
+          <span class="otext">Pagar con Mercado Pago<small>Disponible próximamente</small></span>
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 

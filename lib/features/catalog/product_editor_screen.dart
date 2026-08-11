@@ -10,6 +10,7 @@ import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/supplier_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/catalog_sync_service.dart';
 import '../../services/image_service.dart';
 import 'label_service.dart';
 
@@ -76,9 +77,14 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     return _EditorData(product, rows, tiers, supplierName, gallery);
   }
 
-  void _reload() => setState(() {
-        _future = _load();
-      });
+  void _reload() {
+    // Cualquier cambio aquí (precio, foto, mayoreo, archivar) tiene que llegar
+    // a la tienda web: se agenda la publicación, que se hace sola al calmarse.
+    context.read<CatalogSyncService>().publishSoon();
+    setState(() {
+      _future = _load();
+    });
+  }
 
   void _toast(String msg) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));

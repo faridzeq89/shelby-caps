@@ -5,6 +5,7 @@ import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/inventory_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/catalog_sync_service.dart';
 import '../../services/cloud_backup_service.dart';
 import 'inventory_variant_picker.dart';
 
@@ -69,7 +70,10 @@ class _AdjustStockScreenState extends State<AdjustStockScreen> {
         reason: _reason,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
-      if (mounted) context.read<CloudBackupService>().backupSoon();
+      if (mounted) {
+        context.read<CloudBackupService>().backupSoon();
+        context.read<CatalogSyncService>().publishSoon();
+      }
       // Nos quedamos en Ajuste: refrescamos la existencia y limpiamos para
       // seguir ajustando (misma variante u otra) sin salir de la pantalla.
       final applied = _delta;

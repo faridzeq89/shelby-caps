@@ -84,6 +84,30 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .badge.open { background: #dff3e6; color: #1c6b3f; }
 .addr { margin-top: 2px; }
 
+/* ---------- Portada ---------- */
+.cover { margin: 0; max-width: 1180px; margin: 0 auto; padding: 12px 14px 0; }
+.cover img {
+  width: 100%; border-radius: 12px; display: block;
+  aspect-ratio: 1200 / 420; object-fit: cover; background: #eee;
+}
+
+/* ---------- Banners que rotan ---------- */
+.banners { max-width: 1180px; margin: 0 auto; padding: 12px 14px 0; }
+.btrack {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; gap: 10px; border-radius: 12px;
+}
+.btrack::-webkit-scrollbar { display: none; }
+.btrack a, .btrack span {
+  flex: 0 0 100%; scroll-snap-align: center; border-radius: 12px; overflow: hidden;
+  display: block;
+}
+.btrack img {
+  width: 100%; display: block; aspect-ratio: 900 / 360; object-fit: cover;
+  background: #eee;
+}
+.banners .dots { padding: 8px 0 0; }
+
 /* ---------- Chips de categoría ---------- */
 .chips {
   display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
@@ -205,6 +229,48 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 .totals div { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
 .totals div.grand { font-size: 20px; font-weight: 800; color: var(--ink); }
 .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+
+/* ---------- Datos de contacto / pago ---------- */
+.form { padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.flabel { margin: 10px 0 2px; font-size: 13.5px; font-weight: 700; }
+.flabel b { color: #c0111f; }
+.form input, .form textarea {
+  width: 100%; padding: 12px; font: inherit; color: inherit;
+  border: 1px solid var(--line); border-radius: var(--radius); background: #fff;
+  outline: none; resize: vertical;
+}
+.form input:focus, .form textarea:focus { border-color: var(--ink); }
+.form input.bad, .form textarea.bad { border-color: #c0111f; }
+.ferr { margin: 2px 0 0; font-size: 12.5px; color: #c0111f; }
+
+/* Opción de entrega: toda la fila es tocable, como en el original. */
+.opt {
+  display: flex; align-items: center; gap: 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-top: 8px;
+}
+.opt:has(input:checked) { border-color: #1c8a4d; border-width: 2px; padding: 13px; }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt .otext { flex: 1 1 auto; font-weight: 700; font-size: 15px; }
+.oicon { display: grid; place-items: center; color: var(--ink); }
+.oicon svg { width: 26px; height: 26px; }
+.dot-radio {
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #c9c9c9; flex: 0 0 auto;
+}
+.opt:has(input:checked) .dot-radio { border-color: #1c8a4d; border-width: 6px; }
+
+.payopt {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  border: 1px solid var(--line); border-radius: 12px; padding: 16px 14px;
+  background: #fff; margin-top: 10px;
+}
+.payopt:disabled { opacity: .55; cursor: not-allowed; }
+.payopt .otext { flex: 1 1 auto; font-weight: 800; font-size: 16px; }
+.payopt .otext small { display: block; font-weight: 600; font-size: 12px; color: var(--muted); }
+.payopt .chev { width: 20px; height: 20px; color: var(--muted); }
+.oicon.wa { color: #25d366; }
+
+#coSend { justify-content: space-between; padding: 0 16px; }
+#coSend span:first-child { font-size: 13px; opacity: .8; }
 
 .foot { border-top: 1px solid var(--line); padding: 20px 14px calc(28px + env(safe-area-inset-bottom)); text-align: center; }
 .foot p { margin: 0; font-weight: 800; }

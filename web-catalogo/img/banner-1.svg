@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" width="900" height="360" role="img" aria-label="Mayoreo desde 6 piezas">
+  <defs>
+    <linearGradient id="b1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9C7A2C"/>
+      <stop offset="100%" stop-color="#6d5320"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="360" fill="url(#b1)"/>
+  <g opacity="0.16" fill="#17140C">
+    <circle cx="760" cy="80" r="150"/>
+    <circle cx="120" cy="330" r="110"/>
+  </g>
+  <text x="60" y="132" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="34"
+        font-weight="800" fill="#17140C" letter-spacing="3">MAYOREO</text>
+  <text x="60" y="212" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="62"
+        font-weight="900" fill="#FFFFFF">Desde 6 piezas</text>
+  <text x="62" y="264" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="28"
+        font-weight="700" fill="#17140C">El precio baja solo al llegar al escalón</text>
+  <g transform="translate(700 230)">
+    <path d="M-90 20 Q-90 -50 0 -50 Q90 -50 90 20 Z" fill="#EDE7D8"/>
+    <path d="M-94 20 Q0 8 150 26 Q150 46 0 46 Q-94 46 -94 20 Z" fill="#C8C0AC"/>
+  </g>
+</svg>

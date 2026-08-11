@@ -5,6 +5,7 @@ import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/inventory_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/catalog_sync_service.dart';
 import '../../services/cloud_backup_service.dart';
 import 'inventory_variant_picker.dart';
 
@@ -123,7 +124,10 @@ class _ReceiveStockScreenState extends State<ReceiveStockScreen> {
         referenceId:
             _reference.text.trim().isEmpty ? null : _reference.text.trim(),
       );
-      if (mounted) context.read<CloudBackupService>().backupSoon();
+      if (mounted) {
+        context.read<CloudBackupService>().backupSoon();
+        context.read<CatalogSyncService>().publishSoon();
+      }
       if (!mounted) return;
       _toast('Recibidas $_totalPieces piezas en ${_rows.length} variantes');
       Navigator.of(context).pop(true);

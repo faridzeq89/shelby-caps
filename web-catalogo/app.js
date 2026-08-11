@@ -151,6 +151,65 @@
     badge.classList.toggle("open", open);
   }
 
+  // ---- Portada y banners ----
+  function renderCover() {
+    const src = CFG.COVER;
+    if (!src) return;
+    const el = $("cover");
+    el.innerHTML = '<img src="' + esc(src) + '" alt="' +
+      esc(CFG.SHOP_NAME || "") + '" />';
+    el.hidden = false;
+  }
+
+  /// Banners que rotan solos. Se detienen en cuanto el usuario los toca: nada
+  /// más molesto que un carrusel que se mueve mientras lo estás viendo.
+  function renderBanners() {
+    const list = CFG.BANNERS || [];
+    if (!list.length) return;
+    const box = $("banners");
+    const track = $("btrack");
+    const dots = $("bdots");
+
+    track.innerHTML = list.map((b, i) => {
+      // El primero se carga de inmediato (es lo primero que se ve); los demás
+      // pueden esperar a que el usuario deslice.
+      const img = '<img src="' + esc(b.image) + '" alt="' + esc(b.alt || "") +
+        '"' + (i === 0 ? "" : ' loading="lazy"') + " />";
+      return b.link
+        ? '<a href="' + esc(b.link) + '" target="_blank" rel="noopener">' + img + "</a>"
+        : "<span>" + img + "</span>";
+    }).join("");
+    dots.innerHTML = list.length > 1
+      ? list.map((_, i) => '<span class="dot' + (i === 0 ? " on" : "") + '"></span>').join("")
+      : "";
+    box.hidden = false;
+    if (list.length < 2) return;
+
+    const paint = (i) => dots.querySelectorAll(".dot")
+      .forEach((d, k) => d.classList.toggle("on", k === i));
+
+    let timer = null;
+    const step = () => {
+      const i = Math.round(track.scrollLeft / track.clientWidth);
+      const next = (i + 1) % list.length;
+      track.scrollTo({ left: next * track.clientWidth, behavior: "smooth" });
+    };
+    const start = () => {
+      stop();
+      timer = setInterval(step, Math.max(2, CFG.BANNER_SECONDS || 5) * 1000);
+    };
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+    track.onscroll = () => paint(Math.round(track.scrollLeft / track.clientWidth));
+    // Si el usuario interactúa, se detiene y ya no vuelve a arrancar solo.
+    ["pointerdown", "touchstart", "wheel"].forEach((ev) =>
+      track.addEventListener(ev, stop, { passive: true }));
+    // Tampoco corre si la pestaña está en segundo plano.
+    document.addEventListener("visibilitychange", () =>
+      document.hidden ? stop() : (timer && start()));
+    start();
+  }
+
   // ---- Categorías ----
   function renderChips() {
     const cats = [...new Set(PRODUCTS.map((p) => p.category).filter(Boolean))].sort();
@@ -373,6 +432,118 @@
     renderGrid();
   }
 
+  // ---- Datos de contacto ----
+  const isDelivery = () =>
+    document.querySelector('input[name="entrega"]:checked')?.value === "delivery";
+
+  function openCheckout() {
+    $("cartSheet").hidden = true;
+    $("checkoutSheet").hidden = false;
+    document.body.style.overflow = "hidden";
+    syncDelivery();
+    drawCheckoutTotal();
+  }
+
+  function closeCheckout() {
+    $("checkoutSheet").hidden = true;
+    openCart();
+  }
+
+  /// La dirección solo aplica a domicilio: si el pedido es para recoger, ni se
+  /// pide ni se valida.
+  function syncDelivery() {
+    const dom = isDelivery();
+    $("addrBox").hidden = !dom;
+    if (!dom) clearError("coAddr", "errAddr");
+  }
+
+  function drawCheckoutTotal() {
+    const n = cartCount();
+    $("coCount").textContent = String(n);
+    $("coTotal").textContent = money(cartTotal());
+  }
+
+  function markError(inputId, errId, bad) {
+    $(inputId).classList.toggle("bad", bad);
+    $(errId).hidden = !bad;
+  }
+  function clearError(inputId, errId) { markError(inputId, errId, false); }
+
+  /** Valida y devuelve los datos, o `null` si algo falta. */
+  function readContact() {
+    const name = $("coName").value.trim();
+    // Se compara por dígitos: el cliente puede escribir 899-703-49-22.
+    const phoneDigits = $("coPhone").value.replace(/\D/g, "");
+    const addr = $("coAddr").value.trim();
+    const dom = isDelivery();
+
+    const badName = name.length < 2;
+    const badPhone = phoneDigits.length < 10;
+    const badAddr = dom && addr.length < 5;
+    markError("coName", "errName", badName);
+    markError("coPhone", "errPhone", badPhone);
+    if (dom) markError("coAddr", "errAddr", badAddr);
+
+    if (badName || badPhone || badAddr) {
+      const first = badName ? "coName" : badPhone ? "coPhone" : "coAddr";
+      $(first).focus();
+      return null;
+    }
+    return {
+      name,
+      phone: phoneDigits,
+      addr,
+      delivery: dom,
+      notes: $("coNotes").value.trim(),
+    };
+  }
+
+  // ---- Pedido por WhatsApp ----
+  /** Arma el mensaje del pedido, listo para pegar en el chat de la tienda. */
+  function orderMessage(contact) {
+    const lines = pricedCart();
+    const out = [
+      `*Pedido ${CFG.SHOP_NAME || ""}*`.trim(),
+      "",
+      ...lines.map((l) => {
+        const meta = [l.variant.size, l.variant.color].filter(Boolean).join(" ");
+        return `• ${l.qty} x ${l.product.name}${meta ? " (" + meta + ")" : ""}` +
+          `${l.wholesale ? " [mayoreo]" : ""} — ${money(l.lineTotal)}`;
+      }),
+      "",
+      `*Total: ${money(cartTotal())}*`,
+      "",
+      contact.delivery
+        ? `Entrega a domicilio: ${contact.addr}`
+        : "Para llevar / Recoger en tienda",
+      `Nombre: ${contact.name}`,
+      `Celular: ${contact.phone}`,
+    ];
+    if (contact.notes) out.push(`Comentarios: ${contact.notes}`);
+    return out.join("\n");
+  }
+
+  function openPay() {
+    $("checkoutSheet").hidden = true;
+    $("paySheet").hidden = false;
+  }
+
+  function closePay() {
+    $("paySheet").hidden = true;
+    $("checkoutSheet").hidden = false;
+  }
+
+  function sendWhatsApp() {
+    const contact = readContact();
+    if (!contact) { closePay(); return; }
+    const phone = (CFG.WHATSAPP || "").replace(/\D/g, "");
+    if (!phone) { toast("Falta configurar el WhatsApp de la tienda"); return; }
+    const url = "https://wa.me/" + phone + "?text=" +
+      encodeURIComponent(orderMessage(contact));
+    // `noopener` por seguridad al abrir en pestaña nueva.
+    window.open(url, "_blank", "noopener");
+  }
+
   // ---- Arranque ----
   function wire() {
     $("search").oninput = (e) => { query = e.target.value; renderGrid(); };
@@ -417,19 +588,32 @@
     $("cartBtn").onclick = openCart;
     $("cBack").onclick = closeCart;
     $("cartSheet").onclick = (e) => { if (e.target === $("cartSheet")) closeCart(); };
-    $("checkout").onclick = () => {
-      // Fase #8: aquí se crea la orden de Mercado Pago y se redirige al pago.
-      toast("El pago en línea se habilita en la siguiente fase");
+    $("checkout").onclick = openCheckout;
+    $("coBack").onclick = closeCheckout;
+    $("checkoutSheet").onclick = (e) => {
+      if (e.target === $("checkoutSheet")) closeCheckout();
     };
+    for (const r of document.querySelectorAll('input[name="entrega"]')) {
+      r.onchange = syncDelivery;
+    }
+    $("coSend").onclick = () => { if (readContact()) openPay(); };
+    $("payBack").onclick = closePay;
+    $("paySheet").onclick = (e) => { if (e.target === $("paySheet")) closePay(); };
+    $("payWa").onclick = sendWhatsApp;
+
     document.onkeydown = (e) => {
       if (e.key !== "Escape") return;
       if (!$("detail").hidden) closeDetail();
+      else if (!$("paySheet").hidden) closePay();
+      else if (!$("checkoutSheet").hidden) closeCheckout();
       else if (!$("cartSheet").hidden) closeCart();
     };
   }
 
   async function init() {
     renderShopBar();
+    renderCover();
+    renderBanners();
     wire();
     renderCartCount();
     try {

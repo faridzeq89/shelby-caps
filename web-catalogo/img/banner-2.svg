@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" width="900" height="360" role="img" aria-label="Gorras personalizadas">
+  <defs>
+    <linearGradient id="b2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#20242A"/>
+      <stop offset="100%" stop-color="#3a4149"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="360" fill="url(#b2)"/>
+  <g stroke="#C8A24A" stroke-width="3" fill="none" opacity="0.5">
+    <path d="M0 300 Q225 240 450 300 T900 300"/>
+    <path d="M0 330 Q225 270 450 330 T900 330"/>
+  </g>
+  <text x="60" y="120" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="30"
+        font-weight="800" fill="#C8A24A" letter-spacing="4">A TU GUSTO</text>
+  <text x="60" y="196" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="58"
+        font-weight="900" fill="#EDE7D8">Personalizadas</text>
+  <text x="62" y="246" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="26"
+        font-weight="600" fill="#B6AD97">Bordado y aplique · pregúntanos por WhatsApp</text>
+  <g transform="translate(730 190)">
+    <circle cx="0" cy="0" r="86" fill="#C8A24A" opacity="0.18"/>
+    <path d="M-52 26 Q-52 -34 0 -34 Q52 -34 52 26 Z" fill="#C8A24A"/>
+    <path d="M-56 26 Q0 16 96 32 Q96 48 0 48 Q-56 48 -56 26 Z" fill="#846826"/>
+  </g>
+</svg>

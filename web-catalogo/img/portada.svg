@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="SHELBY CAPS">
+  <defs>
+    <linearGradient id="carbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#20242A"/>
+      <stop offset="60%" stop-color="#171a1f"/>
+      <stop offset="100%" stop-color="#2b3038"/>
+    </linearGradient>
+    <linearGradient id="laton" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#C8A24A"/>
+      <stop offset="100%" stop-color="#9C7A2C"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="420" fill="url(#carbon)"/>
+
+  <!-- Trama de rombos, guiño a la sastrería -->
+  <g opacity="0.07" fill="none" stroke="#EDE7D8" stroke-width="1.5">
+    <path d="M0 60 L1200 60 M0 140 L1200 140 M0 220 L1200 220 M0 300 L1200 300 M0 380 L1200 380"/>
+    <path d="M60 0 L60 420 M180 0 L180 420 M300 0 L300 420 M420 0 L420 420 M540 0 L540 420
+             M660 0 L660 420 M780 0 L780 420 M900 0 L900 420 M1020 0 L1020 420 M1140 0 L1140 420"
+          transform="skewX(-18)"/>
+  </g>
+
+  <!-- Gorra en latón -->
+  <g transform="translate(880 210)">
+    <path d="M-150 40 Q-150 -80 0 -80 Q150 -80 150 40 Z" fill="url(#laton)"/>
+    <path d="M-155 40 Q0 22 250 52 Q250 84 0 84 Q-155 84 -155 40 Z" fill="#846826"/>
+    <circle cx="0" cy="-84" r="10" fill="#C8A24A"/>
+    <text x="0" y="10" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="52"
+          font-weight="800" fill="#17140C" text-anchor="middle">SC</text>
+  </g>
+
+  <text x="80" y="180" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="72"
+        font-weight="900" fill="#EDE7D8" letter-spacing="2">SHELBY CAPS</text>
+  <text x="82" y="232" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="26"
+        font-weight="700" fill="#C8A24A" letter-spacing="6">GORRAS · REYNOSA</text>
+  <rect x="80" y="266" width="120" height="6" rx="3" fill="url(#laton)"/>
+  <text x="80" y="318" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="22"
+        font-weight="600" fill="#B6AD97">Originales · Réplica premium · Personalizadas</text>
+</svg>

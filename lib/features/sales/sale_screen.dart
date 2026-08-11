@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/money.dart';
 import '../../core/permissions.dart';
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -439,10 +440,25 @@ class SaleScreenState extends State<SaleScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Folio: ${r.folio}'),
-            Text('Total: \$${(r.totalCents / 100).toStringAsFixed(2)}'),
-            Text('Cambio: \$${(r.changeCents / 100).toStringAsFixed(2)}',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            StatusPill('Folio ${r.folio}'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: StatBlock(
+                      label: 'Total', value: money(r.totalCents), size: 18),
+                ),
+                Expanded(
+                  child: StatBlock(
+                    label: 'Cambio',
+                    value: money(r.changeCents),
+                    size: 26,
+                    color: AppColors.success,
+                    alignEnd: true,
+                  ),
+                ),
+              ],
+            ),
             if (r.redeemedPoints > 0 || r.earnedPoints > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -487,7 +503,11 @@ class SaleScreenState extends State<SaleScreen> {
                 icon: const Icon(Icons.menu),
                 onPressed: widget.onMenu,
                 tooltip: 'Menú'),
-        title: const Text('Venta'),
+        titleSpacing: widget.onMenu == null ? null : 0,
+        title: AppBarTitle(
+          title: 'VENTA',
+          subtitle: _customer?.name.toUpperCase() ?? 'MOSTRADOR',
+        ),
         actions: [
           IconButton(
             onPressed: () => _openInventory(const LowStockScreen()),
@@ -648,15 +668,16 @@ class SaleScreenState extends State<SaleScreen> {
           child: Row(
             children: [
               Expanded(
+                // Sin `border:` propio: el tema ya define el redondeo de 14 y el
+                // foco en latón. Sobrescribirlo aquí lo devolvía a las esquinas
+                // cuadradas de Material, que era parte de lo que se veía "viejo".
                 child: TextField(
                   controller: _scanCtrl,
                   focusNode: _scanFocus,
                   autofocus: autofocusScan,
                   decoration: const InputDecoration(
-                    labelText: 'Escanea o busca (+ Enter)',
+                    hintText: 'Escanea o busca (+ Enter)',
                     prefixIcon: Icon(Icons.qr_code_scanner),
-                    border: OutlineInputBorder(),
-                    isDense: true,
                   ),
                   onSubmitted: _onScan,
                 ),
@@ -693,37 +714,25 @@ class SaleScreenState extends State<SaleScreen> {
   }
 
   Widget _categoryTabs() {
-    return SizedBox(
-      height: 44,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: const Text('Todo'),
-              selected: _categoryFilter == null,
-              onSelected: (_) => _selectCategory(null),
-            ),
-          ),
-          for (final c in _categories)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(c.name),
-                selected: _categoryFilter == c.id,
-                onSelected: (_) => _selectCategory(c.id),
-              ),
-            ),
-        ],
-      ),
+    // Índice 0 = "Todo"; el resto mapea a `_categories` en el mismo orden.
+    final selected = _categoryFilter == null
+        ? 0
+        : _categories.indexWhere((c) => c.id == _categoryFilter) + 1;
+    return FilterChipsRow(
+      labels: ['Todo', for (final c in _categories) c.name],
+      selectedIndex: selected,
+      onSelected: (i) =>
+          _selectCategory(i == 0 ? null : _categories[i - 1].id),
     );
   }
 
   Widget _productGrid() {
     if (_products.isEmpty) {
-      return const Center(child: Text('Sin productos en esta categoría'));
+      return const EmptyState(
+        icon: Icons.checkroom,
+        title: 'Sin productos aquí',
+        hint: 'Cambia de categoría o da de alta productos en el catálogo.',
+      );
     }
     return GridView.builder(
       padding: const EdgeInsets.all(12),
@@ -746,13 +755,16 @@ class SaleScreenState extends State<SaleScreen> {
   // -------------------------------------------------------------------------
   Widget _cartHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('Carrito', style: Theme.of(context).textTheme.titleMedium),
-          Text('$_itemCount artículos',
-              style: Theme.of(context).textTheme.bodySmall),
+          Expanded(
+            child: Text('Carrito',
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          StatusPill(
+            _itemCount == 1 ? '1 artículo' : '$_itemCount artículos',
+          ),
         ],
       ),
     );
@@ -760,79 +772,128 @@ class SaleScreenState extends State<SaleScreen> {
 
   Widget _cartList() {
     if (_lines.isEmpty) {
-      return const Center(child: Text('Carrito vacío'));
+      return const EmptyState(
+        icon: Icons.shopping_cart_outlined,
+        title: 'Carrito vacío',
+        hint: 'Escanea un código o toca un producto de la vitrina.',
+      );
     }
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
       itemCount: _lines.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (_, i) => Material(
-        color: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Theme.of(context).dividerColor),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: _cartTile(_lines[i]),
+      itemBuilder: (_, i) => _cartTile(_lines[i]),
+    );
+  }
+
+  /// Línea del carrito: nombre y precio a la izquierda, contador a la derecha.
+  /// El importe de la línea es el dato que el cajero verifica contra el cliente,
+  /// así que va en cifra fuerte y no perdido en un subtítulo.
+  ///
+  /// [onChanged] lo usa la hoja del celular para repintarse a sí misma, ya que
+  /// vive en su propio `StatefulBuilder`. Así la línea se dibuja en un solo
+  /// lugar y no en dos copias que se despeinan por separado.
+  Widget _cartTile(_CartLine line, {VoidCallback? onChanged}) {
+    final theme = Theme.of(context);
+    final discounted = line.lineDiscountCents > 0;
+    return SurfaceCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(line.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                    ),
+                    if (line.wholesaleApplied) ...[
+                      const SizedBox(width: 6),
+                      const StatusPill('Mayoreo',
+                          icon: Icons.bolt, color: AppColors.brassDeep),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text('${money(line.unitPriceCents)} c/u',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant)),
+                    if (discounted) ...[
+                      const SizedBox(width: 6),
+                      Text('−${money(line.lineDiscountCents)}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: theme.colorScheme.error)),
+                    ],
+                    const Spacer(),
+                    Text(money(discounted ? line.net : line.lineTotal),
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Descuento en línea',
+            onPressed: () async {
+              await _editLineDiscount(line);
+              onChanged?.call();
+            },
+            icon: Icon(Icons.local_offer_outlined,
+                size: 20,
+                color: discounted ? theme.colorScheme.primary : theme.hintColor),
+          ),
+          _qtyStepper(line, onChanged),
+        ],
       ),
     );
   }
 
-  Widget _cartTile(_CartLine line) {
-    final unit = '\$${(line.unitPriceCents / 100).toStringAsFixed(2)}';
-    final subtitle = line.lineDiscountCents > 0
-        ? '$unit c/u  ·  −\$${(line.lineDiscountCents / 100).toStringAsFixed(2)}  ·  = \$${(line.net / 100).toStringAsFixed(2)}'
-        : '$unit c/u  ·  = \$${(line.lineTotal / 100).toStringAsFixed(2)}';
-    return ListTile(
-      dense: true,
-      title: Row(
-        children: [
-          Expanded(child: Text(line.title)),
-          if (line.wholesaleApplied) _mayoreoBadge(),
-        ],
-      ),
-      subtitle: Text(subtitle),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-              tooltip: 'Descuento en línea',
-              onPressed: () => _editLineDiscount(line),
-              icon: Icon(Icons.local_offer_outlined,
-                  color: line.lineDiscountCents > 0
-                      ? Theme.of(context).colorScheme.primary
-                      : null)),
-          IconButton(
-              onPressed: () => _changeQty(line, -1),
-              icon: const Icon(Icons.remove_circle_outline)),
-          Text('${line.qty}', style: const TextStyle(fontSize: 18)),
-          IconButton(
-              onPressed: () => _changeQty(line, 1),
-              icon: const Icon(Icons.add_circle_outline)),
-        ],
-      ),
-    );
-  }
-
-  /// Distintivo "Mayoreo" para las líneas cuyo precio cayó a un escalón.
-  Widget _mayoreoBadge() {
-    final scheme = Theme.of(context).colorScheme;
+  /// Contador compacto (−  n  +) en una sola cápsula, para que el pulgar no
+  /// tenga que apuntar entre iconos sueltos.
+  Widget _qtyStepper(_CartLine line, [VoidCallback? onChanged]) {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(10),
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: Border.all(color: theme.dividerColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.bolt, size: 14, color: scheme.onPrimaryContainer),
-          const SizedBox(width: 2),
-          Text('Mayoreo',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onPrimaryContainer)),
+          IconButton(
+            onPressed: () {
+              _changeQty(line, -1);
+              onChanged?.call();
+            },
+            icon: const Icon(Icons.remove, size: 18),
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+          ),
+          Text('${line.qty}',
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+          IconButton(
+            onPressed: () {
+              _changeQty(line, 1);
+              onChanged?.call();
+            },
+            icon: const Icon(Icons.add, size: 18),
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+          ),
         ],
       ),
     );
@@ -842,38 +903,41 @@ class SaleScreenState extends State<SaleScreen> {
   Widget _mobileCartBar() {
     final theme = Theme.of(context);
     return Material(
+      color: theme.cardColor,
       elevation: 8,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Row(
-          children: [
-            IconButton.filledTonal(
-              onPressed: _lines.isEmpty ? null : _openCartSheet,
-              icon: Badge(
-                isLabelVisible: _itemCount > 0,
-                label: Text('$_itemCount'),
-                child: const Icon(Icons.shopping_cart_outlined),
+      shadowColor: Colors.black.withValues(alpha: 0.10),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: theme.dividerColor)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Row(
+            children: [
+              IconButton.filledTonal(
+                onPressed: _lines.isEmpty ? null : _openCartSheet,
+                icon: Badge(
+                  isLabelVisible: _itemCount > 0,
+                  label: Text('$_itemCount'),
+                  child: const Icon(Icons.shopping_cart_outlined),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Total', style: theme.textTheme.bodySmall),
-                  Text('\$${(_total / 100).toStringAsFixed(2)}',
-                      style: theme.textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: StatBlock(
+                  label: 'Total',
+                  value: money(_total),
+                  size: 22,
+                ),
               ),
-            ),
-            FilledButton.icon(
-              onPressed: _lines.isEmpty ? null : _checkout,
-              icon: const Icon(Icons.point_of_sale),
-              label: const Text('Cobrar'),
-            ),
-          ],
+              FilledButton.icon(
+                onPressed: _lines.isEmpty ? null : _checkout,
+                icon: const Icon(Icons.point_of_sale),
+                label: const Text('Cobrar'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -901,67 +965,33 @@ class SaleScreenState extends State<SaleScreen> {
                 _cartHeader(),
                 Expanded(
                   child: _lines.isEmpty
-                      ? const Center(child: Text('Carrito vacío'))
+                      ? const EmptyState(
+                          icon: Icons.shopping_cart_outlined,
+                          title: 'Carrito vacío',
+                          hint: 'Escanea un código o toca un producto.',
+                        )
                       : ListView.separated(
                           controller: controller,
+                          padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
                           itemCount: _lines.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (_, i) {
-                            final line = _lines[i];
-                            return ListTile(
-                              dense: true,
-                              title: Row(
-                                children: [
-                                  Expanded(child: Text(line.title)),
-                                  if (line.wholesaleApplied) _mayoreoBadge(),
-                                ],
-                              ),
-                              subtitle: Text(
-                                  '\$${(line.unitPriceCents / 100).toStringAsFixed(2)} c/u  ·  = \$${(line.net / 100).toStringAsFixed(2)}'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                      tooltip: 'Descuento',
-                                      onPressed: () async {
-                                        await _editLineDiscount(line);
-                                        refresh();
-                                      },
-                                      icon: Icon(Icons.local_offer_outlined,
-                                          color: line.lineDiscountCents > 0
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                              : null)),
-                                  IconButton(
-                                      onPressed: () {
-                                        _changeQty(line, -1);
-                                        refresh();
-                                      },
-                                      icon: const Icon(
-                                          Icons.remove_circle_outline)),
-                                  Text('${line.qty}',
-                                      style: const TextStyle(fontSize: 18)),
-                                  IconButton(
-                                      onPressed: () {
-                                        _changeQty(line, 1);
-                                        refresh();
-                                      },
-                                      icon:
-                                          const Icon(Icons.add_circle_outline)),
-                                ],
-                              ),
-                            );
-                          },
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (_, i) =>
+                              _cartTile(_lines[i], onChanged: refresh),
                         ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                        top: BorderSide(
+                            color: Theme.of(context).dividerColor)),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Total: \$${(_total / 100).toStringAsFixed(2)}',
-                          style: Theme.of(context).textTheme.titleLarge),
+                      Expanded(
+                        child: StatBlock(
+                            label: 'Total', value: money(_total), size: 22),
+                      ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1070,32 +1100,38 @@ class SaleScreenState extends State<SaleScreen> {
   Widget _summaryBar({required bool showCheckout}) {
     final theme = Theme.of(context);
     return Material(
+      color: theme.cardColor,
       elevation: 8,
-      child: Padding(
+      shadowColor: Colors.black.withValues(alpha: 0.10),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: theme.dividerColor)),
+        ),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('$_itemCount artículos',
-                    style: theme.textTheme.bodyMedium),
-                Text('IVA \$${(_tax / 100).toStringAsFixed(2)}',
-                    style: theme.textTheme.bodySmall),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Total', style: theme.textTheme.titleLarge),
-                Text('\$${(_total / 100).toStringAsFixed(2)}',
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                Expanded(
+                  child: StatBlock(
+                    label: 'IVA incluido',
+                    value: money(_tax),
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                StatBlock(
+                  label: 'Total',
+                  value: money(_total),
+                  size: 26,
+                  alignEnd: true,
+                ),
               ],
             ),
             if (showCheckout) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -1134,48 +1170,45 @@ class _ProductTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final provider = productImageProvider(product.imagePath);
-    return InkWell(
+    return SurfaceCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: theme.dividerColor),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: provider != null
-                  ? Image(
-                      // Miniatura en memoria (ResizeImage): no descomprime la
-                      // foto completa para pintar un mosaico chico.
-                      image: ResizeImage(provider, width: 320, allowUpscaling: false),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _placeholder(theme),
-                    )
-                  : _placeholder(theme),
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: provider != null
+                ? Image(
+                    // Miniatura en memoria (ResizeImage): no descomprime la
+                    // foto completa para pintar un mosaico chico.
+                    image:
+                        ResizeImage(provider, width: 320, allowUpscaling: false),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _placeholder(theme),
+                  )
+                : _placeholder(theme),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(9, 7, 9, 9),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(money(product.basePriceCents),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.brassDeep)),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(product.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w500)),
-                  Text('\$${(product.basePriceCents / 100).toStringAsFixed(2)}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.primary)),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1496,15 +1529,18 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             ),
             const Divider(height: 8),
             const SizedBox(height: 8),
-            Text('A cobrar: \$${(_net / 100).toStringAsFixed(2)}',
-                style: theme.textTheme.titleLarge),
+            StatBlock(label: 'A cobrar', value: money(_net), size: 30),
             if (_discountCents > 0 || _redeemValue > 0)
-              Text(
-                  'Bruto \$${(widget.grossCents / 100).toStringAsFixed(2)}'
-                  '${_discountCents > 0 ? '  ·  descuento \$${(_discountCents / 100).toStringAsFixed(2)}' : ''}'
-                  '${_redeemValue > 0 ? '  ·  puntos -\$${(_redeemValue / 100).toStringAsFixed(2)}' : ''}'
-                  '${_needsAuth ? '  (requiere gerente)' : ''}',
-                  style: theme.textTheme.bodySmall),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                    'Bruto ${money(widget.grossCents)}'
+                    '${_discountCents > 0 ? '  ·  descuento ${money(_discountCents)}' : ''}'
+                    '${_redeemValue > 0 ? '  ·  puntos −${money(_redeemValue)}' : ''}'
+                    '${_needsAuth ? '  (requiere gerente)' : ''}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant)),
+              ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -1558,7 +1594,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                            'Tarjeta ${_giftCardCode ?? ''}: -\$${(_giftCardCents / 100).toStringAsFixed(2)}'),
+                            'Tarjeta ${_giftCardCode ?? ''}: −${money(_giftCardCents)}'),
                       ),
                       TextButton(
                           onPressed: _removeGiftCard,
@@ -1571,12 +1607,33 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                     label: const Text('Pagar con tarjeta de regalo'),
                   ),
             const SizedBox(height: 12),
-            Text(
-              _change >= 0
-                  ? 'Cambio: \$${(_change / 100).toStringAsFixed(2)}'
-                  : 'Falta \$${(-_change / 100).toStringAsFixed(2)}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                  color: _change < 0 ? theme.colorScheme.error : null),
+            // El cambio (o lo que falta) es el número que el cajero canta en
+            // voz alta: va en su propia superficie, teñida según el caso.
+            SurfaceCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    _change >= 0
+                        ? Icons.check_circle_outline
+                        : Icons.error_outline,
+                    color: _change < 0
+                        ? theme.colorScheme.error
+                        : AppColors.success,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: StatBlock(
+                      label: _change >= 0 ? 'Cambio' : 'Falta',
+                      value: money(_change >= 0 ? _change : -_change),
+                      size: 22,
+                      color: _change < 0
+                          ? theme.colorScheme.error
+                          : AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

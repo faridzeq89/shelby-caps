@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../services/auth_controller.dart';
 import '../admin/catalog_web_screen.dart';
 import '../admin/cloud_backup_screen.dart';
@@ -80,7 +81,7 @@ class AppDrawer extends StatelessWidget {
                 Text(
                   '${auth.currentUser?.name ?? ''} · ${_roleLabel(isAdmin)}',
                   style: const TextStyle(
-                      color: Color(0xFFB6AD97),
+                      color: AppColors.onCharcoalMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w700),
                 ),
@@ -159,7 +160,7 @@ class AppDrawer extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
         child: Text(label.toUpperCase(),
             style: const TextStyle(
-                color: Color(0xFF846826),
+                color: AppColors.brassDeep,
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.2)),

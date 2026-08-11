@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../services/catalog_sync_service.dart';
 
@@ -93,10 +94,9 @@ class _CatalogWebScreenState extends State<CatalogWebScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
+                SurfaceCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Publicar catálogo',
@@ -119,7 +119,6 @@ class _CatalogWebScreenState extends State<CatalogWebScreen> {
                           ),
                       ],
                     ),
-                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -129,7 +128,6 @@ class _CatalogWebScreenState extends State<CatalogWebScreen> {
                     labelText: 'Secreto de publicación',
                     helperText:
                         'El mismo que pusiste en catalog_config en Supabase.',
-                    border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.save_outlined),
                       tooltip: 'Guardar secreto',
@@ -153,8 +151,9 @@ class _CatalogWebScreenState extends State<CatalogWebScreen> {
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(_status!,
                         style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
                           color: _status!.startsWith('✓')
-                              ? Colors.green.shade700
+                              ? AppColors.success
                               : theme.colorScheme.error,
                         )),
                   ),

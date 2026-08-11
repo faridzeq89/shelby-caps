@@ -181,7 +181,12 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
               const SizedBox(height: 4),
               Expanded(
                 child: products.isEmpty
-                    ? const Center(child: Text('Sin resultados'))
+                    ? const EmptyState(
+                        icon: Icons.checkroom,
+                        title: 'Sin resultados',
+                        hint: 'Prueba con otro texto o cambia el filtro de '
+                            'categoría.',
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 88),
                         itemCount: products.length,

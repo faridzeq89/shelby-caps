@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_dropdown.dart';
 import '../../core/dashboard_tile.dart';
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/reports_repository.dart';
@@ -186,49 +187,47 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
               const SizedBox(height: 16),
               // Resumen.
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Ventas netas', style: theme.textTheme.labelLarge),
-                      Text(_money(s.netCents),
-                          style: theme.textTheme.headlineMedium),
-                      if (pct != null)
-                        Text(
-                          '${pct >= 0 ? '▲' : '▼'} ${pct.abs().toStringAsFixed(1)}% vs periodo anterior',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: pct >= 0
-                                ? Colors.green.shade700
-                                : theme.colorScheme.error,
-                          ),
+              SurfaceCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    StatBlock(
+                      label: 'Ventas netas',
+                      value: _money(s.netCents),
+                      size: 30,
+                    ),
+                    if (pct != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: StatusPill(
+                          '${pct.abs().toStringAsFixed(1)}% vs periodo anterior',
+                          icon: pct >= 0
+                              ? Icons.trending_up
+                              : Icons.trending_down,
+                          color: pct >= 0
+                              ? AppColors.success
+                              : theme.colorScheme.error,
                         ),
-                      const Divider(height: 24),
-                      _kv('Ventas', '${s.salesCount}'),
-                      _kv('Piezas vendidas', '${s.itemsSold}'),
-                      _kv('IVA incluido', _money(s.taxCents)),
-                      _kv('Descuentos', _money(s.discountCents)),
-                      _kv('Devoluciones',
-                          '${s.returnsCount} · ${_money(s.returnsCents)}'),
-                      _kv('Gastos', _money(data.expensesCents)),
-                      const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Ganancia (ventas − gastos)',
-                              style: theme.textTheme.titleSmall),
-                          Text(_money(s.netCents - data.expensesCents),
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: (s.netCents - data.expensesCents) < 0
-                                    ? theme.colorScheme.error
-                                    : Colors.green.shade700,
-                              )),
-                        ],
                       ),
-                    ],
-                  ),
+                    const Divider(height: 24),
+                    _kv('Ventas', '${s.salesCount}'),
+                    _kv('Piezas vendidas', '${s.itemsSold}'),
+                    _kv('IVA incluido', _money(s.taxCents)),
+                    _kv('Descuentos', _money(s.discountCents)),
+                    _kv('Devoluciones',
+                        '${s.returnsCount} · ${_money(s.returnsCents)}'),
+                    _kv('Gastos', _money(data.expensesCents)),
+                    const Divider(height: 20),
+                    StatBlock(
+                      label: 'Ganancia (ventas − gastos)',
+                      value: _money(s.netCents - data.expensesCents),
+                      size: 22,
+                      color: (s.netCents - data.expensesCents) < 0
+                          ? theme.colorScheme.error
+                          : AppColors.success,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -508,7 +507,12 @@ class _ReportDetailScreenState extends State<_ReportDetailScreen> {
           }
           final table = snap.data!;
           if (table.rows.isEmpty) {
-            return const Center(child: Text('Sin datos en este periodo.'));
+            return const EmptyState(
+              icon: Icons.bar_chart_outlined,
+              title: 'Sin datos en este periodo',
+              hint: 'Cambia el rango de fechas o registra ventas para ver el '
+                  'desglose aquí.',
+            );
           }
           return Column(
             children: [

@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/permissions.dart';
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/cash_session_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 
-String _money(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 class CashSessionScreen extends StatefulWidget {
   const CashSessionScreen({super.key});
@@ -101,7 +101,7 @@ class _CashSessionScreenState extends State<CashSessionScreen> {
 
   Future<void> _close(CashSession s, CashSessionSummary sum) async {
     final counted = await _askPesos(
-        'Cierre: efectivo contado\n(esperado ${_money(sum.expectedCashCents)})');
+        'Cierre: efectivo contado\n(esperado ${money(sum.expectedCashCents)})');
     if (counted == null) return;
     final closed = await _cash.close(actor: _user, session: s, countedCents: counted);
     if (!mounted) return;
@@ -114,17 +114,17 @@ class _CashSessionScreenState extends State<CashSessionScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Esperado: ${_money(closed.expectedCents ?? 0)}'),
-            Text('Contado: ${_money(closed.closingCountCents ?? 0)}'),
+            Text('Esperado: ${money(closed.expectedCents ?? 0)}'),
+            Text('Contado: ${money(closed.closingCountCents ?? 0)}'),
             Text(
               variance == 0
                   ? 'Sin diferencia'
                   : variance > 0
-                      ? 'Sobrante: ${_money(variance)}'
-                      : 'Faltante: ${_money(-variance)}',
+                      ? 'Sobrante: ${money(variance)}'
+                      : 'Faltante: ${money(-variance)}',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: variance == 0 ? Colors.green : Colors.red,
+                color: variance == 0 ? AppColors.success : AppColors.danger,
               ),
             ),
           ],
@@ -211,18 +211,15 @@ class _CashSessionScreenState extends State<CashSessionScreen> {
           }
           final data = snap.data!;
           if (data.session == null) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('No hay caja abierta'),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _open,
-                    icon: const Icon(Icons.lock_open),
-                    label: const Text('Abrir caja'),
-                  ),
-                ],
+            return EmptyState(
+              icon: Icons.lock_outline,
+              title: 'No hay caja abierta',
+              hint: 'Abre la caja con el fondo inicial para empezar a '
+                  'registrar ventas del turno.',
+              action: FilledButton.icon(
+                onPressed: _open,
+                icon: const Icon(Icons.lock_open),
+                label: const Text('Abrir caja'),
               ),
             );
           }
@@ -237,25 +234,30 @@ class _CashSessionScreenState extends State<CashSessionScreen> {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _row('Fondo de apertura', sum.openingFloatCents),
-                _row('Ventas en efectivo', sum.cashSalesCents),
-                _row('Ventas con tarjeta', sum.cardSalesCents),
-                if (sum.otherSalesCents > 0)
-                  _row('Otras ventas', sum.otherSalesCents),
-                _row('Depósitos', sum.depositsCents),
-                _row('Retiros', -sum.withdrawalsCents),
-                const Divider(),
-                _row('Efectivo esperado', sum.expectedCashCents, bold: true),
-              ],
-            ),
+        // El efectivo esperado es contra lo que el cajero cuenta el cajón:
+        // va arriba y en grande, y el desglose queda como respaldo.
+        SurfaceCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              StatBlock(
+                label: 'Efectivo esperado en caja',
+                value: money(sum.expectedCashCents),
+                size: 30,
+              ),
+              const Divider(height: 24),
+              _row('Fondo de apertura', sum.openingFloatCents),
+              _row('Ventas en efectivo', sum.cashSalesCents),
+              _row('Ventas con tarjeta', sum.cardSalesCents),
+              if (sum.otherSalesCents > 0)
+                _row('Otras ventas', sum.otherSalesCents),
+              _row('Depósitos', sum.depositsCents),
+              _row('Retiros', -sum.withdrawalsCents),
+            ],
           ),
         ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -281,39 +283,77 @@ class _CashSessionScreenState extends State<CashSessionScreen> {
           icon: const Icon(Icons.lock),
           label: const Text('Cerrar caja'),
         ),
-        const SizedBox(height: 16),
-        Text('Ventas del turno (${sales.length})',
-            style: Theme.of(context).textTheme.titleMedium),
-        for (final sale in sales)
-          ListTile(
-            dense: true,
-            title: Text('${sale.folio}  ·  ${_money(sale.totalCents)}'),
-            subtitle: Text(sale.status == SaleStatus.cancelled
-                ? 'CANCELADA'
-                : 'Completada'),
-            trailing: sale.status == SaleStatus.cancelled
-                ? null
-                : TextButton(
-                    onPressed: () => _cancelSale(sale),
-                    child: const Text('Cancelar'),
-                  ),
-          ),
+        const SizedBox(height: 20),
+        SectionHeader('Ventas del turno (${sales.length})'),
+        if (sales.isEmpty)
+          const SurfaceCard(
+            child: Text('Todavía no hay ventas en este turno.'),
+          )
+        else
+          for (final sale in sales) _saleRow(sale),
       ],
     );
   }
 
   Widget _row(String label, int cents, {bool bold = false}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
                 style: TextStyle(
-                    fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-            Text(_money(cents),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: bold ? FontWeight.w800 : FontWeight.w600)),
+            Text(money(cents),
                 style: TextStyle(
-                    fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+                    fontWeight: bold ? FontWeight.w900 : FontWeight.w700)),
           ],
         ),
       );
+
+  /// Renglón de venta del turno, con su folio y estado. Cancelar es una acción
+  /// destructiva, así que va en el color de error y no como texto neutro.
+  Widget _saleRow(Sale sale) {
+    final theme = Theme.of(context);
+    final cancelled = sale.status == SaleStatus.cancelled;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SurfaceCard(
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(sale.folio,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  cancelled
+                      ? StatusPill('Cancelada', color: theme.colorScheme.error)
+                      : const StatusPill('Completada',
+                          color: AppColors.success),
+                ],
+              ),
+            ),
+            Text(money(sale.totalCents),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    decoration: cancelled ? TextDecoration.lineThrough : null,
+                    color: cancelled ? theme.hintColor : null)),
+            if (!cancelled)
+              TextButton(
+                onPressed: () => _cancelSale(sale),
+                style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error),
+                child: const Text('Cancelar'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

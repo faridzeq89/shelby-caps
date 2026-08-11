@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/supplier_repository.dart';
 import '../../services/auth_controller.dart';
@@ -86,39 +87,67 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
           }
           final suppliers = snap.data!;
           if (suppliers.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Sin proveedores.\nToca "Nuevo proveedor".',
-                    textAlign: TextAlign.center),
-              ),
+            return const EmptyState(
+              icon: Icons.local_shipping_outlined,
+              title: 'Sin proveedores',
+              hint: 'Toca "Nuevo proveedor" para tener a la mano a quién le '
+                  'compras cada producto.',
             );
           }
+          final theme = Theme.of(context);
           return ListView.separated(
-            padding: const EdgeInsets.only(bottom: 88),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
             itemCount: suppliers.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
               final s = suppliers[i];
               final sub = [
                 if (s.phone != null) s.phone!,
                 if (s.contact != null) s.contact!,
               ].join('  ·  ');
-              return ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.local_shipping_outlined)),
-                title: Text(s.name),
-                subtitle: sub.isEmpty ? null : Text(sub),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (v) {
-                    if (v == 'edit') _edit(supplier: s);
-                    if (v == 'archive') _archive(s);
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'archive', child: Text('Archivar')),
+              return SurfaceCard(
+                onTap: () => _edit(supplier: s),
+                padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: AppColors.brand.withValues(alpha: 0.15),
+                      child: const Icon(Icons.local_shipping_outlined,
+                          color: AppColors.brassDeep, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(s.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800)),
+                          if (sub.isNotEmpty)
+                            Text(sub,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (v) {
+                        if (v == 'edit') _edit(supplier: s);
+                        if (v == 'archive') _archive(s);
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'edit', child: Text('Editar')),
+                        PopupMenuItem(
+                            value: 'archive', child: Text('Archivar')),
+                      ],
+                    ),
                   ],
                 ),
-                onTap: () => _edit(supplier: s),
               );
             },
           );

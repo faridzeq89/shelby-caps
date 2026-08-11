@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/inventory_repository.dart';
@@ -184,7 +185,7 @@ class _StockCountScreenState extends State<StockCountScreen> {
     final tc = '${l.variant.size ?? ''} ${l.variant.color ?? ''}'.trim();
     final color = diff == 0
         ? Colors.grey
-        : (diff > 0 ? Colors.green.shade700 : Theme.of(context).colorScheme.error);
+        : (diff > 0 ? AppColors.success : Theme.of(context).colorScheme.error);
     return ListTile(
       title: Text(l.product.name),
       subtitle: Text('${tc.isEmpty ? l.variant.sku : tc}  ·  '

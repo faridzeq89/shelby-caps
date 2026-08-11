@@ -44,6 +44,11 @@ abstract final class AppColors {
   /// Verde de la casa: saldos a favor, stock sano, cobros completados.
   static const success = Color(0xFF2F6E46);
 
+  /// Rojo de la casa para acciones destructivas y faltantes. Se usa donde no
+  /// hay un `ColorScheme` a la mano (constantes, `switch` de iconos); si lo hay,
+  /// prefiere `theme.colorScheme.error`.
+  static const danger = Color(0xFFB3261E);
+
   /// Atenuado sobre carbón (subtítulos del header).
   static const onCharcoalMuted = Color(0xFFB6AD97);
 }

@@ -3,13 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/gift_card_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/cloud_backup_service.dart';
 
-String _money(int c) => '\$${(c / 100).toStringAsFixed(2)}';
 
 /// Tarjetas de regalo: emitir (vender) y consultar saldo.
 class GiftCardsScreen extends StatefulWidget {
@@ -70,7 +70,7 @@ class _GiftCardsScreenState extends State<GiftCardsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Saldo: ${_money(amount)}',
+              Text('Saldo: ${money(amount)}',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
               const Text('Código de la tarjeta:'),
@@ -141,17 +141,15 @@ class _GiftCardsScreenState extends State<GiftCardsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Consultar saldo', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
+          const SectionHeader('Consultar saldo'),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _lookupCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Código de la tarjeta',
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                    hintText: 'Código de la tarjeta',
+                    prefixIcon: Icon(Icons.card_giftcard),
                   ),
                   onSubmitted: (_) => _lookup(),
                 ),
@@ -168,35 +166,73 @@ class _GiftCardsScreenState extends State<GiftCardsScreen> {
             ),
           if (found != null) ...[
             const SizedBox(height: 16),
-            Card(
-              color: theme.colorScheme.secondaryContainer,
-              child: ListTile(
-                leading: Icon(Icons.card_giftcard,
-                    color: theme.colorScheme.onSecondaryContainer),
-                title: Text('Saldo: ${_money(found.balanceCents)}',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: theme.colorScheme.onSecondaryContainer)),
-                subtitle: Text(found.card.code,
-                    style: TextStyle(
-                        color: theme.colorScheme.onSecondaryContainer)),
+            SurfaceCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Icon(Icons.card_giftcard,
+                      size: 30, color: AppColors.brassDeep),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: StatBlock(
+                      label: 'Saldo de ${found.card.code}',
+                      value: money(found.balanceCents),
+                      size: 26,
+                      color: found.balanceCents > 0 ? AppColors.success : null,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text('Movimientos', style: theme.textTheme.titleMedium),
-            ..._foundHistory.map((t) => ListTile(
-                  dense: true,
-                  leading: Icon(t.amountCents >= 0
-                      ? Icons.add_circle_outline
-                      : Icons.remove_circle_outline),
-                  title: Text(_txLabel(t.type)),
-                  subtitle: Text(
-                      DateFormat('dd/MM/yyyy HH:mm').format(t.createdAt)),
-                  trailing: Text(
-                      '${t.amountCents >= 0 ? '+' : ''}${_money(t.amountCents)}',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                )),
+            const SizedBox(height: 18),
+            const SectionHeader('Movimientos'),
+            ..._foundHistory.map((t) {
+              final positive = t.amountCents >= 0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SurfaceCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                          positive
+                              ? Icons.add_circle_outline
+                              : Icons.remove_circle_outline,
+                          size: 20,
+                          color: positive
+                              ? AppColors.success
+                              : theme.colorScheme.error),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_txLabel(t.type),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
+                            Text(
+                                DateFormat('dd/MM/yyyy HH:mm')
+                                    .format(t.createdAt),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color:
+                                        theme.colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      Text(
+                          '${positive ? '+' : ''}${money(t.amountCents)}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: positive
+                                  ? AppColors.success
+                                  : theme.colorScheme.error)),
+                    ],
+                  ),
+                ),
+              );
+            }),
           ],
         ],
       ),

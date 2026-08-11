@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/reconciliation_repository.dart';
 
@@ -45,7 +46,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
             children: [
               Card(
                 color: total == 0
-                    ? Colors.green.withValues(alpha: 0.12)
+                    ? AppColors.success.withValues(alpha: 0.12)
                     : theme.colorScheme.errorContainer,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -53,7 +54,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                     children: [
                       Icon(total == 0 ? Icons.check_circle : Icons.warning_amber,
                           color: total == 0
-                              ? Colors.green.shade700
+                              ? AppColors.success
                               : theme.colorScheme.error),
                       const SizedBox(width: 12),
                       Expanded(
@@ -74,7 +75,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                     leading: Icon(
                       g.issues.isEmpty ? Icons.check : Icons.error_outline,
                       color: g.issues.isEmpty
-                          ? Colors.green.shade700
+                          ? AppColors.success
                           : theme.colorScheme.error,
                     ),
                     title: Text('${g.name} (${g.issues.length})'),

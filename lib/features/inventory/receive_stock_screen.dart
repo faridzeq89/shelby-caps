@@ -148,7 +148,6 @@ class _ReceiveStockScreenState extends State<ReceiveStockScreen> {
               decoration: const InputDecoration(
                 labelText: 'Referencia (factura / proveedor, opcional)',
                 prefixIcon: Icon(Icons.receipt_long_outlined),
-                border: OutlineInputBorder(),
               ),
             ),
           ),

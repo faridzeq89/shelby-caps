@@ -37,6 +37,21 @@ Supabase. Hereda del POS Boutique toda la base de retail.
 > offline por diseño, la Fase 8 es "sincronización a la nube", y la seguridad la impone
 > la app (roles/PIN), no la RLS de Postgres (esa solo protege el espejo de respaldo).
 
+## Sistema visual (no negociable)
+El estilo es **"Sastrería Moderna"**: latón sobre carbón, fondo lana, tarjetas de
+papel con borde greige. Vive en dos archivos y en ningún otro lado:
+
+- `core/theme.dart` — estiliza los componentes Material estándar (AppBar, Card,
+  botones, inputs, diálogos). **No pongas `border:` propio en un `InputDecoration`**:
+  pisa el redondeo del tema y devuelve las esquinas cuadradas de Material.
+- `core/ui_kit.dart` — lo que Material no da: `AppColors`, `AppRadii`, `money()`,
+  `SurfaceCard`, `SectionHeader`, `StatusPill`, `StatBlock`/`StatCard`,
+  `QuickTile`, `SearchField`, `FilterChipsRow`, `EmptyState`, `AppBarTitle`.
+
+Reglas: ninguna pantalla define colores, radios ni formatea dinero a mano. Si algo
+no se puede armar con los primitivos, **se agrega al kit**, no se copia en la
+pantalla. Las listas vacías usan `EmptyState`, nunca `Center(child: Text(...))`.
+
 ## Convenciones (no negociables)
 - **Dinero en centavos enteros** (`*_cents INTEGER`). Nunca `double`/`float`.
 - **Cantidades de inventario en enteros con signo** en un **ledger append-only**

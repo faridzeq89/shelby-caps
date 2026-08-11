@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../services/auth_controller.dart';
@@ -36,7 +37,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   void _toast(String msg) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));
 
-  String _money(int c) => '\$${(c / 100).toStringAsFixed(2)}';
 
   Future<void> _addExpense() async {
     final result = await showModalBottomSheet<_ExpenseInput>(
@@ -65,13 +65,13 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Borrar gasto'),
         content: Text(
-            '¿Borrar "${e.category}" por ${_money(e.amountCents)}? No se puede deshacer.'),
+            '¿Borrar "${e.category}" por ${money(e.amountCents)}? No se puede deshacer.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Cancelar')),
           FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Borrar')),
         ],
@@ -106,46 +106,73 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           final data = snap.data!;
           return Column(
             children: [
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: SurfaceCard(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Gastos de este mes',
-                          style: theme.textTheme.titleMedium),
-                      Text(_money(data.monthTotal),
-                          style: theme.textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                    ],
+                  child: StatBlock(
+                    label: 'Gastos de este mes',
+                    value: money(data.monthTotal),
+                    size: 30,
+                    color: theme.colorScheme.error,
                   ),
                 ),
               ),
               Expanded(
                 child: data.expenses.isEmpty
-                    ? const Center(
-                        child: Text('Sin gastos registrados.\nToca "Registrar gasto".',
-                            textAlign: TextAlign.center))
+                    ? const EmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'Sin gastos registrados',
+                        hint: 'Toca "Registrar gasto" para que el balance del '
+                            'día descuente lo que sale de la caja.',
+                      )
                     : ListView.separated(
-                        padding: const EdgeInsets.only(bottom: 88),
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 88),
                         itemCount: data.expenses.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (_, i) {
                           final e = data.expenses[i];
-                          return ListTile(
-                            leading: const CircleAvatar(
-                                child: Icon(Icons.receipt_long_outlined)),
-                            title: Text(
-                                '${e.category}  ·  ${_money(e.amountCents)}'),
-                            subtitle: Text([
-                              df.format(e.createdAt),
-                              if (e.note != null && e.note!.isNotEmpty) e.note!,
-                            ].join('  ·  ')),
-                            trailing: IconButton(
-                              tooltip: 'Borrar',
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () => _delete(e),
+                          return SurfaceCard(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(e.category,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w800)),
+                                      Text(
+                                          [
+                                            df.format(e.createdAt),
+                                            if (e.note != null &&
+                                                e.note!.isNotEmpty)
+                                              e.note!,
+                                          ].join('  ·  '),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant)),
+                                    ],
+                                  ),
+                                ),
+                                Text(money(e.amountCents),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                        color: theme.colorScheme.error)),
+                                IconButton(
+                                  tooltip: 'Borrar',
+                                  icon: const Icon(Icons.delete_outline,
+                                      size: 20),
+                                  onPressed: () => _delete(e),
+                                ),
+                              ],
                             ),
                           );
                         },

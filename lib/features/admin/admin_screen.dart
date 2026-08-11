@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../core/dashboard_tile.dart';
 import '../../services/auth_controller.dart';
 import '../catalog/catalog_home_screen.dart';
@@ -73,7 +74,7 @@ class AdminScreen extends StatelessWidget {
           'Reglas de lealtad', Colors.amber.shade800,
           (c) => go(c, const LoyaltyConfigScreen())),
       _AdminItem(Icons.receipt_long_outlined, 'Gastos',
-          'Renta, servicios, proveedores', Colors.red.shade700,
+          'Renta, servicios, proveedores', AppColors.danger,
           (c) => go(c, const ExpensesScreen())),
       _AdminItem(Icons.bar_chart_outlined, 'Reportes',
           'Ventas, margen, recomendaciones', Colors.deepPurple,
@@ -91,7 +92,7 @@ class AdminScreen extends StatelessWidget {
           'Salud de datos', Colors.blueGrey,
           (c) => go(c, const ReconciliationScreen())),
       _AdminItem(Icons.print_outlined, 'Impresoras & Tickets',
-          'Personalizar ticket, prueba y cajón', Colors.green.shade700,
+          'Personalizar ticket, prueba y cajón', AppColors.success,
           (c) => go(c, const PrintersScreen())),
     ];
 

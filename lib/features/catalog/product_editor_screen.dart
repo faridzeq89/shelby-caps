@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
@@ -330,7 +331,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Cancelar')),
           FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Eliminar')),
         ],

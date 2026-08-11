@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/permissions.dart';
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/returns_repository.dart';
@@ -9,7 +10,6 @@ import '../../data/repositories/sales_repository.dart' show CheckoutLine;
 import '../../services/auth_controller.dart';
 import 'variant_picker.dart';
 
-String _money(int c) => '\$${(c / 100).toStringAsFixed(2)}';
 
 class ReturnsScreen extends StatefulWidget {
   const ReturnsScreen({super.key});
@@ -111,7 +111,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     final method = await showDialog<RefundMethod>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Reembolso de ${_money(_refundPreview())}'),
+        title: Text('Reembolso de ${money(_refundPreview())}'),
         content: const Text('¿Cómo se devuelve?'),
         actions: [
           TextButton(
@@ -144,7 +144,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
       );
       if (!mounted) return;
       await _done('Devolución ${r.folio}',
-          'Reembolso: ${_money(r.refundCents)}'
+          'Reembolso: ${money(r.refundCents)}'
           '${r.creditNoteId != null ? '\nNota de crédito generada' : ''}');
     } catch (e) {
       _toast('$e');
@@ -166,7 +166,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     var cashTendered = 0;
     if (difference > 0) {
       final paid = await _askPesos(
-          'Diferencia a cobrar: ${_money(difference)}\nEfectivo recibido',
+          'Diferencia a cobrar: ${money(difference)}\nEfectivo recibido',
           initial: (difference / 100).toStringAsFixed(2));
       if (paid == null) return;
       if (paid < difference) {
@@ -192,9 +192,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
       );
       if (!mounted) return;
       final diffMsg = ex.differenceCents > 0
-          ? 'Cobrado: ${_money(ex.cashCollectedCents)} · Cambio: ${_money(ex.changeCents)}'
+          ? 'Cobrado: ${money(ex.cashCollectedCents)} · Cambio: ${money(ex.changeCents)}'
           : ex.differenceCents < 0
-              ? 'A favor del cliente: ${_money(-ex.differenceCents)} (nota de crédito)'
+              ? 'A favor del cliente: ${money(-ex.differenceCents)} (nota de crédito)'
               : 'Sin diferencia';
       await _done('Cambio ${ex.newFolio}', diffMsg);
     } catch (e) {
@@ -263,9 +263,8 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
               controller: _folioCtrl,
               autofocus: true,
               decoration: const InputDecoration(
-                labelText: 'Folio de la venta (o escanea el ticket) + Enter',
+                hintText: 'Folio de la venta (o escanea el ticket) + Enter',
                 prefixIcon: Icon(Icons.receipt_long),
-                border: OutlineInputBorder(),
               ),
               onSubmitted: _find,
             ),
@@ -274,7 +273,13 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
             Expanded(child: _saleDetail())
           else
             const Expanded(
-                child: Center(child: Text('Busca una venta por su folio'))),
+              child: EmptyState(
+                icon: Icons.receipt_long,
+                title: 'Busca una venta',
+                hint: 'Teclea el folio del ticket o escanéalo para ver qué '
+                    'se puede devolver o cambiar.',
+              ),
+            ),
         ],
       ),
     );
@@ -285,14 +290,21 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
       children: [
         Expanded(
           child: ListView(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
             children: [
               for (final l in _lines) _lineTile(l),
             ],
           ),
         ),
         Material(
+          color: Theme.of(context).cardColor,
           elevation: 8,
-          child: Padding(
+          shadowColor: Colors.black.withValues(alpha: 0.10),
+          child: Container(
+            decoration: BoxDecoration(
+              border:
+                  Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+            ),
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
@@ -325,41 +337,77 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     final title =
         '${l.product.name} ${l.variant.size ?? ''} ${l.variant.color ?? ''}'
             .trim();
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
+    final theme = Theme.of(context);
+    final damaged = _damaged[id] ?? false;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SurfaceCard(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('Devolvible: ${l.returnable}  ·  '
-                '${_money((l.line.lineTotalCents / l.line.qty).round())} c/u'),
+            Text(title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
             Row(
               children: [
-                const Text('Devolver:'),
-                IconButton(
-                  onPressed: selected > 0
-                      ? () => setState(() => _qty[id] = selected - 1)
-                      : null,
-                  icon: const Icon(Icons.remove_circle_outline),
-                ),
-                Text('$selected', style: const TextStyle(fontSize: 18)),
-                IconButton(
-                  onPressed: selected < l.returnable
-                      ? () => setState(() => _qty[id] = selected + 1)
-                      : null,
-                  icon: const Icon(Icons.add_circle_outline),
+                StatusPill('${l.returnable} devolvibles'),
+                const SizedBox(width: 6),
+                Text('${money((l.line.lineTotalCents / l.line.qty).round())} c/u',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.scaffoldBackgroundColor,
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                    border: Border.all(color: theme.dividerColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: selected > 0
+                            ? () => setState(() => _qty[id] = selected - 1)
+                            : null,
+                        icon: const Icon(Icons.remove, size: 18),
+                        visualDensity: VisualDensity.compact,
+                        constraints:
+                            const BoxConstraints(minWidth: 34, minHeight: 34),
+                      ),
+                      Text('$selected',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w900)),
+                      IconButton(
+                        onPressed: selected < l.returnable
+                            ? () => setState(() => _qty[id] = selected + 1)
+                            : null,
+                        icon: const Icon(Icons.add, size: 18),
+                        visualDensity: VisualDensity.compact,
+                        constraints:
+                            const BoxConstraints(minWidth: 34, minHeight: 34),
+                      ),
+                    ],
+                  ),
                 ),
                 const Spacer(),
-                Row(
-                  children: [
-                    const Text('Dañada'),
-                    Switch(
-                      value: _damaged[id] ?? false,
-                      onChanged: (v) => setState(() => _damaged[id] = v),
-                    ),
-                  ],
+                Text('Dañada',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: damaged
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.onSurfaceVariant)),
+                Switch(
+                  value: damaged,
+                  onChanged: (v) => setState(() => _damaged[id] = v),
                 ),
               ],
             ),

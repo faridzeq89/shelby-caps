@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/import_repository.dart';
 import '../../services/auth_controller.dart';
@@ -89,7 +90,6 @@ class _ImportScreenState extends State<ImportScreen> {
                 textAlignVertical: TextAlignVertical.top,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
                 decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
                   hintText:
                       'producto\tcategoria\ttalla\tcolor\tprecio\tcosto\tstock\tcodigo\n'
                       'Blusa Flor\tBlusas\tM\tRojo\t299\t120\t5\n'
@@ -106,7 +106,7 @@ class _ImportScreenState extends State<ImportScreen> {
                     style: TextStyle(
                         color: _result!.startsWith('Error')
                             ? Theme.of(context).colorScheme.error
-                            : Colors.green.shade700,
+                            : AppColors.success,
                         fontWeight: FontWeight.w600)),
               ),
             Row(

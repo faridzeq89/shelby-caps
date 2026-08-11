@@ -84,7 +84,6 @@ class _LoyaltyConfigScreenState extends State<LoyaltyConfigScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Puntos que gana por cada \$1 gastado',
                     helperText: 'Ej. 1 → gasta \$100, gana 100 puntos',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -97,7 +96,6 @@ class _LoyaltyConfigScreenState extends State<LoyaltyConfigScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Centavos de descuento por punto',
                     helperText: 'Ej. 10 → cada punto vale \$0.10',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 8),

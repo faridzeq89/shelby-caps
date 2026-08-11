@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -34,7 +35,6 @@ class _QuotesScreenState extends State<QuotesScreen> {
   void _toast(String msg) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));
 
-  String _money(int c) => '\$${(c / 100).toStringAsFixed(2)}';
 
   /// Descripción legible de cada renglón (producto talla/color).
   Future<List<QuotePdfLine>> _pdfLines(List<QuoteLine> lines) async {
@@ -122,22 +122,12 @@ class _QuotesScreenState extends State<QuotesScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(child: Text('${l.qty} × ${l.description}')),
-                        Text(_money(l.lineTotalCents)),
+                        Text(money(l.lineTotalCents)),
                       ],
                     ),
                   )),
-              const Divider(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Total', style: Theme.of(context).textTheme.titleMedium),
-                  Text(_money(q.totalCents),
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                ],
-              ),
+              const Divider(height: 20),
+              StatBlock(label: 'Total', value: money(q.totalCents), size: 26),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: () {
@@ -185,36 +175,62 @@ class _QuotesScreenState extends State<QuotesScreen> {
           }
           final quotes = snap.data!;
           if (quotes.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Sin cotizaciones vigentes.\nArma un carrito en Venta y toca '
-                  '"Guardar cotización".',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            return const EmptyState(
+              icon: Icons.request_quote_outlined,
+              title: 'Sin cotizaciones vigentes',
+              hint: 'Arma un carrito en Venta y toca "Cotización" para '
+                  'guardarlo aquí.',
             );
           }
+          final theme = Theme.of(context);
           return ListView.separated(
+            padding: const EdgeInsets.all(12),
             itemCount: quotes.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
               final q = quotes[i];
               final expired =
                   q.expiresAt != null && q.expiresAt!.isBefore(DateTime.now());
-              return ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.request_quote_outlined)),
-                title: Text('${q.folio}  ·  ${_money(q.totalCents)}'),
-                subtitle: Text([
-                  df.format(q.createdAt),
-                  if (q.expiresAt != null)
-                    expired
-                        ? 'vencida'
-                        : 'vence ${df.format(q.expiresAt!)}',
-                ].join('  ·  ')),
-                trailing: const Icon(Icons.chevron_right),
+              return SurfaceCard(
                 onTap: () => _openDetail(q),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              StatusPill(q.folio),
+                              const SizedBox(width: 6),
+                              if (expired)
+                                StatusPill('Vencida',
+                                    color: theme.colorScheme.error),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            [
+                              df.format(q.createdAt),
+                              if (q.expiresAt != null && !expired)
+                                'vence ${df.format(q.expiresAt!)}',
+                            ].join('  ·  '),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    StatBlock(
+                      label: 'Total',
+                      value: money(q.totalCents),
+                      size: 18,
+                      alignEnd: true,
+                    ),
+                    Icon(Icons.chevron_right, color: theme.hintColor),
+                  ],
+                ),
               );
             },
           );

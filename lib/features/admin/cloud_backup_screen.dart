@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../services/cloud_backup_service.dart';
 
@@ -18,32 +19,33 @@ class CloudBackupScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _statusIcon(svc.state),
-                        const SizedBox(width: 8),
-                        Text(_statusText(svc.state),
-                            style: Theme.of(context).textTheme.titleMedium),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(svc.lastBackupAt == null
-                        ? 'Sin respaldos aún'
-                        : 'Último respaldo: ${DateFormat('dd/MM/yyyy HH:mm').format(svc.lastBackupAt!)}'),
-                    if (svc.lastError != null) ...[
-                      const SizedBox(height: 8),
-                      Text('Error: ${svc.lastError}',
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.error)),
+            SurfaceCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _statusIcon(svc.state),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: StatBlock(
+                          label: svc.lastBackupAt == null
+                              ? 'Sin respaldos aún'
+                              : 'Último respaldo: ${DateFormat('dd/MM/yyyy HH:mm').format(svc.lastBackupAt!)}',
+                          value: _statusText(svc.state),
+                          size: 18,
+                        ),
+                      ),
                     ],
+                  ),
+                  if (svc.lastError != null) ...[
+                    const Divider(height: 20),
+                    Text('Error: ${svc.lastError}',
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error)),
                   ],
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -55,11 +57,13 @@ class CloudBackupScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             if (svc.state == SyncState.disabled)
-              const Text(
-                'El respaldo aún no está conectado. Toca "Configurar conexión '
-                '(Supabase)", pega tu URL y llave anon, y luego cierra y reabre '
-                'la app. (Sin esto, la app funciona 100% local.)',
-                textAlign: TextAlign.center,
+              const SurfaceCard(
+                child: Text(
+                  'El respaldo aún no está conectado. Toca "Configurar conexión '
+                  '(Supabase)", pega la URL y la llave anon de tu proyecto, y '
+                  'luego cierra y reabre la app — la conexión se lee al '
+                  'arrancar. Sin esto, la app funciona 100% local.',
+                ),
               )
             else ...[
               if (!svc.isClaimedCached) ...[
@@ -95,35 +99,31 @@ class CloudBackupScreen extends StatelessWidget {
   }
 
   Widget _newTabletBanner(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: scheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.info_outline, color: scheme.onSecondaryContainer),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Esta tablet aún no respalda',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: scheme.onSecondaryContainer)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Si es una tablet NUEVA y ya tienes datos en la nube, restaura '
-              'primero (abajo) para no perderlos. Si es tu tablet principal, '
-              'toca "Empezar a respaldar esta tablet".',
-              style: TextStyle(color: scheme.onSecondaryContainer),
-            ),
-          ],
-        ),
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline, color: AppColors.brassDeep),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Esta tablet aún no respalda',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Si es una tablet NUEVA y ya tienes datos en la nube, restaura '
+            'primero (abajo) para no perderlos. Si es tu tablet principal, '
+            'toca "Empezar a respaldar esta tablet".',
+          ),
+        ],
       ),
     );
   }
@@ -131,8 +131,9 @@ class CloudBackupScreen extends StatelessWidget {
   Widget _statusIcon(SyncState s) => switch (s) {
         SyncState.syncing =>
           const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-        SyncState.ok => const Icon(Icons.cloud_done, color: Colors.green),
-        SyncState.error => const Icon(Icons.cloud_off, color: Colors.red),
+        SyncState.ok =>
+          const Icon(Icons.cloud_done, color: AppColors.success),
+        SyncState.error => const Icon(Icons.cloud_off, color: AppColors.danger),
         SyncState.disabled => const Icon(Icons.cloud_off),
         SyncState.idle => const Icon(Icons.cloud_queue),
       };
@@ -321,7 +322,6 @@ class _SupabaseConfigScreenState extends State<SupabaseConfigScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Project URL',
                     hintText: 'https://xxxxx.supabase.co',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -333,7 +333,6 @@ class _SupabaseConfigScreenState extends State<SupabaseConfigScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Llave anon (public)',
                     hintText: 'eyJhbGciOi...',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 24),

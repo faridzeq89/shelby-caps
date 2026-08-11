@@ -5,12 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/permissions.dart';
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/loyalty_repository.dart';
 import '../../services/auth_controller.dart';
 
-String _money(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 /// Admin → Clientes: lista con búsqueda, alta/edición y ficha con historial.
 class CustomersScreen extends StatefulWidget {
@@ -86,21 +86,55 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
           Expanded(
             child: _customers.isEmpty
-                ? const Center(child: Text('Sin clientes'))
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                ? const EmptyState(
+                    icon: Icons.people_alt_outlined,
+                    title: 'Sin clientes',
+                    hint: 'Registra un cliente para llevar su historial de '
+                        'compras y sus puntos.',
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 88),
                     itemCount: _customers.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (_, i) {
                       final c = _customers[i];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        child: ListTile(
-                          leading:
-                              CircleAvatar(child: Text(_initials(c.name))),
-                          title: Text(c.name),
-                          subtitle: c.phone != null ? Text(c.phone!) : null,
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => _openDetail(c),
+                      final theme = Theme.of(context);
+                      return SurfaceCard(
+                        onTap: () => _openDetail(c),
+                        padding: const EdgeInsets.all(10),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor:
+                                  AppColors.brand.withValues(alpha: 0.15),
+                              child: Text(_initials(c.name),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.brassDeep)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(c.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w800)),
+                                  if (c.phone != null)
+                                    Text(c.phone!,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant)),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, color: theme.hintColor),
+                          ],
                         ),
                       );
                     },
@@ -196,33 +230,33 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (c.phone != null || c.email != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (c.phone != null)
-                      Row(children: [
-                        const Icon(Icons.phone_outlined, size: 18),
-                        const SizedBox(width: 8),
-                        Text(c.phone!),
-                      ]),
-                    if (c.email != null) ...[
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        const Icon(Icons.mail_outline, size: 18),
-                        const SizedBox(width: 8),
-                        Text(c.email!),
-                      ]),
-                    ],
-                    if (c.notes != null && c.notes!.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(c.notes!,
-                          style: Theme.of(context).textTheme.bodySmall),
-                    ],
+            SurfaceCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (c.phone != null)
+                    Row(children: [
+                      const Icon(Icons.phone_outlined,
+                          size: 18, color: AppColors.brassDeep),
+                      const SizedBox(width: 8),
+                      Text(c.phone!),
+                    ]),
+                  if (c.email != null) ...[
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Icon(Icons.mail_outline,
+                          size: 18, color: AppColors.brassDeep),
+                      const SizedBox(width: 8),
+                      Text(c.email!),
+                    ]),
                   ],
-                ),
+                  if (c.notes != null && c.notes!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(c.notes!,
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ],
               ),
             ),
           const SizedBox(height: 12),
@@ -231,55 +265,138 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           if (s != null)
             Row(
               children: [
-                _statCard(context, 'Compras', '${s.visits}'),
+                Expanded(
+                    child: StatCard(label: 'Compras', value: '${s.visits}')),
                 const SizedBox(width: 10),
-                _statCard(context, 'Gastado', _money(s.spentCents)),
+                Expanded(
+                    child: StatCard(
+                        label: 'Gastado', value: money(s.spentCents))),
                 const SizedBox(width: 10),
-                _statCard(
-                    context,
-                    'Última',
-                    s.lastVisit == null
+                Expanded(
+                  child: StatCard(
+                    label: 'Última',
+                    value: s.lastVisit == null
                         ? '—'
-                        : DateFormat('dd/MM/yy').format(s.lastVisit!)),
+                        : DateFormat('dd/MM/yy').format(s.lastVisit!),
+                    size: 15,
+                  ),
+                ),
               ],
             ),
-          const SizedBox(height: 16),
-          Text('Historial de compras',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
+          const SectionHeader('Historial de compras'),
           if (_history.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: Text('Sin compras registradas')),
-            )
+            const SurfaceCard(child: Text('Sin compras registradas.'))
           else
-            ..._history.map((sale) => Card(
-                  child: ListTile(
-                    title: Text(sale.folio),
-                    subtitle: Text(
-                        '${DateFormat('dd/MM/yyyy HH:mm').format(sale.createdAt)}'
-                        '${sale.status == SaleStatus.cancelled ? '  ·  cancelada' : ''}'),
-                    trailing: Text(_money(sale.totalCents),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 16)),
+            ..._history.map((sale) {
+              final cancelled = sale.status == SaleStatus.cancelled;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SurfaceCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Text(sale.folio,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800)),
+                                if (cancelled) ...[
+                                  const SizedBox(width: 6),
+                                  StatusPill('Cancelada',
+                                      color:
+                                          Theme.of(context).colorScheme.error),
+                                ],
+                              ],
+                            ),
+                            Text(
+                                DateFormat('dd/MM/yyyy HH:mm')
+                                    .format(sale.createdAt),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      Text(money(sale.totalCents),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              decoration: cancelled
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: cancelled
+                                  ? Theme.of(context).hintColor
+                                  : null)),
+                    ],
                   ),
-                )),
+                ),
+              );
+            }),
           if (_loyaltyHistory.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text('Movimientos de puntos',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ..._loyaltyHistory.map((t) => ListTile(
-                  dense: true,
-                  leading: Icon(
-                      t.points >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline),
-                  title: Text(_loyaltyLabel(t.type)),
-                  subtitle: Text(
-                      DateFormat('dd/MM/yyyy HH:mm').format(t.createdAt)),
-                  trailing: Text('${t.points >= 0 ? '+' : ''}${t.points}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 16)),
-                )),
+            const SizedBox(height: 18),
+            const SectionHeader('Movimientos de puntos'),
+            ..._loyaltyHistory.map((t) {
+              final positive = t.points >= 0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SurfaceCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                          positive
+                              ? Icons.add_circle_outline
+                              : Icons.remove_circle_outline,
+                          size: 20,
+                          color: positive
+                              ? AppColors.success
+                              : Theme.of(context).colorScheme.error),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_loyaltyLabel(t.type),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
+                            Text(
+                                DateFormat('dd/MM/yyyy HH:mm')
+                                    .format(t.createdAt),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      Text('${positive ? '+' : ''}${t.points}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              color: positive
+                                  ? AppColors.success
+                                  : Theme.of(context).colorScheme.error)),
+                    ],
+                  ),
+                ),
+              );
+            }),
           ],
         ],
       ),
@@ -330,21 +447,23 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   }
 
   Widget _pointsCard(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final value = _cfg == null ? null : _points * _cfg!.redeemCentsPerPoint;
-    return Card(
-      color: scheme.secondaryContainer,
-      child: ListTile(
-        leading: Icon(Icons.stars_rounded, color: scheme.onSecondaryContainer),
-        title: Text('$_points puntos',
-            style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-                color: scheme.onSecondaryContainer)),
-        subtitle: value == null
-            ? null
-            : Text('Valen ${_money(value)} en descuento',
-                style: TextStyle(color: scheme.onSecondaryContainer)),
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          const Icon(Icons.stars_rounded, size: 30, color: AppColors.brand),
+          const SizedBox(width: 14),
+          Expanded(
+            child: StatBlock(
+              label: value == null
+                  ? 'Puntos acumulados'
+                  : 'Puntos · valen ${money(value)} en descuento',
+              value: '$_points',
+              size: 26,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -355,28 +474,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         LoyaltyType.adjust => 'Ajuste de puntos',
       };
 
-  Widget _statCard(BuildContext context, String label, String value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(value,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 2),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// Editor de alta/edición de cliente. Devuelve el id del cliente guardado, o

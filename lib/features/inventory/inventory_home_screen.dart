@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../core/dashboard_tile.dart';
 import '../../core/permissions.dart';
 import '../../data/local/database.dart';
@@ -92,7 +93,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
                 ),
                 DashboardTile(
                   icon: Icons.notifications_active_outlined,
-                  color: Colors.red.shade600,
+                  color: AppColors.danger,
                   title: 'Stock bajo',
                   subtitle: _lowStock == 0
                       ? 'Nada bajo mínimo'

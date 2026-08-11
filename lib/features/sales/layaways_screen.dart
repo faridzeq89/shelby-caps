@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/layaway_repository.dart';
@@ -12,7 +13,6 @@ import 'layaway_receipt.dart';
 import 'ticket_service.dart';
 import 'variant_picker.dart';
 
-String _money(int c) => '\$${(c / 100).toStringAsFixed(2)}';
 final _df = DateFormat('dd/MM/yyyy');
 
 class LayawaysScreen extends StatefulWidget {
@@ -90,29 +90,68 @@ class _LayawaysScreenState extends State<LayawaysScreen> {
           }
           final list = snap.data!;
           if (list.isEmpty) {
-            return const Center(child: Text('Sin apartados activos'));
+            return const EmptyState(
+              icon: Icons.bookmark_border,
+              title: 'Sin apartados activos',
+              hint: 'Los apartados que registres aparecerán aquí con su saldo '
+                  'y su fecha de vencimiento.',
+            );
           }
+          final theme = Theme.of(context);
           return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
             itemCount: list.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
               final s = list[i];
               final overdue = s.terms.expiresAt.isBefore(DateTime.now());
               final soon = !overdue &&
                   s.terms.expiresAt
                       .isBefore(DateTime.now().add(const Duration(days: 5)));
-              return ListTile(
-                title: Text(s.customerName ?? 'Cliente'),
-                subtitle: Text(
-                    '${s.sale.folio} · saldo ${_money(s.balanceCents)} · vence ${_df.format(s.terms.expiresAt)}'),
-                trailing: overdue
-                    ? const Chip(
-                        label: Text('Vencido'),
-                        backgroundColor: Color(0xFFFFCDD2))
-                    : soon
-                        ? const Chip(label: Text('Por vencer'))
-                        : null,
+              return SurfaceCard(
                 onTap: () => _open(s.sale.id),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(s.customerName ?? 'Cliente',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              StatusPill(s.sale.folio),
+                              const SizedBox(width: 6),
+                              if (overdue)
+                                StatusPill('Vencido',
+                                    icon: Icons.event_busy,
+                                    color: theme.colorScheme.error)
+                              else if (soon)
+                                const StatusPill('Por vencer',
+                                    icon: Icons.schedule),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text('Vence ${_df.format(s.terms.expiresAt)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    StatBlock(
+                      label: 'Saldo',
+                      value: money(s.balanceCents),
+                      size: 18,
+                      alignEnd: true,
+                      color: overdue ? theme.colorScheme.error : null,
+                    ),
+                  ],
+                ),
               );
             },
           );
@@ -200,7 +239,7 @@ class _NewLayawayScreenState extends State<_NewLayawayScreen> {
     final depositCents =
         ((double.tryParse(_deposit.text.trim()) ?? 0) * 100).round();
     if (depositCents < _required) {
-      _toast('El anticipo mínimo es ${_money(_required)} (30%)');
+      _toast('El anticipo mínimo es ${money(_required)} (30%)');
       return;
     }
     try {
@@ -272,7 +311,7 @@ class _NewLayawayScreenState extends State<_NewLayawayScreen> {
           for (final i in _items)
             ListTile(
               title: Text(i.title),
-              subtitle: Text(_money(i.unitPriceCents)),
+              subtitle: Text(money(i.unitPriceCents)),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -292,9 +331,9 @@ class _NewLayawayScreenState extends State<_NewLayawayScreen> {
               ),
             ),
           const Divider(),
-          Text('Total: ${_money(_total)}',
+          Text('Total: ${money(_total)}',
               style: Theme.of(context).textTheme.titleMedium),
-          Text('Anticipo mínimo (30%): ${_money(_required)}'),
+          Text('Anticipo mínimo (30%): ${money(_required)}'),
           TextField(
             controller: _deposit,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -385,7 +424,7 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Abonar (saldo ${_money(d.balance)})'),
+        title: Text('Abonar (saldo ${money(d.balance)})'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -498,7 +537,7 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
                 ListTile(
                   dense: true,
                   title: Text(desc),
-                  trailing: Text('${l.qty} x ${_money(l.unitPriceCents)}'),
+                  trailing: Text('${l.qty} x ${money(l.unitPriceCents)}'),
                 ),
               const Divider(),
               const Text('Pagos', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -506,7 +545,7 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
                 ListTile(
                   dense: true,
                   title: Text(p.reference == 'anticipo' ? 'Anticipo' : 'Abono'),
-                  trailing: Text(_money(p.amountCents)),
+                  trailing: Text(money(p.amountCents)),
                 ),
               const Divider(),
               _row('Total', d.sale.totalCents),
@@ -545,7 +584,7 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
             Text(label,
                 style: TextStyle(
                     fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-            Text(_money(cents),
+            Text(money(cents),
                 style: TextStyle(
                     fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
           ],

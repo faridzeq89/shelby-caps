@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_dropdown.dart';
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../services/auth_controller.dart';
@@ -18,16 +19,7 @@ Color roleColor(UserRole r) => switch (r) {
       UserRole.cashier => Colors.blueGrey,
     };
 
-Widget _chip(String label, Color color) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-    );
+Widget _chip(String label, Color color) => StatusPill(label, color: color);
 
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
@@ -141,7 +133,11 @@ class _UsersScreenState extends State<UsersScreen> {
               _roleChips(),
               Expanded(
                 child: users.isEmpty
-                    ? const Center(child: Text('Sin resultados'))
+                    ? const EmptyState(
+                        icon: Icons.person_search_outlined,
+                        title: 'Sin resultados',
+                        hint: 'Ajusta la búsqueda o el filtro de rol.',
+                      )
                     : ListView.builder(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 88),
             itemCount: users.length,

@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../core/app_dropdown.dart';
 import '../../data/local/database.dart';
 import '../sales/ticket_service.dart';
@@ -223,9 +224,7 @@ class _PrintersScreenState extends State<PrintersScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text('Impresora de tickets',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SectionHeader('Impresora de tickets'),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -305,9 +304,7 @@ class _PrintersScreenState extends State<PrintersScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text('Personalización del ticket',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SectionHeader('Personalización del ticket'),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -379,9 +376,7 @@ class _PrintersScreenState extends State<PrintersScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text('Cajón de dinero',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SectionHeader('Cajón de dinero'),
                 Card(
                   child: Column(
                     children: [

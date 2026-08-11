@@ -172,7 +172,6 @@ class _AdjustStockScreenState extends State<AdjustStockScreen> {
               controller: _note,
               decoration: const InputDecoration(
                 labelText: 'Nota (opcional)',
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 24),

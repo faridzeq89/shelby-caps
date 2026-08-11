@@ -27,6 +27,10 @@ class Permissions {
 
   static bool canManageUsers(UserRole role) => role == UserRole.admin;
 
+  /// Registrar y borrar gastos del negocio.
+  static bool canManageExpenses(UserRole role) =>
+      role == UserRole.admin || role == UserRole.manager;
+
   static bool canAuthorizeDiscount(UserRole role) =>
       role == UserRole.admin || role == UserRole.manager;
 

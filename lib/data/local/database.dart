@@ -53,6 +53,7 @@ class VariantStockData {
     LoyaltyTransactions,
     GiftCards,
     GiftCardTransactions,
+    Expenses,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -61,7 +62,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -110,6 +111,10 @@ class AppDatabase extends _$AppDatabase {
             // v8 → v9: precios por cantidad (mayoreo). Idempotente: crea la tabla
             // solo si no existe (una base fabricada en pruebas puede ya traerla).
             await _createTableIfMissing('price_tiers', priceTiers);
+          }
+          if (from < 10) {
+            // v9 → v10: gastos del negocio.
+            await _createTableIfMissing('expenses', expenses);
           }
           await _createExtras();
         },
@@ -161,6 +166,9 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_price_tiers_product '
         'ON price_tiers (product_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_expenses_created '
+        'ON expenses (created_at)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_movements_variant_loc '
         'ON inventory_movements (variant_id, location_id)');

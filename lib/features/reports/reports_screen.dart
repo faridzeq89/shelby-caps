@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_dropdown.dart';
 import '../../core/dashboard_tile.dart';
 import '../../data/local/database.dart';
+import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/reports_repository.dart';
 import 'report_export.dart';
 
@@ -34,6 +35,8 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   late final ReportsRepository _repo =
       ReportsRepository(context.read<AppDatabase>());
+  late final ExpenseRepository _expenses =
+      ExpenseRepository(context.read<AppDatabase>());
 
   String _presetSlug = '30d';
   DateTimeRange? _customRange;
@@ -112,7 +115,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final prevFrom = p.from.subtract(length);
     final summary = await _repo.periodSummary(p.from, p.to);
     final prev = await _repo.periodSummary(prevFrom, p.from);
-    return _HubData(summary, prev);
+    final expenses = await _expenses.totalBetween(p.from, p.to);
+    return _HubData(summary, prev, expenses);
   }
 
   void _reload() => setState(() => _future = _load());
@@ -196,6 +200,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       _kv('Descuentos', _money(s.discountCents)),
                       _kv('Devoluciones',
                           '${s.returnsCount} · ${_money(s.returnsCents)}'),
+                      _kv('Gastos', _money(data.expensesCents)),
+                      const Divider(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Ganancia (ventas − gastos)',
+                              style: theme.textTheme.titleSmall),
+                          Text(_money(s.netCents - data.expensesCents),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: (s.netCents - data.expensesCents) < 0
+                                    ? theme.colorScheme.error
+                                    : Colors.green.shade700,
+                              )),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -381,6 +401,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
+              _tile(Icons.receipt_long_outlined, 'Gastos del periodo',
+                  'Detalle de gastos registrados', () {
+                _open('Gastos del periodo', 'gastos', () async {
+                  final rows =
+                      await _expenses.between(_period.from, _period.to);
+                  final fmt = DateFormat('yyyy-MM-dd HH:mm');
+                  return ReportTable(
+                    ['Fecha', 'Categoría', 'Monto', 'Nota'],
+                    [
+                      for (final e in rows)
+                        [
+                          fmt.format(e.createdAt),
+                          e.category,
+                          ReportExport.money(e.amountCents),
+                          e.note ?? '',
+                        ],
+                    ],
+                  );
+                });
+              }),
                 ],
               ),
             ],
@@ -405,9 +445,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
 }
 
 class _HubData {
-  _HubData(this.current, this.previous);
+  _HubData(this.current, this.previous, this.expensesCents);
   final PeriodSummary current;
   final PeriodSummary previous;
+  final int expensesCents;
 }
 
 /// Muestra una tabla de reporte y permite exportarla a CSV.

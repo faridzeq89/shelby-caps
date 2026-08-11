@@ -245,6 +245,23 @@ class CreditNotes extends Table {
 }
 
 // ===========================================================================
+// Gastos del negocio
+// ===========================================================================
+
+/// Gasto del negocio (renta, servicios, pago a proveedor, etc.). Es un registro
+/// simple e independiente del corte de caja: sirve para el reporte de gastos y
+/// la ganancia neta (ventas − gastos). La `category` es texto libre con
+/// sugerencias en la UI.
+class Expenses extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get category => text().withLength(min: 1, max: 40)();
+  IntColumn get amountCents => integer()();
+  TextColumn get note => text().nullable()();
+  IntColumn get userId => integer().nullable().references(Profiles, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+// ===========================================================================
 // Clientes y caja
 // ===========================================================================
 

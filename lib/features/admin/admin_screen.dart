@@ -5,6 +5,7 @@ import '../../core/dashboard_tile.dart';
 import '../../services/auth_controller.dart';
 import '../catalog/catalog_home_screen.dart';
 import '../customers/customers_screen.dart';
+import '../expenses/expenses_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
 import 'cloud_backup_screen.dart';
@@ -66,6 +67,9 @@ class AdminScreen extends StatelessWidget {
       _AdminItem(Icons.stars_outlined, 'Programa de puntos',
           'Reglas de lealtad', Colors.amber.shade800,
           (c) => go(c, const LoyaltyConfigScreen())),
+      _AdminItem(Icons.receipt_long_outlined, 'Gastos',
+          'Renta, servicios, proveedores', Colors.red.shade700,
+          (c) => go(c, const ExpensesScreen())),
       _AdminItem(Icons.bar_chart_outlined, 'Reportes',
           'Ventas, margen, recomendaciones', Colors.deepPurple,
           (c) => go(c, const ReportsScreen())),

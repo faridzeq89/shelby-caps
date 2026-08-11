@@ -15,6 +15,10 @@ build/
 # Drift generado (se regenera con build_runner)
 *.g.dart
 
+# Archivos HTML basura de un intento fallido de descarga de fuente (no borrables
+# por el sandbox). La fuente real usada es assets/fonts/Nunito.ttf (sí versionada).
+assets/fonts/Nunito-*.ttf
+
 # Android
 android/.gradle/
 android/local.properties

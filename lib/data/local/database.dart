@@ -42,6 +42,8 @@ class VariantStockData {
     Sales,
     SaleLines,
     Payments,
+    Quotes,
+    QuoteLines,
     LayawayTerms,
     CreditNotes,
     Customers,
@@ -62,7 +64,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -115,6 +117,11 @@ class AppDatabase extends _$AppDatabase {
           if (from < 10) {
             // v9 → v10: gastos del negocio.
             await _createTableIfMissing('expenses', expenses);
+          }
+          if (from < 11) {
+            // v10 → v11: cotizaciones (carrito guardado, no cobrado).
+            await _createTableIfMissing('quotes', quotes);
+            await _createTableIfMissing('quote_lines', quoteLines);
           }
           await _createExtras();
         },
@@ -169,6 +176,9 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_expenses_created '
         'ON expenses (created_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_quote_lines_quote '
+        'ON quote_lines (quote_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_movements_variant_loc '
         'ON inventory_movements (variant_id, location_id)');

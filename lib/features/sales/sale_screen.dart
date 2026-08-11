@@ -10,6 +10,7 @@ import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/gift_card_repository.dart';
 import '../../data/repositories/inventory_repository.dart';
 import '../../data/repositories/loyalty_repository.dart';
+import '../../data/repositories/quote_repository.dart';
 import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/cloud_backup_service.dart';
@@ -20,6 +21,7 @@ import '../inventory/low_stock_screen.dart';
 import '../scan/scanner_screen.dart';
 import 'gift_cards_screen.dart';
 import 'layaways_screen.dart';
+import 'quotes_screen.dart';
 import 'returns_screen.dart';
 import 'ticket_service.dart';
 import 'variant_picker.dart';
@@ -65,6 +67,7 @@ class SaleScreenState extends State<SaleScreen> {
   late final CustomerRepository _customers = CustomerRepository(_db);
   late final LoyaltyRepository _loyalty = LoyaltyRepository(_db);
   late final GiftCardRepository _giftCards = GiftCardRepository(_db);
+  late final QuoteRepository _quotes = QuoteRepository(_db);
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _lines = <_CartLine>[];
@@ -73,6 +76,7 @@ class SaleScreenState extends State<SaleScreen> {
   int? _locationId;
   int _lowStock = 0;
   Customer? _customer; // cliente opcional asignado a la venta
+  int? _originQuoteId; // cotización de origen si el carrito se cargó de una
 
   // Vitrina
   List<Category> _categories = [];
@@ -236,6 +240,86 @@ class SaleScreenState extends State<SaleScreen> {
     });
   }
 
+  // -------------------------------------------------------------------------
+  // Cotizaciones
+  // -------------------------------------------------------------------------
+
+  /// Guarda el carrito actual como cotización (no cobra, no toca inventario).
+  Future<void> _saveQuote() async {
+    if (_lines.isEmpty) return;
+    final opts = await showModalBottomSheet<_QuoteOptions>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _QuoteOptionsSheet(customer: _customer),
+    );
+    if (opts == null) return;
+    try {
+      final draft = [
+        for (final l in _lines)
+          QuoteDraftLine(
+            variantId: l.variant.id,
+            qty: l.qty,
+            unitPriceCents: l.unitPriceCents,
+            lineDiscountCents: l.lineDiscountCents,
+          ),
+      ];
+      final q = await _quotes.create(
+        actor: _cashier,
+        lines: draft,
+        customerId: _customer?.id,
+        notes: opts.notes,
+        validDays: opts.validDays,
+      );
+      if (!mounted) return;
+      _toast('Cotización ${q.folio} guardada');
+      setState(() {
+        _lines.clear();
+        _customer = null;
+        _originQuoteId = null;
+      });
+      _scanFocus.requestFocus();
+    } catch (e) {
+      _toast('No se pudo guardar la cotización: $e');
+    }
+  }
+
+  /// Abre la lista de cotizaciones; si se elige una para "pasar a venta", la
+  /// carga al carrito.
+  Future<void> _openQuotes() async {
+    final q = await Navigator.of(context)
+        .push<Quote>(MaterialPageRoute(builder: (_) => const QuotesScreen()));
+    if (q != null) await _loadQuote(q);
+    _scanFocus.requestFocus();
+  }
+
+  /// Carga los renglones de una cotización al carrito (respetando su precio) y
+  /// recuerda su origen para marcarla convertida al cobrar.
+  Future<void> _loadQuote(Quote q) async {
+    final lines = await _quotes.linesOf(q.id);
+    final loaded = <_CartLine>[];
+    for (final l in lines) {
+      final v = await _catalog.variantById(l.variantId);
+      if (v == null) continue;
+      final p = await _catalog.productOfVariant(v);
+      if (p == null) continue;
+      final cl = _CartLine(p, v, l.unitPriceCents, l.qty);
+      cl.lineDiscountCents = l.lineDiscountCents;
+      loaded.add(cl);
+    }
+    Customer? cust;
+    if (q.customerId != null) cust = await _customers.byId(q.customerId!);
+    if (!mounted) return;
+    setState(() {
+      _lines
+        ..clear()
+        ..addAll(loaded);
+      _customer = cust;
+      _originQuoteId = q.id;
+      _reprice();
+    });
+    _toast('Cotización ${q.folio} cargada al carrito');
+  }
+
   Future<void> _checkout() async {
     if (_lines.isEmpty || _locationId == null) return;
     final payment = await showModalBottomSheet<_PaymentResult>(
@@ -277,6 +361,11 @@ class SaleScreenState extends State<SaleScreen> {
     } catch (e) {
       _toast('Error al cobrar: $e');
       return;
+    }
+
+    // Si el carrito venía de una cotización, márcala convertida.
+    if (_originQuoteId != null) {
+      await _quotes.markConverted(_originQuoteId!, result.saleId);
     }
 
     // Respaldo en la nube tras la venta (sin bloquear).
@@ -325,6 +414,7 @@ class SaleScreenState extends State<SaleScreen> {
     setState(() {
       _lines.clear();
       _customer = null;
+      _originQuoteId = null;
     });
     _refreshLowStock();
     _loadCatalog();
@@ -434,6 +524,11 @@ class SaleScreenState extends State<SaleScreen> {
               icon: const Icon(Icons.assignment_return_outlined),
               tooltip: 'Devoluciones y cambios',
             ),
+            IconButton(
+              onPressed: _openQuotes,
+              icon: const Icon(Icons.request_quote_outlined),
+              tooltip: 'Cotizaciones',
+            ),
           ] else
             PopupMenuButton<String>(
               tooltip: 'Más',
@@ -450,6 +545,8 @@ class SaleScreenState extends State<SaleScreen> {
                   case 'ret':
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const ReturnsScreen()));
+                  case 'quote':
+                    _openQuotes();
                 }
               },
               itemBuilder: (_) => const [
@@ -473,6 +570,11 @@ class SaleScreenState extends State<SaleScreen> {
                     child: ListTile(
                         leading: Icon(Icons.assignment_return_outlined),
                         title: Text('Devoluciones y cambios'))),
+                PopupMenuItem(
+                    value: 'quote',
+                    child: ListTile(
+                        leading: Icon(Icons.request_quote_outlined),
+                        title: Text('Cotizaciones'))),
               ],
             ),
         ],
@@ -832,15 +934,31 @@ class SaleScreenState extends State<SaleScreen> {
                     children: [
                       Text('Total: \$${(_total / 100).toStringAsFixed(2)}',
                           style: Theme.of(context).textTheme.titleLarge),
-                      FilledButton.icon(
-                        onPressed: _lines.isEmpty
-                            ? null
-                            : () {
-                                Navigator.of(sheetCtx).pop();
-                                _checkout();
-                              },
-                        icon: const Icon(Icons.point_of_sale),
-                        label: const Text('Cobrar'),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _lines.isEmpty
+                                ? null
+                                : () {
+                                    Navigator.of(sheetCtx).pop();
+                                    _saveQuote();
+                                  },
+                            icon: const Icon(Icons.request_quote_outlined),
+                            label: const Text('Cotizar'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.icon(
+                            onPressed: _lines.isEmpty
+                                ? null
+                                : () {
+                                    Navigator.of(sheetCtx).pop();
+                                    _checkout();
+                                  },
+                            icon: const Icon(Icons.point_of_sale),
+                            label: const Text('Cobrar'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -950,13 +1068,25 @@ class SaleScreenState extends State<SaleScreen> {
             ),
             if (showCheckout) ...[
               const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _lines.isEmpty ? null : _checkout,
-                  icon: const Icon(Icons.point_of_sale),
-                  label: const Text('Cobrar'),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _lines.isEmpty ? null : _saveQuote,
+                      icon: const Icon(Icons.request_quote_outlined),
+                      label: const Text('Cotización'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                      onPressed: _lines.isEmpty ? null : _checkout,
+                      icon: const Icon(Icons.point_of_sale),
+                      label: const Text('Cobrar'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
@@ -1433,6 +1563,97 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ===========================================================================
+// Guardar cotización: vigencia y nota
+// ===========================================================================
+
+class _QuoteOptions {
+  const _QuoteOptions(this.validDays, this.notes);
+  final int? validDays; // null = sin vencimiento
+  final String? notes;
+}
+
+class _QuoteOptionsSheet extends StatefulWidget {
+  const _QuoteOptionsSheet({this.customer});
+  final Customer? customer;
+
+  @override
+  State<_QuoteOptionsSheet> createState() => _QuoteOptionsSheetState();
+}
+
+class _QuoteOptionsSheetState extends State<_QuoteOptionsSheet> {
+  // null = sin vencimiento; de lo contrario, días de vigencia.
+  int? _validDays = 15;
+  final _notes = TextEditingController();
+
+  static const _options = <(int?, String)>[
+    (7, '7 días'),
+    (15, '15 días'),
+    (30, '30 días'),
+    (null, 'Sin vencimiento'),
+  ];
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        left: 16,
+        right: 16,
+        top: 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Guardar cotización', style: theme.textTheme.titleLarge),
+          if (widget.customer != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('Cliente: ${widget.customer!.name}',
+                  style: theme.textTheme.bodySmall),
+            ),
+          const SizedBox(height: 12),
+          Text('Vigencia', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final (days, label) in _options)
+                ChoiceChip(
+                  label: Text(label),
+                  selected: _validDays == days,
+                  onSelected: (_) => setState(() => _validDays = days),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _notes,
+            decoration: const InputDecoration(labelText: 'Nota (opcional)'),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).pop(_QuoteOptions(
+              _validDays,
+              _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+            )),
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Guardar cotización'),
+          ),
+        ],
       ),
     );
   }

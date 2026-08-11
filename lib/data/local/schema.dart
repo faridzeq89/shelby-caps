@@ -20,6 +20,10 @@ enum PaymentMethod { cash, card, transfer, creditNote, giftCard }
 
 enum LayawayStatus { active, completed, expired, cancelled }
 
+/// Estado de una cotización. `open` = vigente; `converted` = ya se pasó a venta;
+/// `cancelled` = descartada.
+enum QuoteStatus { open, converted, cancelled }
+
 enum CreditNoteStatus { active, redeemed, expired, cancelled }
 
 enum CashSessionStatus { open, closed }
@@ -218,6 +222,33 @@ class Payments extends Table {
   TextColumn get reference => text().nullable()();
   IntColumn get cashierId => integer().references(Profiles, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Cotización: un carrito guardado que todavía no se cobra. Se comparte en PDF
+/// y luego se "pasa a venta". NO afecta inventario ni caja hasta convertirse.
+class Quotes extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get folio => text().unique()();
+  IntColumn get customerId => integer().nullable().references(Customers, #id)();
+  TextColumn get status => textEnum<QuoteStatus>()();
+  IntColumn get subtotalCents => integer()();
+  IntColumn get totalCents => integer()();
+  TextColumn get notes => text().nullable()();
+  // La venta generada al convertir (Sales.id es UUID de texto). Sin FK dura:
+  // es una referencia informativa, evita líos de orden al respaldar/restaurar.
+  TextColumn get convertedSaleId => text().nullable()();
+  DateTimeColumn get expiresAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+class QuoteLines extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get quoteId => integer().references(Quotes, #id)();
+  IntColumn get variantId => integer().references(Variants, #id)();
+  IntColumn get qty => integer()();
+  IntColumn get unitPriceCents => integer()();
+  IntColumn get lineDiscountCents => integer().withDefault(const Constant(0))();
+  IntColumn get lineTotalCents => integer()();
 }
 
 /// Un apartado es una venta con `status='layaway'` + estos términos.

@@ -74,6 +74,10 @@ class CatalogRepository {
             ..orderBy([(t) => OrderingTerm(expression: t.minQty)]))
           .get();
 
+  Future<Variant?> variantById(int id) =>
+      (_db.select(_db.variants)..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
   Future<List<Barcode>> barcodesOf(int variantId) =>
       (_db.select(_db.barcodes)..where((t) => t.variantId.equals(variantId)))
           .get();

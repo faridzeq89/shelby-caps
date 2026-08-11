@@ -763,9 +763,18 @@ class SaleScreenState extends State<SaleScreen> {
       return const Center(child: Text('Carrito vacío'));
     }
     return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       itemCount: _lines.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (_, i) => _cartTile(_lines[i]),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, i) => Material(
+        color: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: _cartTile(_lines[i]),
+      ),
     );
   }
 

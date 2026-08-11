@@ -34,6 +34,7 @@ ThemeData buildAppTheme() {
 
   return ThemeData(
     useMaterial3: true,
+    fontFamily: 'Nunito', // tipografía redondeada de la marca
     colorScheme: scheme,
     scaffoldBackgroundColor: bg,
 

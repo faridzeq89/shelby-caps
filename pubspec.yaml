@@ -86,6 +86,13 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Tipografía redondeada de la marca (Nunito, variable, OFL). El tema la aplica
+  # a toda la app vía `fontFamily`.
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf
+
   assets:
     - .env
     - assets/demo/

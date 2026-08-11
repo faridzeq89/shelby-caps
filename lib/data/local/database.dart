@@ -35,6 +35,7 @@ class VariantStockData {
     AppSettings,
     Categories,
     Products,
+    PriceTiers,
     Variants,
     Barcodes,
     InventoryMovements,
@@ -60,7 +61,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -105,6 +106,11 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(giftCards);
             await m.createTable(giftCardTransactions);
           }
+          if (from < 9) {
+            // v8 → v9: precios por cantidad (mayoreo). Idempotente: crea la tabla
+            // solo si no existe (una base fabricada en pruebas puede ya traerla).
+            await _createTableIfMissing('price_tiers', priceTiers);
+          }
           await _createExtras();
         },
         beforeOpen: (details) async {
@@ -138,9 +144,23 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Crea [table] solo si aún no existe en la base (por nombre). Idempotente:
+  /// `m.createTable` no soporta IF NOT EXISTS y una base fabricada en pruebas
+  /// puede ya traer la tabla.
+  Future<void> _createTableIfMissing(String name, TableInfo table) async {
+    final row = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+      variables: [Variable.withString(name)],
+    ).getSingleOrNull();
+    if (row == null) await createMigrator().createTable(table);
+  }
+
   /// Índices, la vista `variant_stock` y los triggers de inmutabilidad del
   /// ledger. Idempotente (IF NOT EXISTS) para servir en creación y upgrade.
   Future<void> _createExtras() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_price_tiers_product '
+        'ON price_tiers (product_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_movements_variant_loc '
         'ON inventory_movements (variant_id, location_id)');

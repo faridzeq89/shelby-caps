@@ -32,9 +32,10 @@ class _VariantRow {
 }
 
 class _EditorData {
-  _EditorData(this.product, this.rows);
+  _EditorData(this.product, this.rows, this.tiers);
   final Product product;
   final List<_VariantRow> rows;
+  final List<PriceTier> tiers; // escalones de mayoreo
 }
 
 class _ProductEditorScreenState extends State<ProductEditorScreen> {
@@ -47,6 +48,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
 
   Profile get _actor => context.read<AuthController>().currentUser!;
   bool get _canSeeCosts => Permissions.canSeeCosts(_actor.role);
+  bool get _canEditPrices => Permissions.canEditPrices(_actor.role);
 
   Future<_EditorData> _load() async {
     _locationId ??= (await _db.select(_db.locations).getSingleOrNull())?.id;
@@ -60,7 +62,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         await _repo.barcodesOf(v.id),
       ));
     }
-    return _EditorData(product!, rows);
+    final tiers = await _repo.priceTiersOf(widget.productId);
+    return _EditorData(product!, rows, tiers);
   }
 
   void _reload() => setState(() {
@@ -498,6 +501,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
             padding: const EdgeInsets.only(bottom: 88),
             children: [
               _header(data),
+              _mayoreoCard(data),
               _scanTester(),
               const Divider(),
               if (data.rows.isEmpty)
@@ -563,6 +567,73 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         ),
       ),
     );
+  }
+
+  /// Precios por cantidad (mayoreo) del producto: lista de escalones y botón
+  /// para editarlos. Aplica a todas las variantes, contando cantidad surtida.
+  Widget _mayoreoCard(_EditorData data) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.bolt, size: 20, color: theme.colorScheme.primary),
+                const SizedBox(width: 6),
+                Text('Precios por cantidad (mayoreo)',
+                    style: theme.textTheme.titleSmall),
+                const Spacer(),
+                if (_canEditPrices)
+                  TextButton(
+                    onPressed: () => _editTiers(data),
+                    child: Text(data.tiers.isEmpty ? 'Agregar' : 'Editar'),
+                  ),
+              ],
+            ),
+            if (data.tiers.isEmpty)
+              Text(
+                'Sin mayoreo. Agrega un escalón (p. ej. “desde 10 pzas → \$X”) '
+                'y el precio bajará solo en la venta al alcanzar la cantidad.',
+                style: theme.textTheme.bodySmall,
+              )
+            else
+              ...data.tiers.map(
+                (t) => Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Desde ${t.minQty} pzas  →  \$${(t.priceCents / 100).toStringAsFixed(2)} c/u',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editTiers(_EditorData data) async {
+    final result = await showDialog<List<({int minQty, int priceCents})>>(
+      context: context,
+      builder: (_) => _TiersDialog(
+        productName: data.product.name,
+        basePriceCents: data.product.basePriceCents,
+        initial: data.tiers,
+      ),
+    );
+    if (result == null) return;
+    try {
+      await _repo.setPriceTiers(
+          actor: _actor, productId: data.product.id, tiers: result);
+      _toast(result.isEmpty ? 'Mayoreo quitado' : 'Mayoreo guardado');
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
   }
 
   Widget _scanTester() {
@@ -751,6 +822,157 @@ class _MatrixDialogState extends State<_MatrixDialog> {
             ));
           },
           child: const Text('Generar'),
+        ),
+      ],
+    );
+  }
+}
+
+// ===========================================================================
+// Diálogo de precios por cantidad (mayoreo)
+// ===========================================================================
+
+class _TierRow {
+  _TierRow({int? minQty, int? priceCents})
+      : qty = TextEditingController(text: minQty?.toString() ?? ''),
+        price = TextEditingController(
+            text: priceCents == null
+                ? ''
+                : (priceCents / 100).toStringAsFixed(2));
+  final TextEditingController qty;
+  final TextEditingController price;
+
+  void dispose() {
+    qty.dispose();
+    price.dispose();
+  }
+}
+
+class _TiersDialog extends StatefulWidget {
+  const _TiersDialog({
+    required this.productName,
+    required this.basePriceCents,
+    required this.initial,
+  });
+  final String productName;
+  final int basePriceCents;
+  final List<PriceTier> initial;
+
+  @override
+  State<_TiersDialog> createState() => _TiersDialogState();
+}
+
+class _TiersDialogState extends State<_TiersDialog> {
+  late final List<_TierRow> _rows = widget.initial.isEmpty
+      ? [_TierRow()]
+      : [
+          for (final t in widget.initial)
+            _TierRow(minQty: t.minQty, priceCents: t.priceCents),
+        ];
+
+  @override
+  void dispose() {
+    for (final r in _rows) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addRow() => setState(() => _rows.add(_TierRow()));
+
+  void _removeRow(_TierRow r) => setState(() {
+        _rows.remove(r);
+        r.dispose();
+      });
+
+  /// Escalones válidos capturados (qty>1 y precio>=0). El repositorio deduplica
+  /// por cantidad y descarta lo inválido; aquí solo filtramos lo vacío.
+  List<({int minQty, int priceCents})> _collect() {
+    final out = <({int minQty, int priceCents})>[];
+    for (final r in _rows) {
+      final qty = int.tryParse(r.qty.text.trim());
+      final pesos = double.tryParse(r.price.text.trim());
+      if (qty == null || pesos == null) continue;
+      if (qty <= 1 || pesos < 0) continue;
+      out.add((minQty: qty, priceCents: (pesos * 100).round()));
+    }
+    return out;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Precios por cantidad (mayoreo)'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.productName}  ·  menudeo \$${(widget.basePriceCents / 100).toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            for (final r in _rows)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Text('Desde'),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 64,
+                      child: TextField(
+                        controller: r.qty,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            isDense: true, hintText: 'pzas'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text('→'),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: r.price,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: const InputDecoration(
+                            isDense: true, prefixText: '\$', hintText: 'c/u'),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Quitar escalón',
+                      onPressed: () => _removeRow(r),
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                  ],
+                ),
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addRow,
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar escalón'),
+              ),
+            ),
+            Text(
+              'Tip: un solo escalón basta para mayoreo (ej. desde 10 → \$X). '
+              'La cantidad se cuenta surtida entre tallas/colores del producto.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_collect()),
+          child: const Text('Guardar'),
         ),
       ],
     );

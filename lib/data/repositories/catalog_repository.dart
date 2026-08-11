@@ -7,6 +7,22 @@ import '../local/database.dart';
 int effectivePrice(Product product, Variant variant) =>
     variant.priceCentsOverride ?? product.basePriceCents;
 
+/// Precio de **mayoreo** aplicable para [qty] unidades de un producto, dados
+/// sus escalones [tiers]. Devuelve el precio del mayor escalón cuyo `minQty` ya
+/// se alcanzó, o `null` si ninguno aplica (se usa el precio normal). El orden de
+/// [tiers] no importa.
+int? wholesalePriceFor(List<PriceTier> tiers, int qty) {
+  int? best;
+  var bestMin = -1;
+  for (final t in tiers) {
+    if (qty >= t.minQty && t.minQty > bestMin) {
+      bestMin = t.minQty;
+      best = t.priceCents;
+    }
+  }
+  return best;
+}
+
 /// Operaciones de catálogo (lado administrador). Los cambios sensibles exigen
 /// rol y quedan en `audit_log`.
 class CatalogRepository {
@@ -49,6 +65,13 @@ class CatalogRepository {
 
   Future<List<Variant>> variantsOf(int productId) =>
       (_db.select(_db.variants)..where((t) => t.productId.equals(productId)))
+          .get();
+
+  /// Escalones de mayoreo de un producto, ordenados por cantidad mínima.
+  Future<List<PriceTier>> priceTiersOf(int productId) =>
+      (_db.select(_db.priceTiers)
+            ..where((t) => t.productId.equals(productId))
+            ..orderBy([(t) => OrderingTerm(expression: t.minQty)]))
           .get();
 
   Future<List<Barcode>> barcodesOf(int variantId) =>
@@ -290,6 +313,42 @@ class CatalogRepository {
     });
   }
 
+  /// Reemplaza TODOS los escalones de mayoreo de un producto por [tiers] (lista
+  /// vacía = quitar el mayoreo). Cada escalón es `(minQty, priceCents)`. Exige
+  /// permiso de precios y queda en auditoría. Ignora escalones con `minQty<=1` o
+  /// `priceCents<0`, y deduplica por `minQty` (gana el último).
+  Future<void> setPriceTiers({
+    required Profile actor,
+    required int productId,
+    required List<({int minQty, int priceCents})> tiers,
+  }) async {
+    if (!Permissions.canEditPrices(actor.role)) {
+      throw PermissionException(
+          'El rol ${actor.role.name} no puede editar precios');
+    }
+    final clean = <int, int>{}; // minQty -> priceCents
+    for (final t in tiers) {
+      if (t.minQty <= 1 || t.priceCents < 0) continue;
+      clean[t.minQty] = t.priceCents;
+    }
+    await _db.transaction(() async {
+      await (_db.delete(_db.priceTiers)
+            ..where((t) => t.productId.equals(productId)))
+          .go();
+      for (final entry in clean.entries) {
+        await _db.into(_db.priceTiers).insert(
+              PriceTiersCompanion.insert(
+                productId: productId,
+                minQty: entry.key,
+                priceCents: entry.value,
+              ),
+            );
+      }
+      await _audit(actor, 'set_price_tiers', 'product', productId.toString(),
+          '${clean.length} escalones');
+    });
+  }
+
   Future<void> updateProductBasePrice({
     required Profile actor,
     required int productId,
@@ -397,6 +456,9 @@ class CatalogRepository {
             .go();
         await (_db.delete(_db.variants)..where((t) => t.id.equals(v.id))).go();
       }
+      await (_db.delete(_db.priceTiers)
+            ..where((t) => t.productId.equals(productId)))
+          .go();
       await (_db.delete(_db.products)..where((t) => t.id.equals(productId))).go();
       await _audit(actor, 'delete', 'product', productId.toString(), 'borrado');
     });

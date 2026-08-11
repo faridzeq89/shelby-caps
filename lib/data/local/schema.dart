@@ -111,6 +111,20 @@ class Products extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// Precios por cantidad (**mayoreo**). Un producto puede tener 0..n escalones:
+/// cuando la cantidad del producto en el carrito alcanza `minQty`, el precio
+/// unitario baja a `priceCents`. Con un solo escalón (p. ej. `minQty=10`) se
+/// cubre el mayoreo típico; con varios se logra precio escalonado (≥10, ≥50…).
+/// Aplica a TODAS las variantes del producto y la cantidad se cuenta **surtida**
+/// entre variantes (10 gorras aunque sean tallas/colores distintos).
+class PriceTiers extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get productId => integer().references(Products, #id)();
+  IntColumn get minQty => integer()();
+  IntColumn get priceCents => integer()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 /// El SKU real: lo que se vende y se cuenta.
 class Variants extends Table {
   IntColumn get id => integer().autoIncrement()();

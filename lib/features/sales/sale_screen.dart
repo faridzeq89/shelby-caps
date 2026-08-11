@@ -25,10 +25,20 @@ import 'ticket_service.dart';
 import 'variant_picker.dart';
 
 class _CartLine {
-  _CartLine(this.product, this.variant, this.unitPriceCents, this.qty);
+  _CartLine(this.product, this.variant, this.retailUnitPriceCents, this.qty)
+      : unitPriceCents = retailUnitPriceCents;
   final Product product;
   final Variant variant;
-  final int unitPriceCents;
+
+  /// Precio normal (menudeo) de la variante: no cambia con la cantidad.
+  final int retailUnitPriceCents;
+
+  /// Precio unitario **efectivo**: menudeo o mayoreo. Lo recalcula [_reprice].
+  int unitPriceCents;
+
+  /// True cuando el precio unitario cayó a un escalón de mayoreo.
+  bool wholesaleApplied = false;
+
   int qty;
   int lineDiscountCents = 0;
 
@@ -58,6 +68,8 @@ class SaleScreenState extends State<SaleScreen> {
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _lines = <_CartLine>[];
+  // Escalones de mayoreo por producto, cacheados al entrar al carrito.
+  final Map<int, List<PriceTier>> _tiersByProduct = {};
   int? _locationId;
   int _lowStock = 0;
   Customer? _customer; // cliente opcional asignado a la venta
@@ -146,7 +158,39 @@ class SaleScreenState extends State<SaleScreen> {
         _lines.add(_CartLine(
             product, variant, effectivePrice(product, variant), 1));
       }
+      _reprice();
     });
+    _ensureTiers(product.id);
+  }
+
+  /// Carga (una vez) los escalones de mayoreo de un producto y recalcula. Si el
+  /// producto no tiene escalones, guarda una lista vacía para no reconsultar.
+  Future<void> _ensureTiers(int productId) async {
+    if (_tiersByProduct.containsKey(productId)) return;
+    final tiers = await _catalog.priceTiersOf(productId);
+    if (!mounted) return;
+    setState(() {
+      _tiersByProduct[productId] = tiers;
+      _reprice();
+    });
+  }
+
+  /// Recalcula el precio unitario de cada línea según el mayoreo. La cantidad
+  /// se cuenta **surtida** por producto (todas las variantes del mismo modelo
+  /// suman hacia el umbral), así 6 negras + 6 blancas activan el mayoreo de 10.
+  void _reprice() {
+    final qtyByProduct = <int, int>{};
+    for (final l in _lines) {
+      qtyByProduct[l.product.id] = (qtyByProduct[l.product.id] ?? 0) + l.qty;
+    }
+    for (final l in _lines) {
+      final tiers = _tiersByProduct[l.product.id];
+      final wholesale = (tiers == null || tiers.isEmpty)
+          ? null
+          : wholesalePriceFor(tiers, qtyByProduct[l.product.id]!);
+      l.unitPriceCents = wholesale ?? l.retailUnitPriceCents;
+      l.wholesaleApplied = wholesale != null;
+    }
   }
 
   Future<void> _onScan(String code) async {
@@ -188,6 +232,7 @@ class SaleScreenState extends State<SaleScreen> {
     setState(() {
       line.qty += delta;
       if (line.qty <= 0) _lines.remove(line);
+      _reprice();
     });
   }
 
@@ -610,7 +655,12 @@ class SaleScreenState extends State<SaleScreen> {
         : '$unit c/u  ·  = \$${(line.lineTotal / 100).toStringAsFixed(2)}';
     return ListTile(
       dense: true,
-      title: Text(line.title),
+      title: Row(
+        children: [
+          Expanded(child: Text(line.title)),
+          if (line.wholesaleApplied) _mayoreoBadge(),
+        ],
+      ),
       subtitle: Text(subtitle),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -629,6 +679,30 @@ class SaleScreenState extends State<SaleScreen> {
           IconButton(
               onPressed: () => _changeQty(line, 1),
               icon: const Icon(Icons.add_circle_outline)),
+        ],
+      ),
+    );
+  }
+
+  /// Distintivo "Mayoreo" para las líneas cuyo precio cayó a un escalón.
+  Widget _mayoreoBadge() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bolt, size: 14, color: scheme.onPrimaryContainer),
+          const SizedBox(width: 2),
+          Text('Mayoreo',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onPrimaryContainer)),
         ],
       ),
     );
@@ -706,7 +780,12 @@ class SaleScreenState extends State<SaleScreen> {
                             final line = _lines[i];
                             return ListTile(
                               dense: true,
-                              title: Text(line.title),
+                              title: Row(
+                                children: [
+                                  Expanded(child: Text(line.title)),
+                                  if (line.wholesaleApplied) _mayoreoBadge(),
+                                ],
+                              ),
                               subtitle: Text(
                                   '\$${(line.unitPriceCents / 100).toStringAsFixed(2)} c/u  ·  = \$${(line.net / 100).toStringAsFixed(2)}'),
                               trailing: Row(

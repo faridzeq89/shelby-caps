@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
@@ -85,6 +86,11 @@ class SaleScreenState extends State<SaleScreen> {
 
   // Ancho a partir del cual mostramos los dos paneles (tablet horizontal).
   static const _wideBreakpoint = 720.0;
+
+  // El escaneo por cámara solo aplica en móvil; en PC se usa lector USB.
+  static bool get _cameraCapable =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   Profile get _cashier => context.read<AuthController>().currentUser!;
 
@@ -646,12 +652,16 @@ class SaleScreenState extends State<SaleScreen> {
                   onSubmitted: _onScan,
                 ),
               ),
-              const SizedBox(width: 8),
-              FilledButton.tonalIcon(
-                onPressed: _scanWithCamera,
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Cámara'),
-              ),
+              // En PC el escaneo es por lector USB (teclea al campo): la cámara
+              // solo aplica en móvil.
+              if (_cameraCapable) ...[
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  onPressed: _scanWithCamera,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Cámara'),
+                ),
+              ],
             ],
           ),
         ),

@@ -9,6 +9,7 @@ import '../expenses/expenses_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
 import '../suppliers/suppliers_screen.dart';
+import 'catalog_web_screen.dart';
 import 'cloud_backup_screen.dart';
 import 'loyalty_config_screen.dart';
 import 'printers_screen.dart';
@@ -80,6 +81,9 @@ class AdminScreen extends StatelessWidget {
       _AdminItem(Icons.groups_outlined, 'Usuarios',
           'Cajeros, gerentes y PIN', Colors.brown,
           (c) => go(c, const UsersScreen())),
+      _AdminItem(Icons.storefront_outlined, 'Catálogo web',
+          'Publicar catálogo a la tienda online', Colors.pink.shade600,
+          (c) => go(c, const CatalogWebScreen())),
       _AdminItem(Icons.cloud_outlined, 'Respaldo',
           'Respaldar / restaurar (nube)', Colors.cyan.shade700,
           (c) => go(c, const CloudBackupScreen())),

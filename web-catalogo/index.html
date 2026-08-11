@@ -1,36 +1,131 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Catálogo</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <header class="topbar">
-      <div class="brand" id="shopName">Catálogo</div>
-      <button class="cart-btn" id="cartBtn" aria-label="Ver carrito">
-        🛒 <span class="cart-count" id="cartCount">0</span>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SHELBY CAPS | Catálogo Online</title>
+<meta name="description" content="Catálogo en línea de SHELBY CAPS. Gorras originales, réplica premium y personalizadas." />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- Barra superior: marca, buscador y carrito. Fija, como en el original. -->
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#" id="brandHome">
+      <span class="brand-logo" id="brandLogo" aria-hidden="true"></span>
+      <span class="brand-name" id="shopName">SHELBY CAPS</span>
+    </a>
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm11 3-5.2-5.2" /></svg>
+      <input id="search" type="search" placeholder="Buscar producto" aria-label="Buscar producto" />
+    </div>
+    <button class="cart-btn" id="cartBtn" aria-label="Ver carrito">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.6 11h10L20 7H6" /><circle cx="9.5" cy="19" r="1.6" /><circle cx="17" cy="19" r="1.6" /></svg>
+      <span class="cart-count" id="cartCount" hidden>0</span>
+    </button>
+  </div>
+</header>
+
+<!-- Datos de la tienda: horario (con estado abierto/cerrado) y dirección. -->
+<section class="shopbar" id="shopbar">
+  <div class="shopbar-in">
+    <p class="hours">
+      <span id="hoursText">Abre mar, 11:00 a. m. - 7:00 p. m.</span>
+      <span class="badge" id="openBadge">Cerrado</span>
+    </p>
+    <p class="addr" id="address">Calle Monterrey 455 Col. Rdz, Reynosa</p>
+  </div>
+</section>
+
+<!-- Filtros: categorías, orden y vista. -->
+<nav class="chips" id="chips" aria-label="Categorías"></nav>
+
+<div class="toolbar">
+  <label class="sort">
+    <select id="sort" aria-label="Ordenar por">
+      <option value="none">Ordenar por</option>
+      <option value="price-asc">Menor precio</option>
+      <option value="price-desc">Mayor precio</option>
+      <option value="name-asc">Nombre A-Z</option>
+      <option value="name-desc">Nombre Z-A</option>
+    </select>
+  </label>
+  <div class="views" role="group" aria-label="Vista">
+    <button id="viewGrid" class="view on" aria-label="Ver en cuadrícula">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    </button>
+    <button id="viewList" class="view" aria-label="Ver en lista">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="16" width="18" height="4"/></svg>
+    </button>
+  </div>
+</div>
+
+<main>
+  <p class="state" id="state">Cargando catálogo…</p>
+  <section class="grid" id="grid" aria-label="Lista de productos"></section>
+</main>
+
+<footer class="foot">
+  <p id="footName">SHELBY CAPS</p>
+  <p class="muted">Catálogo en línea · precios en pesos mexicanos</p>
+</footer>
+
+<!-- Ficha de producto (galería + agregar). -->
+<div class="sheet" id="detail" hidden role="dialog" aria-modal="true" aria-labelledby="dName">
+  <div class="sheet-card">
+    <header class="sheet-head">
+      <button class="icon" id="dBack" aria-label="Volver a la lista de productos">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19 8 12l7-7"/></svg>
+      </button>
+      <h2 id="dName"></h2>
+      <button class="icon" id="dCart" aria-label="Ver carrito">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.6 11h10L20 7H6"/><circle cx="9.5" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>
       </button>
     </header>
-
-    <nav class="cats" id="cats"></nav>
-
-    <main id="grid" class="grid">
-      <div class="loading" id="loading">Cargando catálogo…</div>
-    </main>
-
-    <!-- Hoja de variante -->
-    <div class="sheet-backdrop" id="variantBackdrop" hidden>
-      <section class="sheet" id="variantSheet" role="dialog" aria-modal="true"></section>
+    <div class="sheet-body">
+      <!-- Galería: se desliza con el dedo; los puntos indican la foto actual. -->
+      <div class="gallery" aria-label="Galería de imágenes del producto">
+        <div class="strip" id="dStrip"></div>
+        <div class="dots" id="dDots"></div>
+      </div>
+      <div class="dinfo">
+        <p class="ddesc" id="dDesc"></p>
+        <p class="dprice" id="dPrice"></p>
+        <div id="dVariants" class="variants"></div>
+        <p class="tiers" id="dTiers" hidden></p>
+      </div>
     </div>
+    <footer class="sheet-foot">
+      <div class="qty">
+        <button id="dMinus" aria-label="Quitar uno">−</button>
+        <input id="dQty" value="1" inputmode="numeric" aria-label="Cantidad" />
+        <button id="dPlus" aria-label="Agregar uno">+</button>
+      </div>
+      <button class="add" id="dAdd"><span>Agregar</span><b id="dAddTotal"></b></button>
+    </footer>
+  </div>
+</div>
 
-    <!-- Hoja de carrito -->
-    <div class="sheet-backdrop" id="cartBackdrop" hidden>
-      <section class="sheet" id="cartSheet" role="dialog" aria-modal="true"></section>
-    </div>
+<!-- Carrito -->
+<div class="sheet" id="cartSheet" hidden role="dialog" aria-modal="true" aria-labelledby="cartTitle">
+  <div class="sheet-card">
+    <header class="sheet-head">
+      <button class="icon" id="cBack" aria-label="Cerrar carrito">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19 8 12l7-7"/></svg>
+      </button>
+      <h2 id="cartTitle">Tu pedido</h2>
+      <span style="width:40px"></span>
+    </header>
+    <div class="sheet-body" id="cartBody"></div>
+    <footer class="sheet-foot col">
+      <div class="totals" id="cartTotals"></div>
+      <button class="add wide" id="checkout">Continuar al pago</button>
+    </footer>
+  </div>
+</div>
 
-    <script src="config.js"></script>
-    <script src="app.js"></script>
-  </body>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
 </html>

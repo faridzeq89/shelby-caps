@@ -130,6 +130,26 @@ class Products extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// Fotos adicionales del producto (**galería**). Una gorra se vende por cómo se
+/// ve, y una sola foto no alcanza: frente, perfil, atrás y el detalle del
+/// bordado son fotos distintas del mismo modelo.
+///
+/// La foto **principal** sigue viviendo en `products.imagePath` — así el POS,
+/// los tickets y el catálogo no cambiaron ni una línea, y "elegir principal"
+/// es intercambiar esa ruta con una de aquí. Esta tabla guarda solo el resto.
+class ProductImages extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get productId =>
+      integer().references(Products, #id, onDelete: KeyAction.cascade)();
+
+  /// Ruta del archivo local optimizado, igual que `products.imagePath`.
+  TextColumn get path => text()();
+
+  /// Orden dentro de la galería (0 = primera después de la principal).
+  IntColumn get position => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 /// Precios por cantidad (**mayoreo**). Un producto puede tener 0..n escalones:
 /// cuando la cantidad del producto en el carrito alcanza `minQty`, el precio
 /// unitario baja a `priceCents`. Con un solo escalón (p. ej. `minQty=10`) se

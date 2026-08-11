@@ -416,6 +416,108 @@ class CatalogRepository {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Galería de fotos (la principal vive en products.imagePath; aquí el resto)
+  // ---------------------------------------------------------------------------
+
+  /// Fotos secundarias del producto, en orden.
+  Future<List<ProductImage>> galleryOf(int productId) {
+    return (_db.select(_db.productImages)
+          ..where((t) => t.productId.equals(productId))
+          ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+        .get();
+  }
+
+  /// Todas las fotos del producto: la principal primero, luego la galería.
+  /// Es lo que se publica a la tienda web y lo que ve el editor.
+  Future<List<String>> allImagesOf(int productId) async {
+    final product = await (_db.select(_db.products)
+          ..where((t) => t.id.equals(productId)))
+        .getSingleOrNull();
+    final gallery = await galleryOf(productId);
+    return [
+      if (product?.imagePath != null) product!.imagePath!,
+      for (final g in gallery) g.path,
+    ];
+  }
+
+  /// Agrega una foto. Si el producto aún no tiene principal, la nueva lo es —
+  /// así la primera foto que toma el dueño queda de portada sin pasos extra.
+  Future<void> addProductImage({
+    required Profile actor,
+    required int productId,
+    required String path,
+  }) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      final product = await (_db.select(_db.products)
+            ..where((t) => t.id.equals(productId)))
+          .getSingle();
+      if (product.imagePath == null) {
+        await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+            .write(ProductsCompanion(imagePath: Value(path)));
+      } else {
+        final gallery = await galleryOf(productId);
+        final next = gallery.isEmpty ? 0 : gallery.last.position + 1;
+        await _db.into(_db.productImages).insert(ProductImagesCompanion.insert(
+              productId: productId,
+              path: path,
+              position: Value(next),
+            ));
+      }
+      await _audit(actor, 'add_image', 'product', productId.toString(),
+          'foto agregada');
+    });
+  }
+
+  /// Quita una foto de la galería. Devuelve la ruta para que quien llama borre
+  /// el archivo (el repositorio no toca el sistema de archivos).
+  Future<String?> removeGalleryImage({
+    required Profile actor,
+    required int imageId,
+  }) async {
+    _requireCatalog(actor);
+    final row = await (_db.select(_db.productImages)
+          ..where((t) => t.id.equals(imageId)))
+        .getSingleOrNull();
+    if (row == null) return null;
+    await (_db.delete(_db.productImages)..where((t) => t.id.equals(imageId)))
+        .go();
+    await _audit(actor, 'remove_image', 'product', row.productId.toString(),
+        'foto eliminada');
+    return row.path;
+  }
+
+  /// Convierte una foto de la galería en la principal: intercambia su ruta con
+  /// la de `products.imagePath` para no perder ninguna de las dos.
+  Future<void> setMainImage({
+    required Profile actor,
+    required int productId,
+    required int imageId,
+  }) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      final product = await (_db.select(_db.products)
+            ..where((t) => t.id.equals(productId)))
+          .getSingle();
+      final row = await (_db.select(_db.productImages)
+            ..where((t) => t.id.equals(imageId)))
+          .getSingle();
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(imagePath: Value(row.path)));
+      if (product.imagePath == null) {
+        // No había principal: la foto simplemente sube, no hay qué devolver.
+        await (_db.delete(_db.productImages)..where((t) => t.id.equals(imageId)))
+            .go();
+      } else {
+        await (_db.update(_db.productImages)..where((t) => t.id.equals(imageId)))
+            .write(ProductImagesCompanion(path: Value(product.imagePath!)));
+      }
+      await _audit(actor, 'set_main_image', 'product', productId.toString(),
+          'foto principal cambiada');
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Archivar / borrar producto
   // -------------------------------------------------------------------------

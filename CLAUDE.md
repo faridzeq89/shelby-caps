@@ -372,6 +372,21 @@ Sin cambio de esquema. `flutter analyze` limpio, **92 pruebas verdes**, APK.
   de producto **+ nombre de categoría**); el selector de inventario (`inventory_variant_picker`, usado
   por Recepción/Ajuste/Conteo) lo usa. Label actualizado a "producto, SKU o categoría".
 
+## Tienda web y fotos (2026-08-11)
+`web-catalogo/` calca el catálogo que el cliente ya usaba en Treinta (fondo blanco, foto
+cuadrada, 2 columnas en celular, chips, orden, cuadrícula/lista). Es estático: sin build.
+
+**Varias fotos por producto** (lo que el cliente pidió: una gorra necesita frente, perfil,
+atrás y detalle):
+- La **portada** sigue en `products.image_path`; la galería va en `product_images`
+  (esquema v13). Por eso POS, tickets y catálogo no cambiaron: "hacer portada"
+  **intercambia** las rutas, no borra.
+- Al publicar, `CatalogSyncService` **sube las fotos al bucket público `catalog`** de
+  Supabase (las rutas locales de la tablet no las puede leer la web) y manda las URLs.
+- SQL: `supabase/migrations/0003_catalog_images.sql` (bucket, `catalog_images`,
+  `catalog_products.description` y `publish_catalog` con un 5º argumento; la firma vieja
+  de 4 se conserva para que un APK anterior no truene).
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

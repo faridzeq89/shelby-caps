@@ -34,11 +34,13 @@ class _VariantRow {
 }
 
 class _EditorData {
-  _EditorData(this.product, this.rows, this.tiers, this.supplierName);
+  _EditorData(
+      this.product, this.rows, this.tiers, this.supplierName, this.gallery);
   final Product product;
   final List<_VariantRow> rows;
   final List<PriceTier> tiers; // escalones de mayoreo
   final String? supplierName; // proveedor ligado (nombre), si hay
+  final List<ProductImage> gallery; // fotos extra (la principal va en product)
 }
 
 class _ProductEditorScreenState extends State<ProductEditorScreen> {
@@ -70,7 +72,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     final supplierName = product!.supplierId == null
         ? null
         : (await _suppliers.byId(product.supplierId!))?.name;
-    return _EditorData(product, rows, tiers, supplierName);
+    final gallery = await _repo.galleryOf(widget.productId);
+    return _EditorData(product, rows, tiers, supplierName, gallery);
   }
 
   void _reload() => setState(() {
@@ -431,6 +434,220 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // Galería: varias vistas de la misma gorra (frente, perfil, atrás, detalle).
+  // La primera es la principal; es la que sale en el POS, el ticket y como
+  // portada en la tienda web. Las demás solo se ven en la ficha del catálogo.
+  // --------------------------------------------------------------------------
+  Widget _photoStrip(_EditorData data) {
+    final theme = Theme.of(context);
+    final main = data.product.imagePath;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            'Fotos',
+            action: Text(
+              main == null
+                  ? 'sin fotos'
+                  : '${1 + data.gallery.length} · la 1ª es la portada',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+          SizedBox(
+            height: 96,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                if (main != null)
+                  _photoTile(
+                    path: main,
+                    label: 'Portada',
+                    onTap: () => _changePhoto(data),
+                  ),
+                for (final img in data.gallery)
+                  _photoTile(
+                    path: img.path,
+                    onTap: () => _galleryMenu(data, img),
+                  ),
+                _addPhotoTile(data),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _photoTile({
+    required String path,
+    required VoidCallback onTap,
+    String? label,
+  }) {
+    final provider = productImageProvider(path);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.small),
+        child: Stack(
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(AppRadii.small),
+                border: Border.all(color: Theme.of(context).dividerColor),
+                image: provider != null
+                    ? DecorationImage(
+                        image: ResizeImage(provider,
+                            width: 260, allowUpscaling: false),
+                        fit: BoxFit.cover)
+                    : null,
+              ),
+            ),
+            if (label != null)
+              Positioned(
+                left: 4,
+                bottom: 4,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.charcoal.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                  ),
+                  child: Text(label,
+                      style: const TextStyle(
+                          color: AppColors.charcoalInk,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _addPhotoTile(_EditorData data) {
+    return InkWell(
+      onTap: () => _addPhoto(data),
+      borderRadius: BorderRadius.circular(AppRadii.small),
+      child: Container(
+        width: 88,
+        height: 88,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadii.small),
+          border: Border.all(color: Theme.of(context).dividerColor),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_a_photo_outlined, color: AppColors.brassDeep),
+            SizedBox(height: 4),
+            Text('Agregar',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Agrega una foto a la galería (o la vuelve portada si aún no hay ninguna).
+  Future<void> _addPhoto(_EditorData data) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de galería'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final path = await _capture(source);
+    if (path == null) return;
+    try {
+      await _repo.addProductImage(
+          actor: _actor, productId: data.product.id, path: path);
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  /// Qué hacer con una foto de la galería: subirla a portada o quitarla.
+  Future<void> _galleryMenu(_EditorData data, ProductImage img) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.star_outline),
+              title: const Text('Hacer portada'),
+              subtitle: const Text('Es la que se ve en el POS y en la tienda'),
+              onTap: () => Navigator.pop(context, 'main'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Quitar foto'),
+              onTap: () => Navigator.pop(context, 'remove'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+    try {
+      if (action == 'main') {
+        await _repo.setMainImage(
+            actor: _actor, productId: data.product.id, imageId: img.id);
+      } else {
+        final path =
+            await _repo.removeGalleryImage(actor: _actor, imageId: img.id);
+        await _images.delete(path);
+      }
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  /// Toma/elige una foto y la guarda optimizada. Devuelve la ruta local.
+  Future<String?> _capture(ImageSource source) async {
+    XFile? file;
+    try {
+      file = await ImagePicker()
+          .pickImage(source: source, maxWidth: 1600, imageQuality: 92);
+    } catch (e) {
+      _toast('No se pudo abrir la cámara/galería: $e');
+      return null;
+    }
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    final path = await _images.saveOptimizedBytes(bytes);
+    if (path == null) _toast('La imagen no es válida');
+    return path;
+  }
+
   Widget _photoThumb(_EditorData data) {
     final provider = productImageProvider(data.product.imagePath);
     return InkWell(
@@ -561,6 +778,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
             padding: const EdgeInsets.only(bottom: 88),
             children: [
               _header(data),
+              _photoStrip(data),
               _mayoreoCard(data),
               _scanTester(),
               const Divider(),

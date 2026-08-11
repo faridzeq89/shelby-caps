@@ -36,6 +36,7 @@ class VariantStockData {
     Categories,
     Suppliers,
     Products,
+    ProductImages,
     PriceTiers,
     Variants,
     Barcodes,
@@ -65,7 +66,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -128,6 +129,11 @@ class AppDatabase extends _$AppDatabase {
             // v11 → v12: proveedores + liga opcional en productos.
             await _createTableIfMissing('suppliers', suppliers);
             await _addSupplierIdIfMissing(m);
+          }
+          if (from < 13) {
+            // v12 → v13: galería de fotos por producto. La principal sigue en
+            // products.image_path, así que nada existente se toca.
+            await _createTableIfMissing('product_images', productImages);
           }
           await _createExtras();
         },

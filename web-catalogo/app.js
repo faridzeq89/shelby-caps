@@ -1,5 +1,11 @@
-/* Tienda web (solo lectura del catálogo). El carrito y el mayoreo replican la
- * lógica del POS. El cobro (Mercado Pago) se enchufa en la fase #8. */
+/* Tienda web de SHELBY CAPS (solo lectura del catálogo publicado por el POS).
+ *
+ * El carrito replica la lógica de mayoreo del POS: el precio baja al alcanzar
+ * el escalón contando la cantidad **surtida entre variantes del mismo
+ * producto**, no por variante suelta.
+ *
+ * El cobro (Mercado Pago) se enchufa en la fase #8: "Continuar al pago" es
+ * todavía un marcador. */
 (function () {
   "use strict";
   const CFG = window.CATALOGO_CONFIG;
@@ -8,15 +14,33 @@
     Authorization: "Bearer " + CFG.SUPABASE_ANON,
   };
 
-  // Estado
+  // ---- Estado ----
   let PRODUCTS = [];
-  let VARIANTS_BY_PRODUCT = new Map(); // productId -> [variant]
-  let TIERS_BY_PRODUCT = new Map(); // productId -> [tier]
+  let VARIANTS = new Map(); // productId -> [variant]
+  let TIERS = new Map(); // productId -> [tier]
+  let IMAGES = new Map(); // productId -> [url] (posición 0 = principal)
   let categoryFilter = null; // null = todas
+  let query = "";
+  let sortBy = "none";
+  let listView = false;
+  let current = null; // producto abierto en la ficha
+  let currentVariant = null;
   const cart = new Map(); // variantId -> { qty, variant, product }
 
   const $ = (id) => document.getElementById(id);
-  const money = (c) => "$" + (c / 100).toFixed(2);
+
+  /** Precio con separador de miles, como el catálogo original ($1,300). */
+  function money(cents) {
+    const v = Math.round(cents) / 100;
+    const s = v.toFixed(v % 1 === 0 ? 0 : 2);
+    const [int, dec] = s.split(".");
+    return "$" + int.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (dec ? "." + dec : "");
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (m) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  }
 
   async function rest(path) {
     const res = await fetch(CFG.SUPABASE_URL + "/rest/v1/" + path, { headers: HEADERS });
@@ -24,7 +48,7 @@
     return res.json();
   }
 
-  /** Precio de mayoreo aplicable para `qty` piezas, o null si ninguno aplica. */
+  // ---- Reglas de precio (espejo del POS) ----
   function wholesalePriceFor(tiers, qty) {
     let best = null, bestMin = -1;
     for (const t of tiers || []) {
@@ -33,17 +57,17 @@
     return best;
   }
 
-  function retailPrice(variant) { return variant.price_cents; }
+  function variantsOf(id) { return VARIANTS.get(id) || []; }
+  function imagesOf(id) { return IMAGES.get(id) || []; }
+  function stockOf(id) { return variantsOf(id).reduce((s, v) => s + (v.stock || 0), 0); }
 
-  /** Precio "desde" (menor menudeo) de un producto, para la tarjeta. */
-  function fromPrice(productId) {
-    const vs = VARIANTS_BY_PRODUCT.get(productId) || [];
-    if (!vs.length) return null;
-    return Math.min(...vs.map(retailPrice));
+  /** Precio de lista del producto: el menor de sus variantes. */
+  function priceOf(id) {
+    const vs = variantsOf(id);
+    return vs.length ? Math.min(...vs.map((v) => v.price_cents)) : null;
   }
 
-  // ---- Carrito / mayoreo ----
-  function aggregateQtyByProduct() {
+  function aggregateByProduct() {
     const m = new Map();
     for (const { qty, product } of cart.values()) {
       m.set(product.id, (m.get(product.id) || 0) + qty);
@@ -51,214 +75,389 @@
     return m;
   }
 
-  /** Devuelve líneas del carrito con precio efectivo (menudeo o mayoreo). */
   function pricedCart() {
-    const agg = aggregateQtyByProduct();
+    const agg = aggregateByProduct();
     const lines = [];
     for (const entry of cart.values()) {
-      const tiers = TIERS_BY_PRODUCT.get(entry.product.id);
-      const w = wholesalePriceFor(tiers, agg.get(entry.product.id) || 0);
-      const unit = w != null ? w : retailPrice(entry.variant);
+      const w = wholesalePriceFor(TIERS.get(entry.product.id), agg.get(entry.product.id) || 0);
+      const unit = w != null ? w : entry.variant.price_cents;
       lines.push({ ...entry, unit, wholesale: w != null, lineTotal: unit * entry.qty });
     }
     return lines;
   }
 
-  function cartCount() {
-    let n = 0; for (const e of cart.values()) n += e.qty; return n;
-  }
-  function cartTotal() {
-    return pricedCart().reduce((s, l) => s + l.lineTotal, 0);
-  }
+  const cartCount = () => [...cart.values()].reduce((n, e) => n + e.qty, 0);
+  const cartTotal = () => pricedCart().reduce((s, l) => s + l.lineTotal, 0);
 
   function addToCart(product, variant, delta) {
     const cur = cart.get(variant.id);
-    const qty = (cur ? cur.qty : 0) + delta;
+    const qty = Math.min((cur ? cur.qty : 0) + delta, variant.stock || 0);
     if (qty <= 0) cart.delete(variant.id);
     else cart.set(variant.id, { qty, variant, product });
-    renderCartBar();
+    renderCartCount();
   }
 
-  // ---- Render ----
-  function renderCategories() {
+  function toast(msg) {
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1800);
+  }
+
+  // ---- Horario de la tienda ----
+  /** Marca abierto/cerrado según `OPENING_HOURS` de config.js. */
+  function renderShopBar() {
+    $("shopName").textContent = CFG.SHOP_NAME || "Catálogo";
+    $("footName").textContent = CFG.SHOP_NAME || "";
+    document.title = (CFG.SHOP_NAME || "Catálogo") + " | Catálogo Online";
+    if (CFG.ADDRESS) $("address").textContent = CFG.ADDRESS;
+    else $("address").hidden = true;
+
+    const hours = CFG.OPENING_HOURS;
+    if (!hours) { $("shopbar").hidden = true; return; }
+    const now = new Date();
+    const today = hours[now.getDay()]; // 0 = domingo
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const toMin = (hhmm) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const open = !!today && mins >= toMin(today[0]) && mins < toMin(today[1]);
+    const fmt = (hhmm) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      const ap = h >= 12 ? "p. m." : "a. m.";
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return h12 + ":" + String(m).padStart(2, "0") + " " + ap;
+    };
+    const dias = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+    let text;
+    if (open) {
+      text = "Abierto hoy, " + fmt(today[0]) + " - " + fmt(today[1]);
+    } else {
+      // Busca el próximo día con horario para decir cuándo abre.
+      let d = now.getDay(), next = null;
+      for (let i = 0; i < 8; i++) {
+        const cand = hours[(d + i) % 7];
+        if (cand && !(i === 0 && mins >= toMin(cand[1]))) { next = [(d + i) % 7, cand]; break; }
+      }
+      text = next
+        ? "Abre " + dias[next[0]] + ", " + fmt(next[1][0]) + " - " + fmt(next[1][1])
+        : "Sin horario";
+    }
+    $("hoursText").textContent = text;
+    const badge = $("openBadge");
+    badge.textContent = open ? "Abierto" : "Cerrado";
+    badge.classList.toggle("open", open);
+  }
+
+  // ---- Categorías ----
+  function renderChips() {
     const cats = [...new Set(PRODUCTS.map((p) => p.category).filter(Boolean))].sort();
-    const el = $("cats");
+    const el = $("chips");
     el.innerHTML = "";
     const mk = (label, value) => {
       const b = document.createElement("button");
-      b.className = "chip" + (categoryFilter === value ? " active" : "");
+      b.className = "chip";
+      b.type = "button";
       b.textContent = label;
-      b.onclick = () => { categoryFilter = value; renderCategories(); renderGrid(); };
+      b.setAttribute("aria-pressed", String(categoryFilter === value));
+      b.onclick = () => { categoryFilter = value; renderChips(); renderGrid(); };
       return b;
     };
-    el.appendChild(mk("Todo", null));
+    el.appendChild(mk("Ver todos", null));
     for (const c of cats) el.appendChild(mk(c, c));
+  }
+
+  // ---- Rejilla ----
+  function visibleProducts() {
+    const q = query.trim().toLowerCase();
+    let list = PRODUCTS.filter((p) => {
+      if (categoryFilter != null && p.category !== categoryFilter) return false;
+      if (q && !(p.name + " " + (p.description || "") + " " + (p.brand || ""))
+        .toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const price = (p) => priceOf(p.id) ?? Number.MAX_SAFE_INTEGER;
+    if (sortBy === "price-asc") list = list.slice().sort((a, b) => price(a) - price(b));
+    else if (sortBy === "price-desc") list = list.slice().sort((a, b) => price(b) - price(a));
+    else if (sortBy === "name-asc") list = list.slice().sort((a, b) => a.name.localeCompare(b.name, "es"));
+    else if (sortBy === "name-desc") list = list.slice().sort((a, b) => b.name.localeCompare(a.name, "es"));
+    return list;
+  }
+
+  function thumbHtml(p) {
+    const imgs = imagesOf(p.id);
+    if (!imgs.length) return '<div class="thumb"></div>';
+    return '<div class="thumb"><img src="' + esc(imgs[0]) + '" alt="' + esc(p.name) +
+      '" loading="lazy" /></div>';
   }
 
   function renderGrid() {
     const grid = $("grid");
-    const list = PRODUCTS.filter((p) => categoryFilter == null || p.category === categoryFilter);
+    const list = visibleProducts();
+    grid.classList.toggle("list", listView);
     if (!list.length) {
-      grid.innerHTML = '<div class="empty">No hay productos en esta categoría.</div>';
+      $("state").hidden = false;
+      $("state").textContent = query
+        ? 'Sin resultados para "' + query + '".'
+        : "No hay productos en esta categoría.";
+      grid.innerHTML = "";
       return;
     }
+    $("state").hidden = true;
     grid.innerHTML = "";
     for (const p of list) {
-      const card = document.createElement("div");
-      card.className = "card";
-      const from = fromPrice(p.id);
-      const tiers = TIERS_BY_PRODUCT.get(p.id) || [];
-      const minTier = tiers.length ? Math.min(...tiers.map((t) => t.min_qty)) : null;
+      const soldOut = stockOf(p.id) <= 0;
+      const price = priceOf(p.id);
+      const card = document.createElement("article");
+      card.className = "card" + (soldOut ? " soldout" : "");
       card.innerHTML =
-        '<div class="thumb">🧢</div>' +
-        '<div class="info">' +
-        '<div class="name">' + esc(p.name) + "</div>" +
-        (from != null ? '<div class="price">desde ' + money(from) + "</div>" : "") +
-        (minTier != null ? '<div class="mayoreo-tag">Mayoreo desde ' + minTier + "</div>" : "") +
-        "</div>";
-      card.onclick = () => openVariantSheet(p);
+        thumbHtml(p) +
+        "<div>" +
+        "<h3>" + esc(p.name) + "</h3>" +
+        (p.description ? '<p class="desc">' + esc(p.description) + "</p>" : "") +
+        (soldOut
+          ? '<p class="out">Producto agotado</p>'
+          : '<p class="price">' + money(price) + "</p>") +
+        "</div>" +
+        (soldOut ? "" : '<button class="addmini" type="button">Agregar al carrito</button>');
+      card.querySelector(".thumb").onclick = () => openDetail(p);
+      card.querySelector("h3").onclick = () => openDetail(p);
+      const add = card.querySelector(".addmini");
+      if (add) {
+        add.onclick = (e) => {
+          e.stopPropagation();
+          const vs = variantsOf(p.id).filter((v) => v.stock > 0);
+          // Con una sola variante disponible se agrega directo; si hay talla o
+          // color que elegir, se abre la ficha para no adivinar por el cliente.
+          if (vs.length === 1) { addToCart(p, vs[0], 1); toast("Agregado al carrito"); }
+          else openDetail(p);
+        };
+      }
       grid.appendChild(card);
     }
   }
 
-  function openVariantSheet(product) {
-    const vs = (VARIANTS_BY_PRODUCT.get(product.id) || []).slice();
-    const tiers = TIERS_BY_PRODUCT.get(product.id) || [];
-    const sheet = $("variantSheet");
+  // ---- Ficha de producto ----
+  function variantLabel(v) {
+    return [v.size, v.color].filter(Boolean).join(" · ") || (v.sku || "Único");
+  }
 
-    function draw() {
-      const tierTxt = tiers
-        .slice().sort((a, b) => a.min_qty - b.min_qty)
-        .map((t) => "desde " + t.min_qty + " → " + money(t.price_cents)).join("  ·  ");
-      sheet.innerHTML =
-        '<button class="close-x" data-close>×</button>' +
-        "<h2>" + esc(product.name) + "</h2>" +
-        '<div class="sub">' + esc(product.brand || product.category || "") + "</div>" +
-        (tierTxt ? '<div class="mayoreo-note">⚡ Mayoreo: ' + tierTxt + " (surtido entre variantes)</div>" : "") +
-        vs.map((v) => {
-          const cur = cart.get(v.id);
-          const q = cur ? cur.qty : 0;
-          const meta = [v.size, v.color].filter(Boolean).join(" · ");
-          const stockTxt = v.stock <= 0 ? '<span class="out">Agotado</span>' : "existencia " + v.stock;
-          return (
-            '<div class="variant-row">' +
-            '<div><div class="v-name">' + money(retailPrice(v)) + (meta ? " — " + esc(meta) : "") +
-            '</div><div class="v-meta">' + stockTxt + "</div></div>" +
-            '<div class="stepper">' +
-            '<button data-dec="' + v.id + '" ' + (q <= 0 ? "disabled" : "") + ">−</button>" +
-            '<span class="qty">' + q + "</span>" +
-            '<button data-inc="' + v.id + '" ' + (v.stock <= 0 || q >= v.stock ? "disabled" : "") + ">+</button>" +
-            "</div></div>"
-          );
-        }).join("") +
-        '<button class="btn" data-close>Listo</button>';
+  function openDetail(p) {
+    current = p;
+    const vs = variantsOf(p.id);
+    currentVariant = vs.find((v) => v.stock > 0) || vs[0] || null;
+    $("dName").textContent = p.name;
+    $("dDesc").textContent = p.description || "";
+    $("dDesc").hidden = !p.description;
+    $("dQty").value = "1";
 
-      sheet.querySelectorAll("[data-inc]").forEach((b) =>
-        (b.onclick = () => { const v = vs.find((x) => x.id == b.dataset.inc); addToCart(product, v, +1); draw(); }));
-      sheet.querySelectorAll("[data-dec]").forEach((b) =>
-        (b.onclick = () => { const v = vs.find((x) => x.id == b.dataset.dec); addToCart(product, v, -1); draw(); }));
-      sheet.querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheets));
+    // Galería: si no hay fotos, un marcador para no dejar el hueco vacío.
+    const imgs = imagesOf(p.id);
+    const strip = $("dStrip");
+    strip.innerHTML = imgs.length
+      ? imgs.map((u, i) =>
+          '<img src="' + esc(u) + '" alt="Imagen ' + (i + 1) + " de " + esc(p.name) + '" />').join("")
+      : '<div style="flex:0 0 100%;aspect-ratio:1/1"></div>';
+    const dots = $("dDots");
+    dots.innerHTML = imgs.length > 1
+      ? imgs.map((_, i) => '<span class="dot' + (i === 0 ? " on" : "") + '"></span>').join("")
+      : "";
+    strip.onscroll = () => {
+      if (imgs.length < 2) return;
+      const i = Math.round(strip.scrollLeft / strip.clientWidth);
+      dots.querySelectorAll(".dot").forEach((d, k) => d.classList.toggle("on", k === i));
+    };
+
+    // Escalones de mayoreo, si el producto los tiene.
+    const tiers = (TIERS.get(p.id) || []).slice().sort((a, b) => a.min_qty - b.min_qty);
+    const tEl = $("dTiers");
+    tEl.hidden = !tiers.length;
+    if (tiers.length) {
+      tEl.textContent = "Mayoreo: " +
+        tiers.map((t) => "desde " + t.min_qty + " a " + money(t.price_cents) + " c/u").join("  ·  ");
     }
-    draw();
-    $("variantBackdrop").hidden = false;
+
+    drawVariants();
+    $("detail").hidden = false;
+    document.body.style.overflow = "hidden";
   }
 
-  function openCartSheet() {
-    const sheet = $("cartSheet");
-    function draw() {
-      const lines = pricedCart();
-      if (!lines.length) { closeSheets(); return; }
-      sheet.innerHTML =
-        '<button class="close-x" data-close>×</button>' +
-        "<h2>Tu pedido</h2>" +
-        lines.map((l) => {
-          const meta = [l.variant.size, l.variant.color].filter(Boolean).join(" · ");
-          return (
-            '<div class="cart-line"><div>' +
-            "<div>" + esc(l.product.name) + (meta ? " (" + esc(meta) + ")" : "") +
-            (l.wholesale ? '<span class="badge-mayoreo">MAYOREO</span>' : "") + "</div>" +
-            '<div class="cl-sub">' + l.qty + " × " + money(l.unit) + "</div></div>" +
-            "<div>" + money(l.lineTotal) + "</div></div>"
-          );
-        }).join("") +
-        '<div class="totrow"><span>Total</span><span class="tot">' + money(cartTotal()) + "</span></div>" +
-        '<button class="btn" id="checkoutBtn">Continuar al pago</button>' +
-        '<button class="btn secondary" data-close>Seguir comprando</button>';
-      sheet.querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheets));
-      $("checkoutBtn").onclick = checkout;
-    }
-    draw();
-    $("cartBackdrop").hidden = false;
+  function drawVariants() {
+    const vs = variantsOf(current.id);
+    const box = $("dVariants");
+    // Con una sola variante sin talla ni color no hay nada que elegir.
+    const trivial = vs.length <= 1 && !(vs[0] && (vs[0].size || vs[0].color));
+    box.hidden = trivial;
+    box.innerHTML = trivial ? "" : vs.map((v) =>
+      '<button class="vbtn" type="button" data-v="' + v.id + '"' +
+      (v.stock <= 0 ? " disabled" : "") +
+      ' aria-pressed="' + String(currentVariant && v.id === currentVariant.id) + '">' +
+      esc(variantLabel(v)) + "</button>").join("");
+    box.querySelectorAll("[data-v]").forEach((b) => {
+      b.onclick = () => {
+        currentVariant = vs.find((v) => String(v.id) === b.dataset.v);
+        drawVariants();
+        drawAddTotal();
+      };
+    });
+    drawAddTotal();
   }
 
-  function checkout() {
-    // #8: aquí se creará la preferencia de Mercado Pago y se redirige al pago.
-    alert("El pago con Mercado Pago se habilita en la siguiente fase.\nTotal: " + money(cartTotal()));
+  function drawAddTotal() {
+    const max = currentVariant ? currentVariant.stock : 0;
+    // Se recorta la cantidad al stock: el carrito ya lo hace al agregar, y sin
+    // esto el botón prometía un total ("$3,600") que no se iba a respetar.
+    let qty = Math.max(1, parseInt($("dQty").value, 10) || 1);
+    if (max > 0 && qty > max) { qty = max; $("dQty").value = String(max); }
+    const price = currentVariant ? currentVariant.price_cents : priceOf(current.id) || 0;
+    $("dPrice").textContent = money(price);
+    $("dAddTotal").textContent = money(price * qty);
+    $("dAdd").disabled = !currentVariant || max <= 0;
   }
 
-  function closeSheets() {
-    $("variantBackdrop").hidden = true;
-    $("cartBackdrop").hidden = true;
-    renderGrid(); // refresca etiquetas
-    renderCartBar();
+  function closeDetail() {
+    $("detail").hidden = true;
+    document.body.style.overflow = "";
+    renderGrid();
   }
 
-  function renderCartBar() {
-    $("cartCount").textContent = cartCount();
-    let bar = $("cartbar");
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.id = "cartbar";
-      bar.className = "cartbar";
-      document.body.appendChild(bar);
-    }
+  // ---- Carrito ----
+  function renderCartCount() {
     const n = cartCount();
-    if (n <= 0) { bar.classList.add("hidden"); return; }
-    bar.classList.remove("hidden");
-    bar.innerHTML =
-      '<div class="cb-total"><small>' + n + " artículo(s)</small><b>" + money(cartTotal()) + "</b></div>" +
-      '<button class="btn" id="openCart">Ver pedido</button>';
-    $("openCart").onclick = openCartSheet;
+    const el = $("cartCount");
+    el.textContent = String(n);
+    el.hidden = n === 0;
   }
 
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, (m) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  function openCart() {
+    const lines = pricedCart();
+    const body = $("cartBody");
+    if (!lines.length) {
+      body.innerHTML = '<p class="empty">Tu carrito está vacío.</p>';
+      $("cartTotals").innerHTML = "";
+      $("checkout").disabled = true;
+    } else {
+      body.innerHTML = lines.map((l) => {
+        const img = imagesOf(l.product.id)[0];
+        const meta = [l.variant.size, l.variant.color].filter(Boolean).join(" · ");
+        return '<div class="cline">' +
+          (img ? '<img src="' + esc(img) + '" alt="" />' : '<img alt="" />') +
+          '<div class="cinfo">' +
+          '<p class="cname">' + esc(l.product.name) + "</p>" +
+          '<p class="cmeta">' + (meta ? esc(meta) + " · " : "") + l.qty + " × " + money(l.unit) +
+          (l.wholesale ? " · mayoreo" : "") + "</p>" +
+          "</div>" +
+          '<span class="cprice">' + money(l.lineTotal) + "</span>" +
+          '<button class="icon" data-del="' + l.variant.id + '" aria-label="Quitar">' +
+          '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>' +
+          "</button></div>";
+      }).join("");
+      body.querySelectorAll("[data-del]").forEach((b) => {
+        b.onclick = () => { cart.delete(Number(b.dataset.del)); renderCartCount(); openCart(); };
+      });
+      const n = cartCount();
+      $("cartTotals").innerHTML =
+        "<div><span>" + n + (n === 1 ? " artículo" : " artículos") + "</span><span></span></div>" +
+        '<div class="grand"><span>Total</span><span>' + money(cartTotal()) + "</span></div>";
+      $("checkout").disabled = false;
+    }
+    $("cartSheet").hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeCart() {
+    $("cartSheet").hidden = true;
+    document.body.style.overflow = "";
+    renderGrid();
+  }
+
+  // ---- Arranque ----
+  function wire() {
+    $("search").oninput = (e) => { query = e.target.value; renderGrid(); };
+    $("sort").onchange = (e) => { sortBy = e.target.value; renderGrid(); };
+    $("viewGrid").onclick = () => {
+      listView = false;
+      $("viewGrid").classList.add("on"); $("viewList").classList.remove("on");
+      renderGrid();
+    };
+    $("viewList").onclick = () => {
+      listView = true;
+      $("viewList").classList.add("on"); $("viewGrid").classList.remove("on");
+      renderGrid();
+    };
+    $("brandHome").onclick = (e) => {
+      e.preventDefault();
+      categoryFilter = null; query = ""; $("search").value = "";
+      renderChips(); renderGrid(); window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    $("dBack").onclick = closeDetail;
+    $("detail").onclick = (e) => { if (e.target === $("detail")) closeDetail(); };
+    $("dCart").onclick = () => { closeDetail(); openCart(); };
+    $("dMinus").onclick = () => {
+      $("dQty").value = String(Math.max(1, (parseInt($("dQty").value, 10) || 1) - 1));
+      drawAddTotal();
+    };
+    $("dPlus").onclick = () => {
+      const max = currentVariant ? currentVariant.stock : 1;
+      $("dQty").value = String(Math.min(max, (parseInt($("dQty").value, 10) || 1) + 1));
+      drawAddTotal();
+    };
+    $("dQty").oninput = drawAddTotal;
+    $("dAdd").onclick = () => {
+      if (!currentVariant) return;
+      const qty = Math.max(1, parseInt($("dQty").value, 10) || 1);
+      addToCart(current, currentVariant, qty);
+      closeDetail();
+      toast("Agregado al carrito");
+    };
+
+    $("cartBtn").onclick = openCart;
+    $("cBack").onclick = closeCart;
+    $("cartSheet").onclick = (e) => { if (e.target === $("cartSheet")) closeCart(); };
+    $("checkout").onclick = () => {
+      // Fase #8: aquí se crea la orden de Mercado Pago y se redirige al pago.
+      toast("El pago en línea se habilita en la siguiente fase");
+    };
+    document.onkeydown = (e) => {
+      if (e.key !== "Escape") return;
+      if (!$("detail").hidden) closeDetail();
+      else if (!$("cartSheet").hidden) closeCart();
+    };
   }
 
   async function init() {
-    $("shopName").textContent = CFG.SHOP_NAME || "Catálogo";
-    document.title = CFG.SHOP_NAME || "Catálogo";
-    $("cartBtn").onclick = () => { if (cartCount() > 0) openCartSheet(); };
-    document.querySelectorAll(".sheet-backdrop").forEach((bd) => {
-      bd.onclick = (e) => { if (e.target === bd) closeSheets(); };
-    });
+    renderShopBar();
+    wire();
+    renderCartCount();
     try {
-      const [products, variants, tiers] = await Promise.all([
+      const [products, variants, tiers, images] = await Promise.all([
         rest("catalog_products?select=*&active=eq.true&order=name.asc"),
         rest("catalog_variants?select=*&active=eq.true"),
         rest("catalog_price_tiers?select=*"),
+        rest("catalog_images?select=*&order=position.asc").catch(() => []),
       ]);
       PRODUCTS = products;
-      VARIANTS_BY_PRODUCT = new Map();
-      for (const v of variants) {
-        if (!VARIANTS_BY_PRODUCT.has(v.product_id)) VARIANTS_BY_PRODUCT.set(v.product_id, []);
-        VARIANTS_BY_PRODUCT.get(v.product_id).push(v);
-      }
-      TIERS_BY_PRODUCT = new Map();
-      for (const t of tiers) {
-        if (!TIERS_BY_PRODUCT.has(t.product_id)) TIERS_BY_PRODUCT.set(t.product_id, []);
-        TIERS_BY_PRODUCT.get(t.product_id).push(t);
-      }
+      VARIANTS = new Map(); TIERS = new Map(); IMAGES = new Map();
+      const push = (map, key, val) => {
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(val);
+      };
+      for (const v of variants) push(VARIANTS, v.product_id, v);
+      for (const t of tiers) push(TIERS, t.product_id, t);
+      for (const im of images) push(IMAGES, im.product_id, im.url);
+
       if (!PRODUCTS.length) {
-        $("grid").innerHTML = '<div class="empty">El catálogo está vacío.<br/>Publícalo desde el POS (Admin → Catálogo web).</div>';
-      } else {
-        renderCategories();
-        renderGrid();
+        $("state").textContent =
+          "El catálogo está vacío. Publícalo desde el POS (Admin → Catálogo web).";
+        return;
       }
-      renderCartBar();
+      renderChips();
+      renderGrid();
     } catch (e) {
-      $("grid").innerHTML = '<div class="empty">No se pudo cargar el catálogo.<br/>' + esc(e.message) + "</div>";
+      $("state").textContent = "No se pudo cargar el catálogo: " + e.message;
     }
   }
 

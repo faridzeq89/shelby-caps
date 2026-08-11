@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/local/database.dart';
 import '../data/repositories/catalog_repository.dart';
+import 'image_service.dart';
 
 /// El catálogo listo para publicar, ya como JSON (listas de mapas) que la
 /// función `publish_catalog` de Supabase espera.
@@ -42,6 +45,9 @@ class CatalogSyncService {
           'name': p.name,
           'brand': p.brand,
           'category': categoryNames[p.categoryId],
+          // La tienda muestra la descripción bajo el nombre ("Gorra negra de
+          // malla con visera curva"), igual que el catálogo que ya usa el cliente.
+          'description': p.description,
           'base_price_cents': p.basePriceCents,
           'tax_rate_bps': p.taxRateBps,
           'active': p.active,
@@ -102,15 +108,77 @@ class CatalogSyncService {
     );
   }
 
+  /// Sube las fotos de los productos al bucket público `catalog` y devuelve la
+  /// lista lista para publicar (`product_id`, `url`, `position`).
+  ///
+  /// Por qué hay que subirlas: el POS guarda las fotos como **archivos locales**
+  /// de la tablet, y la tienda web no puede leer esas rutas. La posición 0 es la
+  /// portada. Se sobrescribe siempre la misma ruta remota (`upsert`), así que
+  /// republicar no llena el bucket de basura.
+  ///
+  /// Las fotos de asset (catálogo de demo) se omiten: no son archivos del
+  /// dispositivo. Si una foto falla al subir, se salta y el resto continúa —
+  /// más vale publicar el catálogo sin una foto que no publicarlo.
+  Future<List<Map<String, dynamic>>> _uploadImages(
+      List<Product> products, void Function(int done, int total)? onProgress) async {
+    final repo = CatalogRepository(_db);
+    final storage = _client.storage.from('catalog');
+    final out = <Map<String, dynamic>>[];
+
+    // Se recolecta primero para poder informar avance con un total real.
+    final work = <({int productId, int position, String path})>[];
+    for (final p in products) {
+      final paths = await repo.allImagesOf(p.id);
+      for (var i = 0; i < paths.length; i++) {
+        if (ImageService.isAsset(paths[i])) continue;
+        work.add((productId: p.id, position: i, path: paths[i]));
+      }
+    }
+
+    var done = 0;
+    for (final item in work) {
+      try {
+        final file = File(item.path);
+        if (await file.exists()) {
+          final remote = 'p${item.productId}/${item.position}.jpg';
+          await storage.uploadBinary(
+            remote,
+            await file.readAsBytes(),
+            fileOptions:
+                const FileOptions(upsert: true, contentType: 'image/jpeg'),
+          );
+          out.add({
+            'product_id': item.productId,
+            'url': storage.getPublicUrl(remote),
+            'position': item.position,
+          });
+        }
+      } catch (_) {
+        // Foto que no subió: el producto se publica sin ella.
+      }
+      onProgress?.call(++done, work.length);
+    }
+    return out;
+  }
+
   /// Publica el snapshot actual. Devuelve cuántos productos se publicaron.
   /// Lanza si Supabase no está configurado o el secreto es inválido.
-  Future<int> publish(String secret) async {
+  ///
+  /// [onProgress] informa el avance de la subida de fotos, que es la parte
+  /// lenta cuando hay muchos productos con varias vistas cada uno.
+  Future<int> publish(String secret,
+      {void Function(int done, int total)? onProgress}) async {
     final snap = await currentSnapshot();
+    final products = await (_db.select(_db.products)
+          ..where((t) => t.active.equals(true)))
+        .get();
+    final images = await _uploadImages(products, onProgress);
     await _client.rpc('publish_catalog', params: {
       'p_secret': secret,
       'p_products': snap.products,
       'p_variants': snap.variants,
       'p_tiers': snap.tiers,
+      'p_images': images,
     });
     return snap.productCount;
   }

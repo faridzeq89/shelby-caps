@@ -217,6 +217,68 @@ class CatalogRepository {
         );
   }
 
+  /// Da de alta un producto **listo para vender**: el producto, su variante
+  /// única con código interno, el costo y las existencias iniciales.
+  ///
+  /// Antes había que crear el producto y luego ir a Inventario a capturar costo
+  /// y existencias, porque el alta estaba pensada para la matriz talla × color
+  /// de una boutique. En gorras casi todo es talla única, así que ese paso
+  /// extra solo estorbaba.
+  ///
+  /// Si el producto luego necesita tallas o colores, [generateVariantMatrix]
+  /// sigue funcionando igual.
+  Future<int> createSimpleProduct(
+    Profile actor, {
+    required String name,
+    required int categoryId,
+    required int basePriceCents,
+    String? brand,
+    String? description,
+    int costCents = 0,
+    int initialStock = 0,
+    int? locationId,
+  }) async {
+    _requireCatalog(actor);
+    return _db.transaction(() async {
+      final productId = await createProduct(
+        actor,
+        name: name,
+        categoryId: categoryId,
+        basePriceCents: basePriceCents,
+        brand: brand,
+        description: description,
+      );
+      final variantId = await _db.into(_db.variants).insert(
+            VariantsCompanion.insert(
+              productId: productId,
+              sku: _sku(productId, '', ''),
+              costCents: Value(costCents),
+            ),
+          );
+      final seq = await _maxInternalBarcodeNumber() + 1;
+      await _db.into(_db.barcodes).insert(
+            BarcodesCompanion.insert(
+              variantId: variantId,
+              code: 'MB${seq.toString().padLeft(10, '0')}',
+              source: BarcodeSource.internal,
+            ),
+          );
+      if (initialStock > 0 && locationId != null) {
+        await _db.into(_db.inventoryMovements).insert(
+              InventoryMovementsCompanion.insert(
+                variantId: variantId,
+                locationId: locationId,
+                qty: initialStock,
+                type: MovementType.receipt,
+                userId: Value(actor.id),
+                reason: const Value('Existencia inicial'),
+              ),
+            );
+      }
+      return productId;
+    });
+  }
+
   /// Genera en lote las variantes de la matriz talla × color que aún no
   /// existan, cada una con su código interno `MB` y, opcionalmente, stock
   /// inicial. Devuelve los ids creados. Esta es la función que carga el

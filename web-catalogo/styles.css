@@ -21,6 +21,12 @@
 
 * { box-sizing: border-box; }
 
+/* Cualquier `display` que pongamos aquí (grid, flex…) le gana al atributo
+ * `hidden` del navegador, porque la hoja de autor pesa más que la del agente.
+ * Sin esta regla, las hojas del carrito quedaban encima tapando la pantalla y
+ * el contador del carrito mostraba "0" en vez de esconderse. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   background: var(--bg);

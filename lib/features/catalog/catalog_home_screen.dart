@@ -41,10 +41,13 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
 
   String _query = '';
   int? _categoryFilter; // null = todas
+  int? _locationId; // sucursal donde entra la existencia inicial
 
   Profile get _actor => context.read<AuthController>().currentUser!;
 
   Future<_CatalogData> _load() async {
+    final db = context.read<AppDatabase>();
+    _locationId ??= (await db.select(db.locations).getSingleOrNull())?.id;
     final products = await _repo.products();
     final categories = {
       for (final c in await _repo.categories()) c.id: c.name,
@@ -111,7 +114,8 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
   Future<void> _newProduct() async {
     final productId = await showDialog<int>(
       context: context,
-      builder: (_) => _NewProductDialog(repo: _repo, actor: _actor),
+      builder: (_) => _NewProductDialog(
+          repo: _repo, actor: _actor, locationId: _locationId),
     );
     if (productId == null || !mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(
@@ -345,9 +349,13 @@ class _CatalogRow extends StatelessWidget {
 
 /// Alta de producto: nombre, categoría (existente o nueva), marca y precio base.
 class _NewProductDialog extends StatefulWidget {
-  const _NewProductDialog({required this.repo, required this.actor});
+  const _NewProductDialog(
+      {required this.repo, required this.actor, this.locationId});
   final CatalogRepository repo;
   final Profile actor;
+
+  /// Sucursal donde entra la existencia inicial. Sin ella no se registra stock.
+  final int? locationId;
 
   @override
   State<_NewProductDialog> createState() => _NewProductDialogState();
@@ -357,6 +365,8 @@ class _NewProductDialogState extends State<_NewProductDialog> {
   final _name = TextEditingController();
   final _brand = TextEditingController();
   final _price = TextEditingController();
+  final _cost = TextEditingController();
+  final _stock = TextEditingController();
   final _newCategory = TextEditingController();
   List<Category> _categories = [];
   int? _categoryId;
@@ -382,6 +392,8 @@ class _NewProductDialogState extends State<_NewProductDialog> {
     _name.dispose();
     _brand.dispose();
     _price.dispose();
+    _cost.dispose();
+    _stock.dispose();
     _newCategory.dispose();
     super.dispose();
   }
@@ -410,12 +422,15 @@ class _NewProductDialogState extends State<_NewProductDialog> {
         }
         categoryId = await widget.repo.createCategory(widget.actor, catName);
       }
-      final id = await widget.repo.createProduct(
+      final id = await widget.repo.createSimpleProduct(
         widget.actor,
         name: name,
         categoryId: categoryId!,
         basePriceCents: priceCents,
         brand: _brand.text.trim().isEmpty ? null : _brand.text.trim(),
+        costCents: ((double.tryParse(_cost.text.trim()) ?? 0) * 100).round(),
+        initialStock: int.tryParse(_stock.text.trim()) ?? 0,
+        locationId: widget.locationId,
       );
       if (mounted) Navigator.of(context).pop(id);
     } catch (e) {
@@ -449,7 +464,32 @@ class _NewProductDialogState extends State<_NewProductDialog> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
-                  labelText: 'Precio base', prefixText: '\$'),
+                  labelText: 'Precio de venta', prefixText: '\$'),
+            ),
+            const SizedBox(height: 12),
+            // Costo y existencias al dar de alta: en gorras casi todo es talla
+            // única, así que obligar a pasar por Inventario solo estorbaba.
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cost,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Costo', prefixText: '\$'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _stock,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        const InputDecoration(labelText: 'Existencias'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             if (!_creatingCategory)

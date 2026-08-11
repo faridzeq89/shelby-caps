@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Catálogo</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand" id="shopName">Catálogo</div>
+      <button class="cart-btn" id="cartBtn" aria-label="Ver carrito">
+        🛒 <span class="cart-count" id="cartCount">0</span>
+      </button>
+    </header>
+
+    <nav class="cats" id="cats"></nav>
+
+    <main id="grid" class="grid">
+      <div class="loading" id="loading">Cargando catálogo…</div>
+    </main>
+
+    <!-- Hoja de variante -->
+    <div class="sheet-backdrop" id="variantBackdrop" hidden>
+      <section class="sheet" id="variantSheet" role="dialog" aria-modal="true"></section>
+    </div>
+
+    <!-- Hoja de carrito -->
+    <div class="sheet-backdrop" id="cartBackdrop" hidden>
+      <section class="sheet" id="cartSheet" role="dialog" aria-modal="true"></section>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -94,9 +94,12 @@ begin
     raise exception 'secreto de publicacion invalido';
   end if;
 
-  delete from public.catalog_price_tiers;
-  delete from public.catalog_variants;
-  delete from public.catalog_products;
+  -- Reemplazo del snapshot completo. TRUNCATE (no DELETE) para no chocar con la
+  -- protección "DELETE requires a WHERE clause" y reiniciar los seriales.
+  truncate table public.catalog_price_tiers,
+                 public.catalog_variants,
+                 public.catalog_products
+    restart identity;
 
   insert into public.catalog_products
     (id, name, brand, category, base_price_cents, tax_rate_bps, active, updated_at)

@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:io';
+
 
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../data/local/database.dart';
+import '../data/local/open_db.dart';
 
 enum SyncState { disabled, idle, syncing, ok, error }
 
@@ -136,12 +135,22 @@ class CloudBackupService extends ChangeNotifier {
   /// reiniciar esta tablet sí respalda.
   Future<void> restoreFromCloud() async {
     if (!enabled) throw StateError('Respaldo en la nube no configurado');
-    final Uint8List bytes =
-        await _client.storage.from(_bucket).download(_object);
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, 'boutique_pos.sqlite'));
+    final Uint8List bytes;
+    try {
+      bytes = await _client.storage.from(_bucket).download(_object);
+    } on StorageException catch (e) {
+      // Caso normal en una tablet recién conectada: la conexión sirve, pero
+      // todavía nadie ha subido nada. El error crudo de Storage ("NoSuchKey")
+      // hacía pensar que algo estaba roto.
+      if (e.statusCode == '404' || e.error == 'not_found') {
+        throw StateError(
+            'Todavía no hay ningún respaldo en la nube. Primero toca '
+            '"Empezar a respaldar esta tablet".');
+      }
+      rethrow;
+    }
     await _db.close();
-    await file.writeAsBytes(bytes, flush: true);
+    await replaceDatabaseFile(bytes);
     // El llamador avisa que hay que reiniciar la app.
   }
 
@@ -196,17 +205,8 @@ class CloudBackupService extends ChangeNotifier {
 
   /// Foto consistente de la base vía `VACUUM INTO` (no copia archivos a medio
   /// escribir).
-  Future<Uint8List> _snapshot() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final tmp = File(p.join(dir.path, 'backup_tmp.sqlite'));
-    if (await tmp.exists()) await tmp.delete();
-    // SQLite acepta '/' incluso en Windows.
-    final path = tmp.path.replaceAll(r'\', '/');
-    await _db.customStatement("VACUUM INTO '$path'");
-    final bytes = await tmp.readAsBytes();
-    await tmp.delete();
-    return bytes;
-  }
+  Future<Uint8List> _snapshot() =>
+      snapshotDatabase((sql) => _db.customStatement(sql));
 
   /// Id del dispositivo (para diagnóstico). El respaldo usa ruta fija.
   Future<String> deviceId() async {

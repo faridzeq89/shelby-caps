@@ -181,8 +181,11 @@ class CloudBackupScreen extends StatelessWidget {
       );
     } catch (e) {
       if (context.mounted) {
+        // Los StateError ya traen un mensaje escrito para el dueño; el resto
+        // se muestra crudo porque ahí sí importa el detalle técnico.
+        final msg = e is StateError ? e.message : 'No se pudo restaurar: $e';
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('No se pudo restaurar: $e')));
+            .showSnackBar(SnackBar(content: Text(msg)));
       }
     }
   }

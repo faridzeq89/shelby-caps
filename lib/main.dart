@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'data/local/database.dart';
+import 'data/local/open_db.dart';
 import 'data/seed.dart';
 import 'services/auth_controller.dart';
 import 'services/cloud_backup_service.dart';
@@ -15,7 +16,10 @@ Future<void> main() async {
   final auth = AuthController(db);
   await auth.ensureSeedAdmin();
   await SeedService(db).run();
-  final backup = CloudBackupService(db, enabled: cloudEnabled);
+  // En el navegador no hay archivo de base que subir, así que el respaldo por
+  // archivo queda apagado y la pantalla lo dice en vez de fallar a medias.
+  final backup =
+      CloudBackupService(db, enabled: cloudEnabled && supportsFileBackup);
   // Install existente (ya con ventas) reclama solo para seguir respaldando tras
   // actualizar; una tablet nueva queda sin reclamar hasta que el usuario decida.
   await backup.autoClaimIfHasData();

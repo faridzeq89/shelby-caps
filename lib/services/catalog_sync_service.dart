@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/local/database.dart';
@@ -138,12 +136,14 @@ class CatalogSyncService {
     var done = 0;
     for (final item in work) {
       try {
-        final file = File(item.path);
-        if (await file.exists()) {
+        // Archivo en la tablet o data URL en el navegador: `bytesOf` resuelve
+        // las dos, así que publicar funciona igual desde la web.
+        final bytes = await ImageService.bytesOf(item.path);
+        if (bytes != null) {
           final remote = 'p${item.productId}/${item.position}.jpg';
           await storage.uploadBinary(
             remote,
-            await file.readAsBytes(),
+            bytes,
             fileOptions:
                 const FileOptions(upsert: true, contentType: 'image/jpeg'),
           );

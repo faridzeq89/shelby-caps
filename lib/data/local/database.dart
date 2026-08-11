@@ -1,10 +1,6 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import 'open_db.dart';
 import 'schema.dart';
 
 export 'schema.dart';
@@ -302,11 +298,6 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  static LazyDatabase _open() {
-    return LazyDatabase(() async {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File(p.join(dir.path, 'boutique_pos.sqlite'));
-      return NativeDatabase.createInBackground(file);
-    });
-  }
+  /// Archivo en tablet/PC, SQLite sobre WASM en el navegador. Ver `open_db.dart`.
+  static QueryExecutor _open() => openDatabase();
 }

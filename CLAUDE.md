@@ -387,6 +387,27 @@ atrás y detalle):
   `catalog_products.description` y `publish_catalog` con un 5º argumento; la firma vieja
   de 4 se conserva para que un APK anterior no truene).
 
+## Versión web (provisional, 2026-08-11)
+Compila con `flutter build web --release --no-web-resources-cdn`. Es la salida
+**provisional para iPhone** mientras se tramita la licencia de Apple: corre en Chrome o
+Safari sin instalar nada.
+
+Cómo se resolvió cada cosa que `dart:io` no da en el navegador:
+- **Base de datos**: `open_db.dart` elige por import condicional — archivo SQLite en
+  tablet/PC, **SQLite en WASM sobre IndexedDB** en el navegador. Requiere `sqlite3.wasm`
+  y `drift_worker.js` en `web/` (versiones atadas a drift 2.34.3 / sqlite3 3.5.1).
+- **Fotos**: `image_store.dart` — archivo en tablet, **data URL** en la misma columna en
+  web. Ni el esquema ni las pantallas cambiaron: todo sigue siendo un `String`.
+- **Respaldo en la nube**: **apagado en web** (`supportsFileBackup`), porque no hay
+  archivo `.sqlite` que subir. La pantalla lo dice en vez de fallar a medias.
+
+**`--no-web-resources-cdn` no es opcional**: sin esa bandera CanvasKit se descarga de
+`gstatic.com` en cada arranque y el POS no abre sin internet.
+
+**Advertencia operativa:** en web los datos viven **en ese navegador y en ese equipo**, y
+sin respaldo en la nube. Borrar los datos del sitio los borra. No es sustituto de la
+tablet: es una vista provisional.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

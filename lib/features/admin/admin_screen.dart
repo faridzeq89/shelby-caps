@@ -8,6 +8,7 @@ import '../customers/customers_screen.dart';
 import '../expenses/expenses_screen.dart';
 import '../inventory/inventory_home_screen.dart';
 import '../reports/reports_screen.dart';
+import '../suppliers/suppliers_screen.dart';
 import 'cloud_backup_screen.dart';
 import 'loyalty_config_screen.dart';
 import 'printers_screen.dart';
@@ -64,6 +65,9 @@ class AdminScreen extends StatelessWidget {
       _AdminItem(Icons.people_alt_outlined, 'Clientes',
           'Fichas, historial y totales', Colors.blue,
           (c) => go(c, const CustomersScreen())),
+      _AdminItem(Icons.local_shipping_outlined, 'Proveedores',
+          'Directorio de quién surte', Colors.orange.shade800,
+          (c) => go(c, const SuppliersScreen())),
       _AdminItem(Icons.stars_outlined, 'Programa de puntos',
           'Reglas de lealtad', Colors.amber.shade800,
           (c) => go(c, const LoyaltyConfigScreen())),

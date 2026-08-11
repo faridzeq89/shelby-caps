@@ -34,6 +34,7 @@ class VariantStockData {
     FolioSequences,
     AppSettings,
     Categories,
+    Suppliers,
     Products,
     PriceTiers,
     Variants,
@@ -64,7 +65,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -123,6 +124,11 @@ class AppDatabase extends _$AppDatabase {
             await _createTableIfMissing('quotes', quotes);
             await _createTableIfMissing('quote_lines', quoteLines);
           }
+          if (from < 12) {
+            // v11 → v12: proveedores + liga opcional en productos.
+            await _createTableIfMissing('suppliers', suppliers);
+            await _addSupplierIdIfMissing(m);
+          }
           await _createExtras();
         },
         beforeOpen: (details) async {
@@ -153,6 +159,16 @@ class AppDatabase extends _$AppDatabase {
         info.any((r) => r.read<String>('name') == 'image_path');
     if (!hasColumn) {
       await m.addColumn(products, products.imagePath);
+    }
+  }
+
+  /// Agrega `products.supplier_id` solo si aún no existe. Idempotente.
+  Future<void> _addSupplierIdIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('products')").get();
+    final hasColumn =
+        info.any((r) => r.read<String>('name') == 'supplier_id');
+    if (!hasColumn) {
+      await m.addColumn(products, products.supplierId);
     }
   }
 

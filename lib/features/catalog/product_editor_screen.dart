@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
+import '../../data/repositories/supplier_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/image_service.dart';
 import 'label_service.dart';
@@ -32,15 +33,17 @@ class _VariantRow {
 }
 
 class _EditorData {
-  _EditorData(this.product, this.rows, this.tiers);
+  _EditorData(this.product, this.rows, this.tiers, this.supplierName);
   final Product product;
   final List<_VariantRow> rows;
   final List<PriceTier> tiers; // escalones de mayoreo
+  final String? supplierName; // proveedor ligado (nombre), si hay
 }
 
 class _ProductEditorScreenState extends State<ProductEditorScreen> {
   late final AppDatabase _db = context.read<AppDatabase>();
   late final CatalogRepository _repo = CatalogRepository(_db);
+  late final SupplierRepository _suppliers = SupplierRepository(_db);
   final ImageService _images = ImageService();
   late Future<_EditorData> _future = _load();
   int? _locationId;
@@ -63,7 +66,10 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
       ));
     }
     final tiers = await _repo.priceTiersOf(widget.productId);
-    return _EditorData(product!, rows, tiers);
+    final supplierName = product!.supplierId == null
+        ? null
+        : (await _suppliers.byId(product.supplierId!))?.name;
+    return _EditorData(product, rows, tiers, supplierName);
   }
 
   void _reload() => setState(() {
@@ -188,6 +194,59 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         await _repo.updateVariantPrice(
             actor: _actor, variantId: variant.id, newPriceCents: cents);
       }
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  /// Elige el proveedor del producto (o lo quita). -1 = sin proveedor.
+  Future<void> _editSupplier(_EditorData data) async {
+    final suppliers = await _suppliers.all();
+    if (!mounted) return;
+    final chosen = await showModalBottomSheet<int>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(
+              dense: true,
+              title: Text('Proveedor del producto',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.block),
+              title: const Text('Sin proveedor'),
+              selected: data.product.supplierId == null,
+              onTap: () => Navigator.of(context).pop(-1),
+            ),
+            for (final s in suppliers)
+              ListTile(
+                leading: const Icon(Icons.local_shipping_outlined),
+                title: Text(s.name),
+                subtitle: s.phone == null ? null : Text(s.phone!),
+                selected: data.product.supplierId == s.id,
+                onTap: () => Navigator.of(context).pop(s.id),
+              ),
+            if (suppliers.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                    'No hay proveedores. Créalos en Admin → Proveedores.',
+                    textAlign: TextAlign.center),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null) return;
+    try {
+      await _repo.updateProductSupplier(
+        actor: _actor,
+        productId: data.product.id,
+        supplierId: chosen == -1 ? null : chosen,
+      );
       _reload();
     } catch (e) {
       _toast('$e');
@@ -555,6 +614,32 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                       style: Theme.of(context).textTheme.titleMedium),
                   Text('IVA: ${(data.product.taxRateBps / 100).toStringAsFixed(0)}%',
                       style: Theme.of(context).textTheme.bodySmall),
+                  InkWell(
+                    onTap: _canEditPrices ? () => _editSupplier(data) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        children: [
+                          Icon(Icons.local_shipping_outlined,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.outline),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Proveedor: ${data.supplierName ?? 'sin asignar'}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_canEditPrices)
+                            Text('  editar',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Theme.of(context).colorScheme.primary)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

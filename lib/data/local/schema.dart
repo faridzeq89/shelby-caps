@@ -97,12 +97,27 @@ class Categories extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// Proveedor: quién surte la mercancía. Registro tipo directorio (nombre,
+/// teléfono, contacto). Se puede ligar a productos para saber a quién recomprar.
+class Suppliers extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 80)();
+  TextColumn get phone => text().nullable()();
+  TextColumn get contact => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 /// Estilo/modelo padre. El precio y el impuesto viven aquí; la variante puede
 /// sobrescribir el precio.
 class Products extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text().withLength(min: 1, max: 120)();
   IntColumn get categoryId => integer().references(Categories, #id)();
+  // Proveedor que surte el producto (opcional). Sin FK dura para no complicar
+  // el orden de creación/restauración.
+  IntColumn get supplierId => integer().nullable()();
   TextColumn get brand => text().nullable()();
   TextColumn get description => text().nullable()();
   IntColumn get basePriceCents => integer()();

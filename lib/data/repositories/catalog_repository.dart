@@ -370,6 +370,21 @@ class CatalogRepository {
     });
   }
 
+  /// Liga (o desliga con [supplierId] nulo) un proveedor al producto.
+  Future<void> updateProductSupplier({
+    required Profile actor,
+    required int productId,
+    required int? supplierId,
+  }) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(supplierId: Value(supplierId)));
+      await _audit(actor, 'update_supplier', 'product', productId.toString(),
+          supplierId == null ? 'sin proveedor' : 'proveedor=$supplierId');
+    });
+  }
+
   /// Guarda (o quita, con [path] nulo) la ruta de imagen del producto. La
   /// optimización y el archivo los maneja la capa de UI (ImageService).
   Future<void> updateProductImage({

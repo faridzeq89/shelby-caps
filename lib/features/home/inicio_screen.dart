@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/reports_repository.dart';
@@ -69,7 +70,7 @@ class InicioScreenState extends State<InicioScreen> {
     );
   }
 
-  String _m(int c) => '\$${(c / 100).toStringAsFixed(0)}';
+  String _m(int c) => money(c, decimals: false);
 
   @override
   Widget build(BuildContext context) {
@@ -82,22 +83,9 @@ class InicioScreenState extends State<InicioScreen> {
           tooltip: 'Menú',
         ),
         titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('SHELBY CAPS',
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5)),
-            Text(auth.isAdmin ? 'Propietario' : 'Cajero',
-                style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFFB6AD97),
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1)),
-          ],
+        title: AppBarTitle(
+          title: 'SHELBY CAPS',
+          subtitle: auth.isAdmin ? 'Propietario' : 'Cajero',
         ),
       ),
       body: RefreshIndicator(
@@ -111,9 +99,7 @@ class InicioScreenState extends State<InicioScreen> {
               children: [
                 _heroCard(context, d),
                 const SizedBox(height: 18),
-                Text('Accesos rápidos',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 10),
+                const SectionHeader('Accesos rápidos'),
                 _tiles(context),
                 const SizedBox(height: 18),
                 _miniStats(context, d),
@@ -143,15 +129,23 @@ class InicioScreenState extends State<InicioScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _kv('Balance', d == null ? '—' : _m(d.balanceHoy),
-                      (d?.balanceHoy ?? 0) >= 0
-                          ? const Color(0xFF2F6E46)
-                          : theme.colorScheme.error),
+                  child: StatBlock(
+                    label: 'Balance',
+                    value: d == null ? '—' : _m(d.balanceHoy),
+                    size: 18,
+                    color: (d?.balanceHoy ?? 0) >= 0
+                        ? AppColors.success
+                        : theme.colorScheme.error,
+                  ),
                 ),
                 Expanded(
-                  child: _kv('Gastos hoy', d == null ? '—' : _m(d.gastosHoy),
-                      theme.colorScheme.error,
-                      alignEnd: true),
+                  child: StatBlock(
+                    label: 'Gastos hoy',
+                    value: d == null ? '—' : _m(d.gastosHoy),
+                    size: 18,
+                    color: theme.colorScheme.error,
+                    alignEnd: true,
+                  ),
                 ),
               ],
             ),
@@ -170,67 +164,30 @@ class InicioScreenState extends State<InicioScreen> {
     );
   }
 
-  Widget _kv(String k, String v, Color color, {bool alignEnd = false}) {
-    return Column(
-      crossAxisAlignment:
-          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Text(k,
-            style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600)),
-        Text(v,
-            style: TextStyle(
-                fontSize: 18, fontWeight: FontWeight.w900, color: color)),
-      ],
-    );
-  }
-
   Widget _tiles(BuildContext context) {
-    final tiles = [
-      _Tile(Icons.point_of_sale, 'Vender', widget.onRegistrarVenta),
-      _Tile(Icons.request_quote_outlined, 'Cotizar',
-          () => _push(const QuotesScreen())),
-      _Tile(Icons.people_alt_outlined, 'Clientes',
-          () => _push(const CustomersScreen())),
-      _Tile(Icons.bar_chart_outlined, 'Balance', widget.onGoBalance),
-    ];
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 4,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 0.85,
-      children: [for (final t in tiles) _tileWidget(context, t)],
-    );
-  }
-
-  Widget _tileWidget(BuildContext context, _Tile t) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: t.onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          border: Border.all(color: theme.dividerColor),
-          borderRadius: BorderRadius.circular(15),
+    return QuickTileRow(
+      tiles: [
+        QuickTile(
+          icon: Icons.point_of_sale,
+          label: 'Vender',
+          onTap: widget.onRegistrarVenta,
         ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(t.icon, color: const Color(0xFF846826), size: 24),
-            const SizedBox(height: 6),
-            Text(t.label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 11.5, fontWeight: FontWeight.w800)),
-          ],
+        QuickTile(
+          icon: Icons.request_quote_outlined,
+          label: 'Cotizar',
+          onTap: () => _push(const QuotesScreen()),
         ),
-      ),
+        QuickTile(
+          icon: Icons.people_alt_outlined,
+          label: 'Clientes',
+          onTap: () => _push(const CustomersScreen()),
+        ),
+        QuickTile(
+          icon: Icons.bar_chart_outlined,
+          label: 'Balance',
+          onTap: widget.onGoBalance,
+        ),
+      ],
     );
   }
 
@@ -238,44 +195,20 @@ class InicioScreenState extends State<InicioScreen> {
     return Row(
       children: [
         Expanded(
-          child: _statCard(context, 'Estrella del mes',
-              d?.estrella ?? '—', small: true),
+          child: StatCard(
+            label: 'Estrella del mes',
+            value: d?.estrella ?? '—',
+            size: 15,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _statCard(
-              context, 'Ganancia del mes', d == null ? '—' : _m(d.gananciaMes)),
+          child: StatCard(
+            label: 'Ganancia del mes',
+            value: d == null ? '—' : _m(d.gananciaMes),
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _statCard(BuildContext context, String h, String b,
-      {bool small = false}) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border.all(color: theme.dividerColor),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(h,
-              style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(b,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: small ? 15 : 20, fontWeight: FontWeight.w900)),
-        ],
-      ),
     );
   }
 
@@ -284,11 +217,4 @@ class InicioScreenState extends State<InicioScreen> {
         .push(MaterialPageRoute(builder: (_) => screen));
     reload();
   }
-}
-
-class _Tile {
-  const _Tile(this.icon, this.label, this.onTap);
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
 }

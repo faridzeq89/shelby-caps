@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 
+import 'ui_kit.dart';
+
 /// Sistema visual "Sastrería Moderna" de SHELBY CAPS (Material 3):
 /// **latón sobre carbón** en fondo "lana" — barras de app en carbón, acciones y
 /// acentos en latón, tarjetas de papel con borde suave y sombra tenue. Como las
 /// pantallas usan componentes Material estándar, este tema las estiliza TODAS
-/// de forma consistente. El color de marca vive aquí: cambiarlo re-tinta la app.
+/// de forma consistente.
+///
+/// La paleta vive en [AppColors] (`ui_kit.dart`), que es la única fuente de
+/// verdad: cambiar el latón ahí re-tinta la app entera, tema y primitivos.
 ThemeData buildAppTheme() {
-  const brand = Color(0xFF9C7A2C); // latón (acento / primary)
-  const brassDeep = Color(0xFF846826); // latón oscuro para texto/enlaces (contraste)
-  const charcoal = Color(0xFF20242A); // carbón (barras de app)
-  const charcoalInk = Color(0xFFEDE7D8); // texto sobre carbón
-  const onBrass = Color(0xFF17140C); // texto sobre latón
-  const bg = Color(0xFFECE8DE); // lana clara (fondo)
-  const surface = Color(0xFFFBFAF6); // papel (tarjetas / inputs)
-  const border = Color(0xFFD4CEC1); // borde greige suave
-  const ink = Color(0xFF1A1917); // texto principal
+  const brand = AppColors.brand;
+  const brassDeep = AppColors.brassDeep;
+  const charcoal = AppColors.charcoal;
+  const charcoalInk = AppColors.charcoalInk;
+  const onBrass = AppColors.onBrass;
+  const bg = AppColors.bg;
+  const surface = AppColors.surface;
+  const border = AppColors.border;
+  const ink = AppColors.ink;
   final shadow = Colors.black.withValues(alpha: 0.06);
 
   final scheme = ColorScheme.fromSeed(

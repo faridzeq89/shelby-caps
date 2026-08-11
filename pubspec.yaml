@@ -67,7 +67,7 @@ dev_dependencies:
   sqlite3: ^3.5.0
   flutter_launcher_icons: ^0.14.4
 
-# Icono de la app (Montana Boutique). Regenerar con:
+# Icono de la app (gorra Shelby Caps, laton sobre carbon). Regenerar con:
 #   dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true

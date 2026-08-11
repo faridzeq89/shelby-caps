@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_dropdown.dart';
+import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../services/auth_controller.dart';
@@ -226,74 +227,50 @@ class _CatalogRow extends StatelessWidget {
     final theme = Theme.of(context);
     final provider = productImageProvider(product.imagePath);
     final low = stock <= 3;
-    final stockColor = low ? theme.colorScheme.error : const Color(0xFF2F6E46);
-    final stockBg = (low ? theme.colorScheme.error : const Color(0xFF2F6E46))
-        .withValues(alpha: 0.12);
+    final stockColor = low ? theme.colorScheme.error : AppColors.success;
 
-    return Material(
-      color: theme.cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.dividerColor),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(9),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 62,
-                  height: 62,
-                  child: provider != null
-                      ? Image(
-                          image: ResizeImage(provider,
-                              width: 180, allowUpscaling: false),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _placeholder(theme),
-                        )
-                      : _placeholder(theme),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(product.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: stockBg,
-                          borderRadius: BorderRadius.circular(999)),
-                      child: Text('$stock disponibles',
-                          style: TextStyle(
-                              color: stockColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                        '\$${(product.basePriceCents / 100).toStringAsFixed(2)}',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w900)),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: theme.hintColor),
-            ],
+    return SurfaceCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(9),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.small),
+            child: SizedBox(
+              width: 62,
+              height: 62,
+              child: provider != null
+                  ? Image(
+                      image: ResizeImage(provider,
+                          width: 180, allowUpscaling: false),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _placeholder(theme),
+                    )
+                  : _placeholder(theme),
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                StatusPill('$stock disponibles', color: stockColor),
+                const SizedBox(height: 4),
+                Text(money(product.basePriceCents),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w900)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: theme.hintColor),
+        ],
       ),
     );
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../inventory/inventory_home_screen.dart';
+import '../catalog/catalog_home_screen.dart';
 import '../reports/reports_screen.dart';
 import '../sales/sale_screen.dart';
 import 'app_drawer.dart';
@@ -49,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onGoBalance: () => _goTab(3),
       ),
       SaleScreen(key: _saleKey, onMenu: _openMenu),
-      InventoryHomeScreen(key: ValueKey('inv-$_invEpoch'), onMenu: _openMenu),
+      CatalogHomeScreen(key: ValueKey('inv-$_invEpoch'), onMenu: _openMenu),
       ReportsScreen(key: ValueKey('bal-$_balEpoch'), onMenu: _openMenu),
     ];
 

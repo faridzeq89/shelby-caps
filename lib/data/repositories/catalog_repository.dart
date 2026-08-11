@@ -74,6 +74,21 @@ class CatalogRepository {
             ..orderBy([(t) => OrderingTerm(expression: t.minQty)]))
           .get();
 
+  /// Existencia disponible (on_hand − reserved) sumada por producto, en una sola
+  /// consulta sobre la vista `variant_stock`. Para la lista de inventario.
+  Future<Map<int, int>> stockByProduct() async {
+    final rows = await _db.customSelect(
+      'SELECT v.product_id AS pid, '
+      'COALESCE(SUM(vs.on_hand - vs.reserved), 0) AS avail '
+      'FROM variants v '
+      'LEFT JOIN variant_stock vs ON vs.variant_id = v.id '
+      'WHERE v.active = 1 '
+      'GROUP BY v.product_id',
+      readsFrom: {_db.variants, _db.inventoryMovements},
+    ).get();
+    return {for (final r in rows) r.read<int>('pid'): r.read<int>('avail')};
+  }
+
   Future<Variant?> variantById(int id) =>
       (_db.select(_db.variants)..where((t) => t.id.equals(id)))
           .getSingleOrNull();

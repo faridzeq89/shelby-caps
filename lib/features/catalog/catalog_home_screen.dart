@@ -6,21 +6,27 @@ import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/image_service.dart';
+import '../inventory/inventory_home_screen.dart';
 import 'import_screen.dart';
 import 'product_editor_screen.dart';
 
 class CatalogHomeScreen extends StatefulWidget {
-  const CatalogHomeScreen({super.key});
+  const CatalogHomeScreen({super.key, this.onMenu});
+
+  /// Si se provee, muestra la hamburguesa que abre el menú del shell.
+  final VoidCallback? onMenu;
 
   @override
   State<CatalogHomeScreen> createState() => _CatalogHomeScreenState();
 }
 
 class _CatalogData {
-  _CatalogData(this.products, this.categoryNames, this.variantCounts);
+  _CatalogData(
+      this.products, this.categoryNames, this.variantCounts, this.stock);
   final List<Product> products;
   final Map<int, String> categoryNames;
   final Map<int, int> variantCounts;
+  final Map<int, int> stock; // disponibles por producto
 }
 
 class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
@@ -42,7 +48,8 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
     for (final p in products) {
       counts[p.id] = (await _repo.variantsOf(p.id)).length;
     }
-    return _CatalogData(products, categories, counts);
+    final stock = await _repo.stockByProduct();
+    return _CatalogData(products, categories, counts, stock);
   }
 
   void _reload() => setState(() {
@@ -101,8 +108,24 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Catálogo'),
+        leading: widget.onMenu == null
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenu,
+                tooltip: 'Menú'),
+        title: const Text('Inventario'),
         actions: [
+          IconButton(
+            tooltip: 'Operaciones (recepción, ajustes, conteo)',
+            icon: const Icon(Icons.tune),
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const InventoryHomeScreen(),
+              ));
+              _reload();
+            },
+          ),
           IconButton(
             tooltip: 'Importar desde CSV/Excel',
             icon: const Icon(Icons.upload_file),
@@ -154,25 +177,21 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
                 ),
               ),
               _categoryChips(data.categoryNames),
+              const SizedBox(height: 4),
               Expanded(
                 child: products.isEmpty
                     ? const Center(child: Text('Sin resultados'))
-                    : GridView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 180,
-                          mainAxisExtent: 232,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 88),
                         itemCount: products.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, i) {
                           final p = products[i];
-                          return _CatalogTile(
+                          return _CatalogRow(
                             product: p,
                             category: data.categoryNames[p.categoryId] ?? '—',
                             variantCount: data.variantCounts[p.id] ?? 0,
+                            stock: data.stock[p.id] ?? 0,
                             onTap: () => _openProduct(p.id),
                           );
                         },
@@ -186,64 +205,94 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
   }
 }
 
-/// Mosaico de producto con foto (o marcador), nombre, categoría/variantes y precio.
-class _CatalogTile extends StatelessWidget {
-  const _CatalogTile({
+/// Fila de producto estilo Treinta: thumbnail, nombre, píldora de stock
+/// (verde/roja), precio y chevron. Muestra existencia disponible de un vistazo.
+class _CatalogRow extends StatelessWidget {
+  const _CatalogRow({
     required this.product,
     required this.category,
     required this.variantCount,
+    required this.stock,
     required this.onTap,
   });
   final Product product;
   final String category;
   final int variantCount;
+  final int stock;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final provider = productImageProvider(product.imagePath);
-    return Card(
+    final low = stock <= 3;
+    final stockColor = low ? theme.colorScheme.error : const Color(0xFF2F6E46);
+    final stockBg = (low ? theme.colorScheme.error : const Color(0xFF2F6E46))
+        .withValues(alpha: 0.12);
+
+    return Material(
+      color: theme.cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.dividerColor),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: provider != null
-                  ? Image(
-                      image: ResizeImage(provider,
-                          width: 360, allowUpscaling: false),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _placeholder(theme),
-                    )
-                  : _placeholder(theme),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(product.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w500)),
-                  Text('$category · $variantCount var.',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.hintColor)),
-                  Text('\$${(product.basePriceCents / 100).toStringAsFixed(2)}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600)),
-                ],
+        child: Padding(
+          padding: const EdgeInsets.all(9),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 62,
+                  height: 62,
+                  child: provider != null
+                      ? Image(
+                          image: ResizeImage(provider,
+                              width: 180, allowUpscaling: false),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => _placeholder(theme),
+                        )
+                      : _placeholder(theme),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(product.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: stockBg,
+                          borderRadius: BorderRadius.circular(999)),
+                      child: Text('$stock disponibles',
+                          style: TextStyle(
+                              color: stockColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                        '\$${(product.basePriceCents / 100).toStringAsFixed(2)}',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: theme.hintColor),
+            ],
+          ),
         ),
       ),
     );
@@ -252,7 +301,7 @@ class _CatalogTile extends StatelessWidget {
   Widget _placeholder(ThemeData theme) => Container(
         color: theme.colorScheme.surfaceContainerHighest,
         child: Icon(Icons.checkroom,
-            size: 40, color: theme.colorScheme.onSurfaceVariant),
+            size: 30, color: theme.colorScheme.onSurfaceVariant),
       );
 }
 

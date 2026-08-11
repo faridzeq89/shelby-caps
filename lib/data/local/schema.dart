@@ -150,6 +150,31 @@ class ProductImages extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// Anuncios de la tienda en línea: la **portada** y los **banners** que rotan.
+/// No son productos ni tienen precio; son solo imágenes que el dueño sube para
+/// anunciar promociones, y por eso viven aparte del catálogo.
+///
+/// Portada y banner comparten tabla porque comparten todo lo demás (imagen,
+/// orden, publicación); [isCover] distingue cuál es cuál. Solo se usa la
+/// portada activa más reciente.
+class StoreBanners extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Igual que las fotos de producto: ruta de archivo o data URL en web.
+  TextColumn get path => text()();
+
+  /// Texto para lectores de pantalla y para recordar de qué es el anuncio.
+  TextColumn get caption => text().nullable()();
+
+  /// A dónde lleva al tocarlo (opcional).
+  TextColumn get link => text().nullable()();
+
+  IntColumn get position => integer().withDefault(const Constant(0))();
+  BoolColumn get isCover => boolean().withDefault(const Constant(false))();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 /// Precios por cantidad (**mayoreo**). Un producto puede tener 0..n escalones:
 /// cuando la cantidad del producto en el carrito alcanza `minQty`, el precio
 /// unitario baja a `priceCents`. Con un solo escalón (p. ej. `minQty=10`) se

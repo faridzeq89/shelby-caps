@@ -33,6 +33,7 @@ class VariantStockData {
     Suppliers,
     Products,
     ProductImages,
+    StoreBanners,
     PriceTiers,
     Variants,
     Barcodes,
@@ -62,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -130,6 +131,10 @@ class AppDatabase extends _$AppDatabase {
             // v12 → v13: galería de fotos por producto. La principal sigue en
             // products.image_path, así que nada existente se toca.
             await _createTableIfMissing('product_images', productImages);
+          }
+          if (from < 14) {
+            // v13 → v14: anuncios de la tienda (portada y banners).
+            await _createTableIfMissing('store_banners', storeBanners);
           }
           await _createExtras();
         },

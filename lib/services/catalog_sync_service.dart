@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/local/database.dart';
+import '../data/repositories/banner_repository.dart';
 import '../data/repositories/catalog_repository.dart';
 import 'image_service.dart';
 
@@ -257,6 +258,42 @@ class CatalogSyncService {
     return out;
   }
 
+  /// Sube las imágenes de los anuncios (portada y banners) y devuelve la lista
+  /// lista para publicar. Misma mecánica que las fotos de producto: la ruta
+  /// remota es fija por anuncio, así que republicar sobrescribe en vez de
+  /// acumular basura en el bucket.
+  Future<List<Map<String, dynamic>>> _uploadBanners() async {
+    final repo = BannerRepository(_db);
+    final storage = _client.storage.from('catalog');
+    final out = <Map<String, dynamic>>[];
+    final list = await repo.published();
+
+    for (var i = 0; i < list.length; i++) {
+      final b = list[i];
+      try {
+        final bytes = await ImageService.bytesOf(b.path);
+        if (bytes == null) continue;
+        final remote = 'banners/b${b.id}.jpg';
+        await storage.uploadBinary(
+          remote,
+          bytes,
+          fileOptions:
+              const FileOptions(upsert: true, contentType: 'image/jpeg'),
+        );
+        out.add({
+          'url': storage.getPublicUrl(remote),
+          'caption': b.caption,
+          'link': b.link,
+          'position': i,
+          'is_cover': b.isCover,
+        });
+      } catch (_) {
+        // Un anuncio que no subió no debe tumbar la publicación del catálogo.
+      }
+    }
+    return out;
+  }
+
   /// Publica el snapshot actual. Devuelve cuántos productos se publicaron.
   /// Lanza si Supabase no está configurado o el secreto es inválido.
   ///
@@ -269,12 +306,14 @@ class CatalogSyncService {
           ..where((t) => t.active.equals(true)))
         .get();
     final images = await _uploadImages(products, onProgress);
+    final banners = await _uploadBanners();
     await _client.rpc('publish_catalog', params: {
       'p_secret': secret,
       'p_products': snap.products,
       'p_variants': snap.variants,
       'p_tiers': snap.tiers,
       'p_images': images,
+      'p_banners': banners,
     });
     return snap.productCount;
   }

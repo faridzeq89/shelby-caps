@@ -152,8 +152,29 @@
   }
 
   // ---- Portada y banners ----
+  /// Los anuncios los administra el dueño desde el POS. Mientras no suba
+  /// ninguno, se muestran los de ejemplo de `config.js`, para que la tienda
+  /// nunca se vea a medias.
+  let COVER_SRC = CFG.COVER;
+  let BANNER_LIST = CFG.BANNERS || [];
+
+  function applyPublishedBanners(rows) {
+    if (!rows || !rows.length) return;
+    const cover = rows.find((r) => r.is_cover);
+    const rest = rows.filter((r) => !r.is_cover)
+      .sort((a, b) => a.position - b.position);
+    if (cover) COVER_SRC = cover.url;
+    if (rest.length) {
+      BANNER_LIST = rest.map((r) => ({
+        image: r.url,
+        alt: r.caption || "",
+        link: r.link || null,
+      }));
+    }
+  }
+
   function renderCover() {
-    const src = CFG.COVER;
+    const src = COVER_SRC;
     if (!src) return;
     const el = $("cover");
     el.innerHTML = '<img src="' + esc(src) + '" alt="' +
@@ -164,7 +185,7 @@
   /// Banners que rotan solos. Se detienen en cuanto el usuario los toca: nada
   /// más molesto que un carrusel que se mueve mientras lo estás viendo.
   function renderBanners() {
-    const list = CFG.BANNERS || [];
+    const list = BANNER_LIST;
     if (!list.length) return;
     const box = $("banners");
     const track = $("btrack");
@@ -612,10 +633,20 @@
 
   async function init() {
     renderShopBar();
-    renderCover();
-    renderBanners();
     wire();
     renderCartCount();
+
+    // Los anuncios se piden aparte y primero: son lo primero que se ve, y si
+    // el catálogo tardara no tiene por qué retrasarlos.
+    try {
+      applyPublishedBanners(
+          await rest("catalog_banners?select=*&order=position.asc"));
+    } catch (_) {
+      // Sin tabla de anuncios (proyecto sin el SQL 0004) se usan los de ejemplo.
+    }
+    renderCover();
+    renderBanners();
+
     try {
       const [products, variants, tiers, images] = await Promise.all([
         rest("catalog_products?select=*&active=eq.true&order=name.asc"),

@@ -1,5 +1,7 @@
 name: pos_boutique
-description: "POS Boutique - punto de venta para tienda de ropa"
+# Shelby Caps (gorras). El paquete Dart conserva el nombre heredado del fork
+# para no reescribir los imports; la identidad real esta en applicationId.
+description: "Shelby Caps - punto de venta (fork del POS Boutique)"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

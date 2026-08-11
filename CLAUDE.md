@@ -1,11 +1,26 @@
-# POS Boutique — CLAUDE.md
+# Shelby Caps — CLAUDE.md
 
 Memoria del proyecto entre sesiones. **Actualizar al cerrar cada fase.**
 
+## Aislamiento (no negociable)
+Este proyecto es un **fork independiente del POS Boutique**, separado el 11 ago 2026.
+
+- Repo propio: `faridzeq89/shelby-caps`. **Nunca** hacer push a `faridzeq89/POS-Boutique`
+  ni traer commits de allá; ese repo atiende a otro cliente y ya está en producción.
+- `applicationId` propio: **`com.shelbycaps.pos`** (el del POS Boutique es
+  `com.boutique.pos_boutique`). Así ambas apps conviven en la misma tablet sin
+  reemplazarse ni compartir base de datos. No volver a igualarlos.
+- Proyecto de Supabase propio: **`shelbys`**. No apuntar al de la boutique.
+- El paquete Dart sigue llamándose `pos_boutique` a propósito: renombrarlo obligaría a
+  reescribir todos los imports sin ganar nada. La identidad la dan applicationId y marca.
+- Origen: rama `feat/pos-nuevo-cliente` de POS-Boutique, 13 commits (hasta `35e00e0`).
+
 ## Qué es
-Punto de venta para **boutique de ropa** (retail), en tablet Android. Venta directa
-por mostrador con escaneo de código de barras, variantes talla×color, inventario por
-SKU, apartados, devoluciones/cambios y corte de caja.
+Punto de venta para **Shelby Caps** (gorras), en tablet Android y también en PC
+(Windows). Venta directa por mostrador con escaneo de código de barras, variantes,
+inventario por SKU, apartados, devoluciones/cambios, corte de caja, **mayoreo por
+cantidad**, gastos, cotizaciones, proveedores y **catálogo público web** publicado a
+Supabase. Hereda del POS Boutique toda la base de retail.
 
 ## Stack (decidido)
 - **Flutter** (app Android nativa) + **Drift/SQLite local** como fuente de verdad.

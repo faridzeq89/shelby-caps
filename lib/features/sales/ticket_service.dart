@@ -24,7 +24,7 @@ class TicketLine {
 /// vacíos simplemente no se imprimen.
 class TicketConfig {
   const TicketConfig({
-    this.title = 'Montana Boutique',
+    this.title = 'SHELBY CAPS',
     this.subheading = '',
     this.footerLegend = '¡Gracias por su compra!',
     this.qrData = '',

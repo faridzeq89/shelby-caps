@@ -33,7 +33,7 @@ class PinLoginScreen extends StatelessWidget {
               ),
               child: Image.asset('assets/icono-app.png', fit: BoxFit.cover),
             ),
-            title: 'Montana Boutique',
+            title: 'SHELBY CAPS',
             subtitle: 'Ingresa tu PIN para comenzar',
             onSubmit: (pin) async {
               final ok = await auth.loginWithPin(pin);

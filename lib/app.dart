@@ -29,7 +29,7 @@ class BoutiquePosApp extends StatelessWidget {
         ChangeNotifierProvider<CloudBackupService>.value(value: backupSvc),
       ],
       child: MaterialApp(
-        title: 'Montana Boutique',
+        title: 'SHELBY CAPS',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
         home: const _RootGate(),

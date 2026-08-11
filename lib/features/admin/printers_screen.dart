@@ -130,7 +130,7 @@ class _PrintersScreenState extends State<PrintersScreen> {
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
                   pw.Text(_titleCtrl.text.trim().isEmpty
-                      ? 'Montana Boutique'
+                      ? 'SHELBY CAPS'
                       : _titleCtrl.text.trim(),
                       style: pw.TextStyle(
                           fontSize: 14, fontWeight: pw.FontWeight.bold)),
@@ -157,7 +157,7 @@ class _PrintersScreenState extends State<PrintersScreen> {
   Future<void> _previewTicket() async {
     final cfg = TicketConfig(
       title: _titleCtrl.text.trim().isEmpty
-          ? 'Montana Boutique'
+          ? 'SHELBY CAPS'
           : _titleCtrl.text.trim(),
       subheading: _subheadingCtrl.text.trim(),
       footerLegend: _footerCtrl.text,
@@ -319,7 +319,7 @@ class _PrintersScreenState extends State<PrintersScreen> {
                           textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Título (nombre del negocio)',
-                            hintText: 'Montana Boutique',
+                            hintText: 'SHELBY CAPS',
                           ),
                           onChanged: (v) =>
                               _set(TicketConfig.kTitle, v.trim()),

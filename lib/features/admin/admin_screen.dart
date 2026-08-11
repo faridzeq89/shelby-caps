@@ -12,6 +12,7 @@ import '../reports/reports_screen.dart';
 import '../suppliers/suppliers_screen.dart';
 import 'catalog_web_screen.dart';
 import 'cloud_backup_screen.dart';
+import 'demo_catalog_screen.dart';
 import 'loyalty_config_screen.dart';
 import 'printers_screen.dart';
 import 'reconciliation_screen.dart';
@@ -94,6 +95,9 @@ class AdminScreen extends StatelessWidget {
       _AdminItem(Icons.print_outlined, 'Impresoras & Tickets',
           'Personalizar ticket, prueba y cajón', AppColors.success,
           (c) => go(c, const PrintersScreen())),
+      _AdminItem(Icons.science_outlined, 'Catálogo de prueba',
+          'Cargar o borrar gorras de ejemplo', AppColors.brassDeep,
+          (c) => go(c, const DemoCatalogScreen())),
     ];
 
     return Scaffold(

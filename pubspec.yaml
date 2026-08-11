@@ -64,6 +64,9 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.34.5
   build_runner: ^2.15.1
+  # Para que los tests puedan escribir fotos en una carpeta temporal real
+  # (path_provider necesita canal de plataforma, que no existe en unit tests).
+  path_provider_platform_interface: ^2.1.2
   sqlite3: ^3.5.0
   flutter_launcher_icons: ^0.14.4
 

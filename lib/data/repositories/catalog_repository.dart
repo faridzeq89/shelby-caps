@@ -201,6 +201,7 @@ class CatalogRepository {
     required int categoryId,
     required int basePriceCents,
     String? brand,
+    String? description,
     int taxRateBps = 1600,
   }) async {
     _requireCatalog(actor);
@@ -210,6 +211,7 @@ class CatalogRepository {
             categoryId: categoryId,
             basePriceCents: basePriceCents,
             brand: Value(brand),
+            description: Value(description),
             taxRateBps: Value(taxRateBps),
           ),
         );

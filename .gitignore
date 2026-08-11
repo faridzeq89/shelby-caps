@@ -29,3 +29,6 @@ android/key.properties
 # SO
 .DS_Store
 Thumbs.db
+
+# Cache local de wrangler (Cloudflare): id de cuenta y proyecto, no va al repo.
+.wrangler/

@@ -15,7 +15,10 @@ import 'stock_count_screen.dart';
 /// alertas de stock bajo. Las operaciones que mueven stock exigen gerente/admin;
 /// el cajero solo consulta el stock bajo.
 class InventoryHomeScreen extends StatefulWidget {
-  const InventoryHomeScreen({super.key});
+  const InventoryHomeScreen({super.key, this.onMenu});
+
+  /// Si se provee, muestra la hamburguesa que abre el menú del shell.
+  final VoidCallback? onMenu;
 
   @override
   State<InventoryHomeScreen> createState() => _InventoryHomeScreenState();
@@ -49,7 +52,15 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventario')),
+      appBar: AppBar(
+        leading: widget.onMenu == null
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenu,
+                tooltip: 'Menú'),
+        title: const Text('Inventario'),
+      ),
       body: Column(
         children: [
           Expanded(

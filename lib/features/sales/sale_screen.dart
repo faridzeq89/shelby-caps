@@ -54,7 +54,10 @@ class _CartLine {
 }
 
 class SaleScreen extends StatefulWidget {
-  const SaleScreen({super.key});
+  const SaleScreen({super.key, this.onMenu});
+
+  /// Si se provee, muestra la hamburguesa que abre el menú del shell.
+  final VoidCallback? onMenu;
 
   @override
   State<SaleScreen> createState() => SaleScreenState();
@@ -478,6 +481,12 @@ class SaleScreenState extends State<SaleScreen> {
     final narrow = MediaQuery.sizeOf(context).width < 600;
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onMenu == null
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenu,
+                tooltip: 'Menú'),
         title: const Text('Venta'),
         actions: [
           IconButton(

@@ -26,7 +26,10 @@ class ReportTable {
 }
 
 class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({super.key});
+  const ReportsScreen({super.key, this.onMenu});
+
+  /// Si se provee, muestra la hamburguesa que abre el menú del shell.
+  final VoidCallback? onMenu;
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
@@ -138,7 +141,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Reportes')),
+      appBar: AppBar(
+        leading: widget.onMenu == null
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenu,
+                tooltip: 'Menú'),
+        title: const Text('Balance'),
+      ),
       body: FutureBuilder<_HubData>(
         future: _future,
         builder: (context, snap) {

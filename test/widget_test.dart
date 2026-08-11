@@ -50,7 +50,7 @@ void main() {
   tearDown(() => db.close());
 
   testWidgets(
-    'Aceptación Fase 1: el cajero entra con PIN, cae en el POS y no ve Admin',
+    'Aceptación Fase 1: el cajero entra con PIN, cae en Inicio y el menú oculta lo de admin',
     (tester) async {
       await seedUser(db,
           name: 'Caja Ana', role: UserRole.cashier, pin: '5678');
@@ -61,14 +61,19 @@ void main() {
 
       await enterPin(tester, '5678');
 
-      // Cae en el punto de venta y ve el menú inferior.
-      expect(find.widgetWithText(FilledButton, 'Cobrar'), findsOneWidget);
-      expect(find.text('Vender'), findsOneWidget);
-      expect(find.text('Corte'), findsOneWidget);
-      expect(find.text('Salir'), findsOneWidget);
+      // Cae en la pantalla de Inicio (panel del día) con el bottom-nav de 4.
+      expect(find.text('Ventas hoy'), findsOneWidget);
+      expect(find.text('Inventario'), findsOneWidget);
+      expect(find.text('Balance'), findsWidgets);
 
-      // El cajero NO tiene la pestaña de administración.
-      expect(find.text('Admin'), findsNothing);
+      // Abre el menú hamburguesa.
+      await tester.tap(find.byIcon(Icons.menu).first);
+      await tester.pumpAndSettle();
+
+      // El cajero ve funciones básicas pero NO las de administración.
+      expect(find.text('Punto de venta'), findsOneWidget);
+      expect(find.text('Usuarios'), findsNothing);
+      expect(find.text('Respaldo (nube)'), findsNothing);
       expect(find.text('Administración'), findsNothing);
     },
   );

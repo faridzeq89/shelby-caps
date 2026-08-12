@@ -14,6 +14,12 @@ window.CATALOGO_CONFIG = {
   // pedido prellenado.
   WHATSAPP: "528997034922",
 
+  // Pago con Mercado Pago. Ponlo en `true` SOLO cuando ya estén desplegadas las
+  // Edge Functions (create-preference / mp-webhook) y el secreto MP_ACCESS_TOKEN
+  // en Supabase. Mientras esté en `false`, el botón "Pagar con tarjeta" no
+  // aparece y la tienda sigue tomando pedidos por WhatsApp.
+  MP_ENABLED: false,
+
   // Foto de portada del catálogo (arriba de todo). Vacío = sin portada.
   COVER: "img/portada.svg",
 

@@ -565,6 +565,69 @@
     window.open(url, "_blank", "noopener");
   }
 
+  // ---- Pago con Mercado Pago (Checkout Pro) ----
+  /** Crea la preferencia en el servidor y redirige al checkout de Mercado Pago. */
+  async function payMercadoPago() {
+    const contact = readContact();
+    if (!contact) { closePay(); return; }
+    const items = pricedCart().map((l) => {
+      const meta = [l.variant.size, l.variant.color].filter(Boolean).join(" ");
+      return {
+        title: l.product.name + (meta ? " (" + meta + ")" : "") +
+          (l.wholesale ? " [mayoreo]" : ""),
+        quantity: l.qty,
+        unit_price: l.unit / 100, // pesos
+      };
+    });
+    if (!items.length) return;
+    const btn = $("payMp");
+    btn.disabled = true;
+    toast("Preparando el pago…");
+    try {
+      const res = await fetch(CFG.SUPABASE_URL + "/functions/v1/create-preference", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: CFG.SUPABASE_ANON,
+          Authorization: "Bearer " + CFG.SUPABASE_ANON,
+        },
+        body: JSON.stringify({
+          items,
+          customer: contact,
+          store_url: location.origin + location.pathname,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const target = data.init_point || data.sandbox_init_point;
+      if (!res.ok || !target) {
+        toast(data.error || "No se pudo iniciar el pago");
+        btn.disabled = false;
+        return;
+      }
+      window.location.href = target; // al checkout seguro de Mercado Pago
+    } catch (_) {
+      toast("Error de red al iniciar el pago");
+      btn.disabled = false;
+    }
+  }
+
+  /** Al volver de Mercado Pago (?pago=exito/error/pendiente) avisa y limpia. */
+  function handlePaymentReturn() {
+    const p = new URLSearchParams(location.search).get("pago");
+    if (!p) return;
+    if (p === "exito") {
+      cart.clear();
+      renderCartCount();
+      toast("¡Pago recibido! Gracias por tu compra 🧢");
+    } else if (p === "pendiente") {
+      toast("Tu pago quedó pendiente de confirmación.");
+    } else {
+      toast("El pago no se completó.");
+    }
+    // Limpia el parámetro para que no reaparezca al recargar.
+    history.replaceState(null, "", location.origin + location.pathname);
+  }
+
   // ---- Arranque ----
   function wire() {
     $("search").oninput = (e) => { query = e.target.value; renderGrid(); };
@@ -621,6 +684,22 @@
     $("payBack").onclick = closePay;
     $("paySheet").onclick = (e) => { if (e.target === $("paySheet")) closePay(); };
     $("payWa").onclick = sendWhatsApp;
+
+    // Mercado Pago: el botón solo aparece si está habilitado en config.js
+    // (es decir, cuando ya están desplegadas las Edge Functions y el secreto).
+    const mpBtn = $("payMp");
+    if (mpBtn) {
+      if (CFG.MP_ENABLED) {
+        mpBtn.disabled = false;
+        mpBtn.onclick = payMercadoPago;
+        const small = mpBtn.querySelector("small");
+        if (small) small.remove();
+      } else {
+        mpBtn.hidden = true;
+      }
+    }
+    // Avisa si venimos de regreso del checkout de Mercado Pago.
+    handlePaymentReturn();
 
     document.onkeydown = (e) => {
       if (e.key !== "Escape") return;

@@ -188,7 +188,7 @@ class _StockCountScreenState extends State<StockCountScreen> {
     final diff = l.difference;
     final tc = '${l.variant.size ?? ''} ${l.variant.color ?? ''}'.trim();
     final color = diff == 0
-        ? Colors.grey
+        ? AppColors.inkMuted
         : (diff > 0 ? AppColors.success : Theme.of(context).colorScheme.error);
     return ListTile(
       title: Text(l.product.name),

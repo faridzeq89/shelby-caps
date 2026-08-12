@@ -80,7 +80,7 @@ class _ImportScreenState extends State<ImportScreen> {
                     fontFamily: 'monospace', fontWeight: FontWeight.bold)),
             const Text(
                 'Obligatorias: producto, categoria, precio. El resto opcional.',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+                style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
             const SizedBox(height: 8),
             Expanded(
               child: TextField(

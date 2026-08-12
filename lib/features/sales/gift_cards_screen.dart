@@ -82,7 +82,7 @@ class _GiftCardsScreenState extends State<GiftCardsScreen> {
                       letterSpacing: 1)),
               const SizedBox(height: 4),
               const Text('Anótalo en la tarjeta física o dáselo al cliente.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
             ],
           ),
           actions: [
@@ -171,7 +171,7 @@ class _GiftCardsScreenState extends State<GiftCardsScreen> {
               child: Row(
                 children: [
                   const Icon(Icons.card_giftcard,
-                      size: 30, color: AppColors.brassDeep),
+                      size: 30, color: AppColors.accent),
                   const SizedBox(width: 14),
                   Expanded(
                     child: StatBlock(

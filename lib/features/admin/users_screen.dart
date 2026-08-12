@@ -13,10 +13,12 @@ String roleLabel(UserRole r) => switch (r) {
       UserRole.cashier => 'Cajero',
     };
 
+/// Colores de rol, aclarados para que se lean sobre el fondo oscuro. El admin
+/// va en el vino de la marca porque es el rol con más poder.
 Color roleColor(UserRole r) => switch (r) {
-      UserRole.admin => Colors.deepPurple,
-      UserRole.manager => Colors.teal,
-      UserRole.cashier => Colors.blueGrey,
+      UserRole.admin => AppColors.accent,
+      UserRole.manager => const Color(0xFF6FB6D9),
+      UserRole.cashier => const Color(0xFF9BA3B4),
     };
 
 Widget _chip(String label, Color color) => StatusPill(label, color: color);
@@ -167,9 +169,9 @@ class _UsersScreenState extends State<UsersScreen> {
                     runSpacing: 4,
                     children: [
                       _chip(roleLabel(u.role), roleColor(u.role)),
-                      if (!u.active) _chip('Inactivo', Colors.grey),
+                      if (!u.active) _chip('Inactivo', const Color(0xFF7A7A88)),
                       if (u.mustChangePin)
-                        _chip('PIN por cambiar', Colors.orange.shade800),
+                        _chip('PIN por cambiar', const Color(0xFFE0A458)),
                     ],
                   ),
                 ),

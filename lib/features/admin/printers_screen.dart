@@ -429,7 +429,7 @@ class _PrintersScreenState extends State<PrintersScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blueGrey.shade50,
+                    color: AppColors.bar,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(

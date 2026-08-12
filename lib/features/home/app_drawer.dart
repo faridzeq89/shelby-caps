@@ -55,7 +55,7 @@ class AppDrawer extends StatelessWidget {
         children: [
           // Cabecera carbón con la marca.
           Container(
-            color: const Color(0xFF20242A),
+            color: AppColors.bar,
             padding: EdgeInsets.fromLTRB(
                 18, MediaQuery.of(context).padding.top + 20, 18, 18),
             child: Column(
@@ -67,14 +67,14 @@ class AppDrawer extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: const BoxDecoration(
-                          color: Color(0xFF9C7A2C), shape: BoxShape.circle),
+                          color: AppColors.brand, shape: BoxShape.circle),
                       child: const Icon(Icons.local_mall_outlined,
-                          color: Color(0xFF17140C), size: 22),
+                          color: AppColors.onAccent, size: 22),
                     ),
                     const SizedBox(width: 12),
                     const Text('SHELBY CAPS',
                         style: TextStyle(
-                            color: Color(0xFFEDE7D8),
+                            color: AppColors.onBar,
                             fontWeight: FontWeight.w900,
                             fontSize: 18,
                             letterSpacing: 0.5)),
@@ -84,7 +84,7 @@ class AppDrawer extends StatelessWidget {
                 Text(
                   '${auth.currentUser?.name ?? ''} · ${_roleLabel(isAdmin)}',
                   style: const TextStyle(
-                      color: AppColors.onCharcoalMuted,
+                      color: AppColors.onBarMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w700),
                 ),
@@ -167,7 +167,7 @@ class AppDrawer extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
         child: Text(label.toUpperCase(),
             style: const TextStyle(
-                color: AppColors.brassDeep,
+                color: AppColors.accent,
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.2)),
@@ -177,7 +177,7 @@ class AppDrawer extends StatelessWidget {
       {required VoidCallback onTap, String? trailing}) {
     return ListTile(
       dense: true,
-      leading: Icon(icon, color: const Color(0xFF846826)),
+      leading: Icon(icon, color: AppColors.accent),
       title: Text(label,
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
       trailing: trailing == null
@@ -185,11 +185,11 @@ class AppDrawer extends StatelessWidget {
           : Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                  color: const Color(0xFF9C7A2C),
+                  color: AppColors.brand,
                   borderRadius: BorderRadius.circular(6)),
               child: Text(trailing.toUpperCase(),
                   style: const TextStyle(
-                      color: Color(0xFF17140C),
+                      color: AppColors.onAccent,
                       fontSize: 9,
                       fontWeight: FontWeight.w900)),
             ),

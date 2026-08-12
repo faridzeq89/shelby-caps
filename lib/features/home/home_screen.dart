@@ -105,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     // Solo las pestañas se marcan: un atajo no es un lugar donde uno "está".
     final selected = d.isTab && d.tabIndex == _index;
-    final color = selected ? AppColors.brassDeep : theme.hintColor;
+    final color = selected ? AppColors.accent : theme.hintColor;
 
     return InkWell(
       onTap: () {
@@ -145,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: labelSize,
                     fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                    color: selected ? AppColors.brassDeep : theme.hintColor,
+                    color: selected ? AppColors.accent : theme.hintColor,
                   ),
                 ),
               ),

@@ -89,7 +89,7 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
             const SizedBox(height: 12),
             SelectableText(url,
                 style: const TextStyle(
-                    fontWeight: FontWeight.w800, color: AppColors.brassDeep)),
+                    fontWeight: FontWeight.w800, color: AppColors.accent)),
           ],
         ),
         actions: [

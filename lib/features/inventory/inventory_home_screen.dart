@@ -69,7 +69,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
               children: [
                 DashboardTile(
                   icon: Icons.local_shipping_outlined,
-                  color: Colors.teal,
+                  color: AppColors.accent,
                   title: 'Recepción',
                   subtitle: 'Registrar entradas por escaneo o búsqueda',
                   enabled: _canManage,
@@ -77,7 +77,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
                 ),
                 DashboardTile(
                   icon: Icons.tune,
-                  color: Colors.orange.shade800,
+                  color: const Color(0xFFE0A458),
                   title: 'Ajuste',
                   subtitle: 'Merma, dañado, robo o corrección (con motivo)',
                   enabled: _canManage,
@@ -85,7 +85,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
                 ),
                 DashboardTile(
                   icon: Icons.fact_check_outlined,
-                  color: Colors.indigo,
+                  color: const Color(0xFFB08FD9),
                   title: 'Conteo físico',
                   subtitle: 'Contar, ver diferencias y ajustar en lote',
                   enabled: _canManage,

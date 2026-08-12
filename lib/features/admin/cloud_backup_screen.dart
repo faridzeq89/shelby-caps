@@ -106,7 +106,7 @@ class CloudBackupScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, color: AppColors.brassDeep),
+              const Icon(Icons.info_outline, color: AppColors.accent),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Esta tablet aún no respalda',
@@ -306,7 +306,7 @@ class _SupabaseConfigScreenState extends State<SupabaseConfigScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blueGrey.shade50,
+                    color: AppColors.bar,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(

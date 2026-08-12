@@ -883,7 +883,7 @@ class SaleScreenState extends State<SaleScreen> {
                     if (line.wholesaleApplied) ...[
                       const SizedBox(width: 6),
                       const StatusPill('Mayoreo',
-                          icon: Icons.bolt, color: AppColors.brassDeep),
+                          icon: Icons.bolt, color: AppColors.accent),
                     ],
                   ],
                 ),
@@ -1275,7 +1275,7 @@ class _ProductTile extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.brassDeep)),
+                        color: AppColors.accent)),
               ],
             ),
           ),

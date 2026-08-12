@@ -113,7 +113,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                     CircleAvatar(
                       backgroundColor: AppColors.brand.withValues(alpha: 0.15),
                       child: const Icon(Icons.local_shipping_outlined,
-                          color: AppColors.brassDeep, size: 20),
+                          color: AppColors.accent, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

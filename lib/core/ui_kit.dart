@@ -14,43 +14,49 @@ import 'package:flutter/material.dart';
 /// pantallas que necesiten un color semántico (éxito, atenuado) lo toman de aquí
 /// en vez de escribir el hexadecimal.
 abstract final class AppColors {
-  /// Latón: acento y acciones principales.
-  static const brand = Color(0xFF9C7A2C);
+  /// Vino: relleno de las acciones principales. Es un vino saturado para que
+  /// resalte contra el gris oscuro; el vino de etiqueta clásico se apaga.
+  static const brand = Color(0xFFA62B47);
 
-  /// Latón oscuro: texto/iconos sobre papel (contraste suficiente).
-  static const brassDeep = Color(0xFF846826);
+  /// Vino claro para **texto e iconos** sobre fondo oscuro. El [brand] relleno
+  /// no alcanza contraste como texto; este sí.
+  static const accent = Color(0xFFE0657D);
 
-  /// Carbón: barras de app y botones oscuros.
-  static const charcoal = Color(0xFF20242A);
+  /// Texto sobre el vino relleno.
+  static const onAccent = Color(0xFFFFFFFF);
 
-  /// Texto sobre carbón.
-  static const charcoalInk = Color(0xFFEDE7D8);
+  /// Barras de app: un escalón más oscuro que el fondo, para anclar la pantalla.
+  static const bar = Color(0xFF0E0E11);
 
-  /// Texto sobre latón.
-  static const onBrass = Color(0xFF17140C);
+  /// Texto sobre las barras.
+  static const onBar = Color(0xFFF2F2F5);
 
-  /// Lana clara: fondo de pantalla.
-  static const bg = Color(0xFFECE8DE);
+  /// Atenuado sobre las barras (subtítulos del header).
+  static const onBarMuted = Color(0xFF9B9BA6);
 
-  /// Papel: tarjetas e inputs.
-  static const surface = Color(0xFFFBFAF6);
+  /// Fondo base: gris muy oscuro, casi negro.
+  static const bg = Color(0xFF121215);
 
-  /// Borde greige suave.
-  static const border = Color(0xFFD4CEC1);
+  /// Tarjetas e inputs: un escalón MÁS CLARO que el fondo. En oscuro las
+  /// sombras no se ven, así que la separación se hace con luz y borde.
+  static const surface = Color(0xFF1B1B20);
 
-  /// Texto principal.
-  static const ink = Color(0xFF1A1917);
+  /// Borde tenue entre superficies.
+  static const border = Color(0xFF2B2B33);
 
-  /// Verde de la casa: saldos a favor, stock sano, cobros completados.
-  static const success = Color(0xFF2F6E46);
+  /// Texto principal (blanco cálido, no blanco puro: cansa menos).
+  static const ink = Color(0xFFF4F4F7);
 
-  /// Rojo de la casa para acciones destructivas y faltantes. Se usa donde no
-  /// hay un `ColorScheme` a la mano (constantes, `switch` de iconos); si lo hay,
-  /// prefiere `theme.colorScheme.error`.
-  static const danger = Color(0xFFB3261E);
+  /// Texto secundario. La jerarquía se hace con esto, no con tamaños raros.
+  static const inkMuted = Color(0xFFA9A9B4);
 
-  /// Atenuado sobre carbón (subtítulos del header).
-  static const onCharcoalMuted = Color(0xFFB6AD97);
+  /// Verde: saldos a favor, stock sano, cobros completados. Aclarado respecto
+  /// al tema claro porque un verde oscuro desaparece sobre negro.
+  static const success = Color(0xFF4FBF87);
+
+  /// Rojo para acciones destructivas y faltantes. Se usa donde no hay un
+  /// `ColorScheme` a la mano; si lo hay, prefiere `theme.colorScheme.error`.
+  static const danger = Color(0xFFFF5C68);
 }
 
 /// Radios del sistema. `surface` para tarjetas y filas, `control` para campos y
@@ -149,7 +155,7 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppColors.brassDeep;
+    final c = color ?? AppColors.accent;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -270,7 +276,7 @@ class QuickTile extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: AppColors.brassDeep, size: 24),
+          Icon(icon, color: AppColors.accent, size: 24),
           const SizedBox(height: 6),
           Text(
             label,
@@ -445,7 +451,7 @@ class AppBarTitle extends StatelessWidget {
             subtitle!,
             style: const TextStyle(
               fontSize: 11,
-              color: AppColors.onCharcoalMuted,
+              color: AppColors.onBarMuted,
               fontWeight: FontWeight.w700,
               letterSpacing: 1,
             ),

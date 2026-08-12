@@ -42,7 +42,7 @@ Future<void> showDocumentActions(
                     ?.copyWith(fontWeight: FontWeight.w800)),
           ),
           ListTile(
-            leading: const Icon(Icons.ios_share, color: AppColors.brassDeep),
+            leading: const Icon(Icons.ios_share, color: AppColors.accent),
             title: Text(shareLabel,
                 style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(shareHint),
@@ -60,7 +60,7 @@ Future<void> showDocumentActions(
           ),
           ListTile(
             leading: const Icon(Icons.print_outlined,
-                color: AppColors.brassDeep),
+                color: AppColors.accent),
             title: const Text('Imprimir',
                 style: TextStyle(fontWeight: FontWeight.w700)),
             subtitle: const Text('Impresora de tickets o PDF'),

@@ -2,30 +2,44 @@ import 'package:flutter/material.dart';
 
 import 'ui_kit.dart';
 
-/// Sistema visual "Sastrería Moderna" de SHELBY CAPS (Material 3):
-/// **latón sobre carbón** en fondo "lana" — barras de app en carbón, acciones y
-/// acentos en latón, tarjetas de papel con borde suave y sombra tenue. Como las
-/// pantallas usan componentes Material estándar, este tema las estiliza TODAS
-/// de forma consistente.
+/// Sistema visual de SHELBY CAPS (Material 3): **vino sobre gris casi negro**.
+/// Fondo oscuro, texto blanco y gris claro según jerarquía, y el vino solo
+/// donde hay que llevar la vista: acciones, selección y acentos.
+///
+/// En oscuro las sombras no se ven, así que las tarjetas se separan del fondo
+/// por **luz y borde**: la superficie es un escalón más clara que el fondo.
 ///
 /// La paleta vive en [AppColors] (`ui_kit.dart`), que es la única fuente de
-/// verdad: cambiar el latón ahí re-tinta la app entera, tema y primitivos.
+/// verdad: cambiar el vino ahí re-tinta la app entera, tema y primitivos.
 ThemeData buildAppTheme() {
   const brand = AppColors.brand;
-  const brassDeep = AppColors.brassDeep;
-  const charcoal = AppColors.charcoal;
-  const charcoalInk = AppColors.charcoalInk;
-  const onBrass = AppColors.onBrass;
+  const accent = AppColors.accent;
+  const bar = AppColors.bar;
+  const onBar = AppColors.onBar;
+  const onAccent = AppColors.onAccent;
   const bg = AppColors.bg;
   const surface = AppColors.surface;
   const border = AppColors.border;
   const ink = AppColors.ink;
-  final shadow = Colors.black.withValues(alpha: 0.06);
+  const inkMuted = AppColors.inkMuted;
+  // En oscuro la sombra apenas se percibe; se deja sutil para dar profundidad
+  // a lo que flota (diálogos, hojas) sin ensuciar.
+  final shadow = Colors.black.withValues(alpha: 0.5);
 
   final scheme = ColorScheme.fromSeed(
     seedColor: brand,
-    brightness: Brightness.light,
-  ).copyWith(primary: brand, onPrimary: onBrass, surface: surface);
+    brightness: Brightness.dark,
+  ).copyWith(
+    primary: brand,
+    onPrimary: onAccent,
+    secondary: accent,
+    surface: surface,
+    onSurface: ink,
+    onSurfaceVariant: inkMuted,
+    error: AppColors.danger,
+    onError: Colors.black,
+    outline: border,
+  );
 
   OutlineInputBorder ob(Color c, [double w = 1]) => OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -42,17 +56,21 @@ ThemeData buildAppTheme() {
     fontFamily: 'Nunito', // tipografía redondeada de la marca
     colorScheme: scheme,
     scaffoldBackgroundColor: bg,
+    // Muchas pantallas usan `theme.hintColor` para lo secundario (iconos
+    // apagados, ayudas). Se fija al gris claro de la paleta para que la
+    // jerarquía sea la misma en toda la app.
+    hintColor: inkMuted,
 
     appBarTheme: const AppBarTheme(
       centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 2,
-      backgroundColor: charcoal,
+      backgroundColor: bar,
       surfaceTintColor: Colors.transparent,
-      foregroundColor: charcoalInk,
-      iconTheme: IconThemeData(color: charcoalInk),
+      foregroundColor: onBar,
+      iconTheme: IconThemeData(color: onBar),
       titleTextStyle: TextStyle(
-        color: charcoalInk,
+        color: onBar,
         fontSize: 20,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.3,
@@ -73,7 +91,7 @@ ThemeData buildAppTheme() {
     ),
 
     listTileTheme: ListTileThemeData(
-      iconColor: brassDeep,
+      iconColor: accent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
 
@@ -87,22 +105,23 @@ ThemeData buildAppTheme() {
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
     ),
 
-    // CTA principal: latón con texto oscuro (accesible sobre el latón).
+    // CTA principal: vino con texto blanco.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: brand,
-        foregroundColor: onBrass,
+        foregroundColor: onAccent,
         minimumSize: const Size(0, 54),
         textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
 
-    // Variante oscura: carbón con texto de papel.
+    // Acción secundaria: sobre el fondo oscuro un botón "más oscuro" se pierde,
+    // así que sube un escalón de luz en vez de bajarlo.
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: charcoal,
-        foregroundColor: charcoalInk,
+        backgroundColor: const Color(0xFF26262E),
+        foregroundColor: ink,
         elevation: 1,
         minimumSize: const Size(0, 54),
         textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
@@ -121,14 +140,14 @@ ThemeData buildAppTheme() {
 
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: brassDeep,
+        foregroundColor: accent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
 
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: brand,
-      foregroundColor: onBrass,
+      foregroundColor: onAccent,
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
@@ -149,7 +168,7 @@ ThemeData buildAppTheme() {
       border: ob(border),
       enabledBorder: ob(border),
       focusedBorder: ob(brand, 2),
-      floatingLabelStyle: const TextStyle(color: brassDeep),
+      floatingLabelStyle: const TextStyle(color: accent),
     ),
 
     popupMenuTheme: PopupMenuThemeData(
@@ -176,8 +195,12 @@ ThemeData buildAppTheme() {
       thickness: 1,
     ),
 
+    // El aviso flotante se deja claro sobre oscuro a propósito: es temporal y
+    // tiene que saltar a la vista sin confundirse con una tarjeta.
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
+      backgroundColor: const Color(0xFF2E2E38),
+      contentTextStyle: const TextStyle(color: ink, fontWeight: FontWeight.w600),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
 

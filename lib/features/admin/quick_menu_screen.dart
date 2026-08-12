@@ -130,7 +130,7 @@ class _QuickMenuScreenState extends State<QuickMenuScreen> {
                             style:
                                 const TextStyle(fontWeight: FontWeight.w700)),
                       ),
-                      const Icon(Icons.add, color: AppColors.brassDeep),
+                      const Icon(Icons.add, color: AppColors.accent),
                     ],
                   ),
                 ),
@@ -154,7 +154,7 @@ class _QuickMenuScreenState extends State<QuickMenuScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
-            Icon(d.selectedIcon, color: AppColors.brassDeep),
+            Icon(d.selectedIcon, color: AppColors.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

@@ -524,12 +524,12 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.charcoal.withValues(alpha: 0.85),
+                    color: AppColors.bar.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(AppRadii.pill),
                   ),
                   child: Text(label,
                       style: const TextStyle(
-                          color: AppColors.charcoalInk,
+                          color: AppColors.onBar,
                           fontSize: 10,
                           fontWeight: FontWeight.w800)),
                 ),
@@ -554,7 +554,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_a_photo_outlined, color: AppColors.brassDeep),
+            Icon(Icons.add_a_photo_outlined, color: AppColors.accent),
             SizedBox(height: 4),
             Text('Agregar',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
@@ -825,9 +825,9 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                       child: Chip(
                         label: const Text('ARCHIVADO'),
                         visualDensity: VisualDensity.compact,
-                        backgroundColor: Colors.orange.shade100,
+                        backgroundColor: const Color(0xFF3A2E1C),
                         labelStyle: TextStyle(
-                            color: Colors.orange.shade900,
+                            color: const Color(0xFFE0A458),
                             fontWeight: FontWeight.bold,
                             fontSize: 11),
                       ),

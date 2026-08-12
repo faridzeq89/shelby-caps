@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
+import '../../services/auth_controller.dart';
+import '../../services/quick_menu.dart';
 import '../../services/sale_handoff.dart';
 import '../catalog/catalog_home_screen.dart';
 import '../reports/reports_screen.dart';
 import '../sales/sale_screen.dart';
 import 'app_drawer.dart';
 import 'inicio_screen.dart';
+import 'quick_destinations.dart';
 
 /// Shell principal estilo Treinta: header carbón con **hamburguesa** (menú con
 /// todas las funciones), **bottom-nav** con las 4 más usadas (Inicio · Vender ·
@@ -56,6 +60,92 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openMenu() => _scaffoldKey.currentState?.openDrawer();
 
+  /// Barra de abajo armada con lo que el dueño eligió. Es propia y no un
+  /// `NavigationBar` porque este tiene que aceptar cualquier cantidad de
+  /// botones, esconder las etiquetas de 5 en adelante, y convivir con atajos
+  /// que abren pantallas en vez de cambiar de pestaña (esos nunca se marcan
+  /// como seleccionados).
+  Widget _quickBar() {
+    final theme = Theme.of(context);
+    final isAdmin = context.watch<AuthController>().isAdmin;
+    final menu = context.watch<QuickMenu>();
+
+    final items = [
+      for (final id in menu.ids)
+        if (destinationById(id) case final d?)
+          if (!d.adminOnly || isAdmin) d,
+    ];
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Material(
+      color: theme.cardColor,
+      elevation: 3,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: menu.showLabels ? 64 : 56,
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: theme.dividerColor)),
+          ),
+          child: Row(
+            children: [
+              for (final d in items)
+                Expanded(child: _quickButton(d, menu.showLabels)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _quickButton(QuickDestination d, bool showLabel) {
+    final theme = Theme.of(context);
+    // Solo las pestañas se marcan: un atajo no es un lugar donde uno "está".
+    final selected = d.isTab && d.tabIndex == _index;
+    final color = selected ? AppColors.brassDeep : theme.hintColor;
+
+    return InkWell(
+      onTap: () {
+        if (d.isTab) {
+          _goTab(d.tabIndex!);
+        } else {
+          Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => d.builder!()));
+        }
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.brand.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+            ),
+            child: Icon(selected ? d.selectedIcon : d.icon,
+                size: 22, color: color),
+          ),
+          if (showLabel) ...[
+            const SizedBox(height: 3),
+            Text(
+              d.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                color: selected ? AppColors.brassDeep : theme.hintColor,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   void _goTab(int i) {
     setState(() {
       _index = i;
@@ -84,32 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
       key: _scaffoldKey,
       drawer: AppDrawer(onGoTab: _goTab),
       body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _goTab,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.point_of_sale_outlined),
-            selectedIcon: Icon(Icons.point_of_sale),
-            label: 'Vender',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Inventario',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'Balance',
-          ),
-        ],
-      ),
+      bottomNavigationBar: _quickBar(),
     );
   }
 }

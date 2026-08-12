@@ -9,6 +9,7 @@ import 'features/home/home_screen.dart';
 import 'services/auth_controller.dart';
 import 'services/catalog_sync_service.dart';
 import 'services/cloud_backup_service.dart';
+import 'services/quick_menu.dart';
 import 'services/sale_handoff.dart';
 import 'services/tax_settings.dart';
 
@@ -20,7 +21,8 @@ class BoutiquePosApp extends StatelessWidget {
       required this.auth,
       required this.db,
       this.backup,
-      this.tax});
+      this.tax,
+      this.quickMenu});
 
   final AuthController auth;
   final AppDatabase db;
@@ -30,10 +32,14 @@ class BoutiquePosApp extends StatelessWidget {
   /// apagado, que es como opera este negocio.
   final TaxSettings? tax;
 
+  /// Botones de la barra de abajo ya cargados; sin él salen los de fábrica.
+  final QuickMenu? quickMenu;
+
   @override
   Widget build(BuildContext context) {
     final backupSvc = backup ?? CloudBackupService(db, enabled: false);
     final taxSvc = tax ?? TaxSettings(db);
+    final quickSvc = quickMenu ?? QuickMenu(db);
     return MultiProvider(
       providers: [
         Provider<AppDatabase>.value(value: db),
@@ -47,6 +53,7 @@ class BoutiquePosApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<SaleHandoff>(create: (_) => SaleHandoff()),
         ChangeNotifierProvider<TaxSettings>.value(value: taxSvc),
+        ChangeNotifierProvider<QuickMenu>.value(value: quickSvc),
       ],
       child: MaterialApp(
         title: 'SHELBY CAPS',

@@ -86,6 +86,36 @@ class QuoteRepository {
   Future<List<QuoteLine>> linesOf(int quoteId) =>
       (_db.select(_db.quoteLines)..where((t) => t.quoteId.equals(quoteId))).get();
 
+  /// Cambia el precio unitario de un renglón (p. ej. un servicio cuyo precio se
+  /// define hasta ver la prenda) y recalcula los totales de la cotización.
+  Future<void> updateLinePrice(
+      Profile actor, int quoteLineId, int unitPriceCents) async {
+    await _db.transaction(() async {
+      final line = await (_db.select(_db.quoteLines)
+            ..where((t) => t.id.equals(quoteLineId)))
+          .getSingleOrNull();
+      if (line == null) return;
+      final gross = unitPriceCents * line.qty;
+      final net = (gross - line.lineDiscountCents).clamp(0, gross);
+      await (_db.update(_db.quoteLines)..where((t) => t.id.equals(quoteLineId)))
+          .write(QuoteLinesCompanion(
+              unitPriceCents: Value(unitPriceCents),
+              lineTotalCents: Value(net)));
+      await _recomputeTotals(line.quoteId);
+      await _audit(actor, 'edit_quote_line', line.quoteId.toString(),
+          'linea=$quoteLineId precio=$unitPriceCents');
+    });
+  }
+
+  Future<void> _recomputeTotals(int quoteId) async {
+    final lines = await linesOf(quoteId);
+    final subtotal = lines.fold<int>(0, (s, l) => s + l.unitPriceCents * l.qty);
+    final total = lines.fold<int>(0, (s, l) => s + l.lineTotalCents);
+    await (_db.update(_db.quotes)..where((t) => t.id.equals(quoteId))).write(
+        QuotesCompanion(
+            subtotalCents: Value(subtotal), totalCents: Value(total)));
+  }
+
   Future<void> cancel(Profile actor, int quoteId) async {
     await _db.transaction(() async {
       await (_db.update(_db.quotes)..where((t) => t.id.equals(quoteId)))

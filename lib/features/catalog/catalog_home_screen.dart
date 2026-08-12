@@ -371,6 +371,7 @@ class _NewProductDialogState extends State<_NewProductDialog> {
   List<Category> _categories = [];
   int? _categoryId;
   bool _creatingCategory = false;
+  bool _esServicio = false;
   bool _saving = false;
   String? _error;
 
@@ -400,9 +401,14 @@ class _NewProductDialogState extends State<_NewProductDialog> {
 
   Future<void> _save() async {
     final name = _name.text.trim();
-    final priceCents = ((double.tryParse(_price.text.trim()) ?? -1) * 100).round();
+    // El servicio no lleva precio aquí: se define en la cotización.
+    final priceCents = _esServicio
+        ? 0
+        : ((double.tryParse(_price.text.trim()) ?? -1) * 100).round();
     if (name.isEmpty || priceCents < 0) {
-      setState(() => _error = 'Nombre y precio válido son obligatorios');
+      setState(() => _error = _esServicio
+          ? 'Ponle nombre al servicio'
+          : 'Nombre y precio válido son obligatorios');
       return;
     }
     setState(() {
@@ -428,9 +434,12 @@ class _NewProductDialogState extends State<_NewProductDialog> {
         categoryId: categoryId!,
         basePriceCents: priceCents,
         brand: _brand.text.trim().isEmpty ? null : _brand.text.trim(),
-        costCents: ((double.tryParse(_cost.text.trim()) ?? 0) * 100).round(),
-        initialStock: int.tryParse(_stock.text.trim()) ?? 0,
+        costCents: _esServicio
+            ? 0
+            : ((double.tryParse(_cost.text.trim()) ?? 0) * 100).round(),
+        initialStock: _esServicio ? 0 : (int.tryParse(_stock.text.trim()) ?? 0),
         locationId: widget.locationId,
+        esServicio: _esServicio,
       );
       if (mounted) Navigator.of(context).pop(id);
     } catch (e) {
@@ -458,39 +467,50 @@ class _NewProductDialogState extends State<_NewProductDialog> {
               controller: _brand,
               decoration: const InputDecoration(labelText: 'Marca (opcional)'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _price,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                  labelText: 'Precio de venta', prefixText: '\$'),
+            const SizedBox(height: 4),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _esServicio,
+              onChanged: (v) => setState(() => _esServicio = v),
+              title: const Text('Es un servicio'),
+              subtitle: const Text(
+                  'Precio a definir en la cotización · sin inventario'),
             ),
-            const SizedBox(height: 12),
-            // Costo y existencias al dar de alta: en gorras casi todo es talla
-            // única, así que obligar a pasar por Inventario solo estorbaba.
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _cost,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                        labelText: 'Costo', prefixText: '\$'),
+            if (!_esServicio) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _price,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                    labelText: 'Precio de venta', prefixText: '\$'),
+              ),
+              const SizedBox(height: 12),
+              // Costo y existencias al dar de alta: en gorras casi todo es talla
+              // única, así que obligar a pasar por Inventario solo estorbaba.
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _cost,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                          labelText: 'Costo', prefixText: '\$'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _stock,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(labelText: 'Existencias'),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _stock,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          const InputDecoration(labelText: 'Existencias'),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             if (!_creatingCategory)
               Row(

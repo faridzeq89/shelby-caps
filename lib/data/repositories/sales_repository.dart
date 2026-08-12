@@ -170,17 +170,21 @@ class SalesRepository {
         await _db.into(_db.saleLines).insert(
               lineRows[i].copyWith(saleId: Value(saleId)),
             );
-        await _db.into(_db.inventoryMovements).insert(
-              InventoryMovementsCompanion.insert(
-                variantId: lines[i].variant.id,
-                locationId: locationId,
-                qty: -lines[i].qty,
-                type: MovementType.sale,
-                userId: Value(cashier.id),
-                referenceType: const Value('sale'),
-                referenceId: Value(saleId),
-              ),
-            );
+        // Los servicios (limpieza, personalización) NO manejan inventario: se
+        // registra la venta pero no se descuenta stock.
+        if (!lines[i].product.esServicio) {
+          await _db.into(_db.inventoryMovements).insert(
+                InventoryMovementsCompanion.insert(
+                  variantId: lines[i].variant.id,
+                  locationId: locationId,
+                  qty: -lines[i].qty,
+                  type: MovementType.sale,
+                  userId: Value(cashier.id),
+                  referenceType: const Value('sale'),
+                  referenceId: Value(saleId),
+                ),
+              );
+        }
       }
 
       // Pagos: los que no son efectivo tal cual; el efectivo, sólo lo aplicado

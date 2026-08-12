@@ -203,6 +203,7 @@ class CatalogRepository {
     String? brand,
     String? description,
     int taxRateBps = 1600,
+    bool esServicio = false,
   }) async {
     _requireCatalog(actor);
     return _db.into(_db.products).insert(
@@ -213,8 +214,25 @@ class CatalogRepository {
             brand: Value(brand),
             description: Value(description),
             taxRateBps: Value(taxRateBps),
+            esServicio: Value(esServicio),
           ),
         );
+  }
+
+  /// Marca/desmarca un producto como **servicio** (precio a definir en la
+  /// cotización, sin inventario).
+  Future<void> updateProductIsService({
+    required Profile actor,
+    required int productId,
+    required bool esServicio,
+  }) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(esServicio: Value(esServicio)));
+      await _audit(actor, 'update_service', 'product', productId.toString(),
+          'esServicio=$esServicio');
+    });
   }
 
   /// Da de alta un producto **listo para vender**: el producto, su variante
@@ -237,6 +255,7 @@ class CatalogRepository {
     int costCents = 0,
     int initialStock = 0,
     int? locationId,
+    bool esServicio = false,
   }) async {
     _requireCatalog(actor);
     return _db.transaction(() async {
@@ -247,6 +266,7 @@ class CatalogRepository {
         basePriceCents: basePriceCents,
         brand: brand,
         description: description,
+        esServicio: esServicio,
       );
       final variantId = await _db.into(_db.variants).insert(
             VariantsCompanion.insert(

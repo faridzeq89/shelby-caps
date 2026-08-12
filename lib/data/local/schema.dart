@@ -121,6 +121,10 @@ class Products extends Table {
   TextColumn get brand => text().nullable()();
   TextColumn get description => text().nullable()();
   IntColumn get basePriceCents => integer()();
+  // Servicio (limpieza, personalización): el precio se define DESPUÉS, en la
+  // cotización (depende del estado de la prenda), y NO maneja inventario. Se
+  // vende agregándolo → guardar cotización → poner precio → pasar a venta.
+  BoolColumn get esServicio => boolean().withDefault(const Constant(false))();
   // IVA por producto en puntos base: 1600 = 16.00%.
   IntColumn get taxRateBps => integer().withDefault(const Constant(1600))();
   // Imagen del producto: ruta de archivo local (foto capturada/optimizada) o

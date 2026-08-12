@@ -63,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -136,6 +136,11 @@ class AppDatabase extends _$AppDatabase {
             // v13 → v14: anuncios de la tienda (portada y banners).
             await _createTableIfMissing('store_banners', storeBanners);
           }
+          if (from < 15) {
+            // v14 → v15: productos tipo "servicio" (precio a definir en la
+            // cotización, sin inventario).
+            await _addEsServicioIfMissing(m);
+          }
           await _createExtras();
         },
         beforeOpen: (details) async {
@@ -166,6 +171,16 @@ class AppDatabase extends _$AppDatabase {
         info.any((r) => r.read<String>('name') == 'image_path');
     if (!hasColumn) {
       await m.addColumn(products, products.imagePath);
+    }
+  }
+
+  /// Agrega `products.es_servicio` solo si aún no existe. Idempotente.
+  Future<void> _addEsServicioIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('products')").get();
+    final hasColumn =
+        info.any((r) => r.read<String>('name') == 'es_servicio');
+    if (!hasColumn) {
+      await m.addColumn(products, products.esServicio);
     }
   }
 

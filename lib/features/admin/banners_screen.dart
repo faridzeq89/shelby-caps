@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -40,9 +42,20 @@ class _BannersScreenState extends State<BannersScreen> {
       _Data(await _repo.cover(), await _repo.banners());
 
   void _reload() {
-    // Igual que el catálogo: publicar es automático, no un botón aparte.
-    context.read<CatalogSyncService>().publishSoon();
     setState(() => _future = _load());
+    // Publica de INMEDIATO (no con el retraso de 20 s): en el navegador ese
+    // temporizador se congela al cambiar de pestaña o ir a la tienda, y el
+    // banner nunca subía. Además mostramos el resultado para que un fallo no
+    // pase inadvertido.
+    final sync = context.read<CatalogSyncService>();
+    setState(() => _busy = true);
+    unawaited(sync.publishNow().whenComplete(() {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _toast(sync.lastError == null
+          ? 'Publicado en la tienda ✓'
+          : 'No se pudo publicar: ${sync.lastError}');
+    }));
   }
 
   void _toast(String m) =>

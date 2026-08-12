@@ -9,6 +9,7 @@ import 'features/home/home_screen.dart';
 import 'services/auth_controller.dart';
 import 'services/catalog_sync_service.dart';
 import 'services/cloud_backup_service.dart';
+import 'services/sale_handoff.dart';
 
 /// Raíz de la app. Recibe la base y un [AuthController] ya sembrado para poder
 /// inyectar una base en memoria desde los tests.
@@ -34,6 +35,7 @@ class BoutiquePosApp extends StatelessWidget {
           create: (_) => CatalogSyncService(db),
           dispose: (_, s) => s.dispose(),
         ),
+        ChangeNotifierProvider<SaleHandoff>(create: (_) => SaleHandoff()),
       ],
       child: MaterialApp(
         title: 'SHELBY CAPS',

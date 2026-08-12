@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
@@ -17,6 +19,7 @@ import '../../data/repositories/sales_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/catalog_sync_service.dart';
 import '../../services/cloud_backup_service.dart';
+import '../../services/sale_handoff.dart';
 import '../../services/image_service.dart';
 import '../customers/customers_screen.dart';
 import '../inventory/inventory_home_screen.dart';
@@ -128,10 +131,12 @@ class SaleScreenState extends State<SaleScreen> {
   }
 
   /// Recarga la vitrina sin perder el carrito. La llama el shell al volver a la
-  /// pestaña Vender (p. ej. tras cargar el catálogo de prueba desde Admin).
+  /// pestaña Vender (p. ej. tras cargar el catálogo de prueba desde Admin), y
+  /// de paso recoge una cotización pendiente de "pasar a venta".
   void reloadCatalog() {
     _loadCatalog();
     _refreshLowStock();
+    unawaited(_consumeHandoff());
   }
 
   Future<void> _selectCategory(int? id) async {
@@ -163,15 +168,16 @@ class SaleScreenState extends State<SaleScreen> {
   void _toast(String msg) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));
 
-  void _addVariant(Product product, Variant variant) {
+  void _addVariant(Product product, Variant variant,
+      {int? priceOverrideCents}) {
     setState(() {
       final existing =
           _lines.where((l) => l.variant.id == variant.id).firstOrNull;
       if (existing != null) {
         existing.qty++;
       } else {
-        _lines.add(_CartLine(
-            product, variant, effectivePrice(product, variant), 1));
+        _lines.add(_CartLine(product, variant,
+            priceOverrideCents ?? effectivePrice(product, variant), 1));
       }
       _reprice();
     });
@@ -240,7 +246,45 @@ class SaleScreenState extends State<SaleScreen> {
   /// Al tocar un producto de la vitrina: elegir talla/color y agregar.
   Future<void> _onTapProduct(Product product) async {
     final variant = await pickVariant(context, _catalog, product);
-    if (variant != null) _addVariant(product, variant);
+    if (variant == null || !mounted) return;
+    // Servicio sin tarifa fija (limpieza de gorra): el precio depende de cómo
+    // llegue la prenda, así que se pregunta al agregarlo en vez de meter un
+    // renglón en $0 que el cajero cobraría sin darse cuenta.
+    if (product.esServicio && effectivePrice(product, variant) == 0) {
+      final cents = await _askPesos('Precio de ${product.name}');
+      if (cents == null || cents <= 0 || !mounted) return;
+      _addVariant(product, variant, priceOverrideCents: cents);
+      return;
+    }
+    _addVariant(product, variant);
+  }
+
+  /// Pide un importe en pesos y lo devuelve en centavos.
+  Future<int?> _askPesos(String title) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(prefixText: '\$'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Agregar')),
+        ],
+      ),
+    );
+    if (ok != true) return null;
+    final v = double.tryParse(ctrl.text.trim());
+    return v == null ? null : (v * 100).round();
   }
 
   void _changeQty(_CartLine line, int delta) {
@@ -297,10 +341,18 @@ class SaleScreenState extends State<SaleScreen> {
   /// Abre la lista de cotizaciones; si se elige una para "pasar a venta", la
   /// carga al carrito.
   Future<void> _openQuotes() async {
-    final q = await Navigator.of(context)
-        .push<Quote>(MaterialPageRoute(builder: (_) => const QuotesScreen()));
-    if (q != null) await _loadQuote(q);
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const QuotesScreen()));
+    // La cotización elegida llega por el handoff, no por el resultado del
+    // `push`: así "Pasar a venta" también funciona desde el menú o Inicio.
+    await _consumeHandoff();
     _scanFocus.requestFocus();
+  }
+
+  /// Carga la cotización que alguien haya dejado esperando, si hay.
+  Future<void> _consumeHandoff() async {
+    final pending = context.read<SaleHandoff>().take();
+    if (pending != null) await _loadQuote(pending);
   }
 
   /// Carga los renglones de una cotización al carrito (respetando su precio) y

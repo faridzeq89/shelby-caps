@@ -166,6 +166,10 @@ class _VariantPickerSheetState extends State<_VariantPickerSheet> {
 
   int get _totalAvailable => (_variants ?? []).fold<int>(0, (s, e) => s + e.$2);
 
+  /// Un servicio (limpieza de gorra) no tiene inventario: exigirle existencia
+  /// lo volvía imposible de vender. Aquí se salta ese candado.
+  bool get _isService => widget.product.esServicio;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -237,13 +241,17 @@ class _VariantPickerSheetState extends State<_VariantPickerSheet> {
                     const SizedBox(height: 12),
                   ],
                   if (_current != null)
-                    Text('Disponible: ${_current!.$2}',
+                    Text(
+                        _isService
+                            ? 'Servicio · sin inventario'
+                            : 'Disponible: ${_current!.$2}',
                         style: theme.textTheme.titleMedium),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: (_current != null && _current!.$2 > 0)
+                      onPressed: (_current != null &&
+                              (_isService || _current!.$2 > 0))
                           ? () => Navigator.of(context).pop(_current!.$1)
                           : null,
                       icon: const Icon(Icons.check),

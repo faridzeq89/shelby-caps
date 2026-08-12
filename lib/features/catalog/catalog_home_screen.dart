@@ -401,13 +401,15 @@ class _NewProductDialogState extends State<_NewProductDialog> {
 
   Future<void> _save() async {
     final name = _name.text.trim();
-    // El servicio no lleva precio aquí: se define en la cotización.
-    final priceCents = _esServicio
+    // En un servicio el precio es OPCIONAL: si tiene tarifa fija se pone aquí,
+    // y si depende del trabajo se deja vacío y se define en la cotización.
+    final typed = _price.text.trim();
+    final priceCents = typed.isEmpty && _esServicio
         ? 0
-        : ((double.tryParse(_price.text.trim()) ?? -1) * 100).round();
+        : ((double.tryParse(typed) ?? -1) * 100).round();
     if (name.isEmpty || priceCents < 0) {
       setState(() => _error = _esServicio
-          ? 'Ponle nombre al servicio'
+          ? 'Ponle nombre al servicio (el precio puede ir vacío)'
           : 'Nombre y precio válido son obligatorios');
       return;
     }
@@ -473,18 +475,22 @@ class _NewProductDialogState extends State<_NewProductDialog> {
               value: _esServicio,
               onChanged: (v) => setState(() => _esServicio = v),
               title: const Text('Es un servicio'),
-              subtitle: const Text(
-                  'Precio a definir en la cotización · sin inventario'),
+              subtitle: const Text('Sin inventario · el precio puede ir vacío'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _price,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: _esServicio ? 'Precio (opcional)' : 'Precio de venta',
+                prefixText: '\$',
+                helperText: _esServicio
+                    ? 'Déjalo vacío si depende del trabajo'
+                    : null,
+              ),
             ),
             if (!_esServicio) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: _price,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                    labelText: 'Precio de venta', prefixText: '\$'),
-              ),
               const SizedBox(height: 12),
               // Costo y existencias al dar de alta: en gorras casi todo es talla
               // única, así que obligar a pasar por Inventario solo estorbaba.

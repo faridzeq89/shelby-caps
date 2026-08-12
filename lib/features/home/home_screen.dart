@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:provider/provider.dart';
+
+import '../../services/sale_handoff.dart';
 import '../catalog/catalog_home_screen.dart';
 import '../reports/reports_screen.dart';
 import '../sales/sale_screen.dart';
@@ -26,6 +29,30 @@ class _HomeScreenState extends State<HomeScreen> {
   // Época para reconstruir Inventario/Balance al volver (datos frescos).
   int _invEpoch = 0;
   int _balEpoch = 0;
+
+  SaleHandoff? _handoff;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Cuando alguien manda una cotización a venta (desde el menú, Inicio o la
+    // propia Venta), el shell salta a la pestaña Vender para que se vea cargada.
+    final handoff = context.read<SaleHandoff>();
+    if (identical(handoff, _handoff)) return;
+    _handoff?.removeListener(_onHandoff);
+    _handoff = handoff..addListener(_onHandoff);
+  }
+
+  void _onHandoff() {
+    if (!mounted || !(_handoff?.hasPending ?? false)) return;
+    _goTab(1);
+  }
+
+  @override
+  void dispose() {
+    _handoff?.removeListener(_onHandoff);
+    super.dispose();
+  }
 
   void _openMenu() => _scaffoldKey.currentState?.openDrawer();
 

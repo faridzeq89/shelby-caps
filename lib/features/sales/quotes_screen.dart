@@ -9,6 +9,7 @@ import '../../data/repositories/catalog_repository.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/quote_repository.dart';
 import '../../services/auth_controller.dart';
+import '../../services/sale_handoff.dart';
 import 'quote_service.dart';
 import 'ticket_service.dart';
 
@@ -244,7 +245,11 @@ class _QuotesScreenState extends State<QuotesScreen> {
                             ? null
                             : () {
                                 Navigator.of(sheetCtx).pop();
-                                Navigator.of(context).pop(q); // pasar a venta
+                                // Se entrega por el handoff en vez de por el
+                                // `pop`: así funciona igual venga de Venta, del
+                                // menú lateral o de Inicio.
+                                context.read<SaleHandoff>().send(q);
+                                Navigator.of(context).pop();
                               },
                         icon: const Icon(Icons.point_of_sale),
                         label: const Text('Pasar a venta'),

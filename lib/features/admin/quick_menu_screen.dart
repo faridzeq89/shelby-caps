@@ -82,7 +82,7 @@ class _QuickMenuScreenState extends State<QuickMenuScreen> {
                 Text(
                   conEtiqueta
                       ? 'Con ${_selected.length} botones se ve el ícono y el '
-                          'nombre. Del quinto en adelante, solo el ícono.'
+                          'nombre. Del sexto en adelante, solo el ícono.'
                       : 'Con ${_selected.length} botones se ve solo el ícono: '
                           'los nombres ya no caben sin cortarse.',
                   style: TextStyle(

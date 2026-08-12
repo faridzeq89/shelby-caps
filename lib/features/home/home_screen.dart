@@ -91,7 +91,9 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             children: [
               for (final d in items)
-                Expanded(child: _quickButton(d, menu.showLabels)),
+                Expanded(
+                    child: _quickButton(
+                        d, menu.showLabels, menu.labelSize)),
             ],
           ),
         ),
@@ -99,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _quickButton(QuickDestination d, bool showLabel) {
+  Widget _quickButton(QuickDestination d, bool showLabel, double labelSize) {
     final theme = Theme.of(context);
     // Solo las pestañas se marcan: un atajo no es un lugar donde uno "está".
     final selected = d.isTab && d.tabIndex == _index;
@@ -130,14 +132,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           if (showLabel) ...[
             const SizedBox(height: 3),
-            Text(
-              d.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                color: selected ? AppColors.brassDeep : theme.hintColor,
+            // `scaleDown` en vez de recortar con "…": en una pantalla angosta
+            // "Devoluciones" se encoge un poco pero se sigue leyendo entero,
+            // que es mejor que un "Devolucion…" que no dice nada.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  d.label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: labelSize,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    color: selected ? AppColors.brassDeep : theme.hintColor,
+                  ),
+                ),
               ),
             ),
           ],

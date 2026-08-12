@@ -22,14 +22,21 @@ void main() {
     expect(menu.showLabels, isTrue);
   });
 
-  test('del quinto botón en adelante se esconden los nombres', () async {
+  test('los nombres se esconden a partir del sexto botón', () async {
     final menu = QuickMenu(db);
     await menu.save(['inicio', 'vender', 'inventario', 'balance']);
-    expect(menu.showLabels, isTrue, reason: 'con 4 todavía caben');
+    expect(menu.showLabels, isTrue);
+    expect(menu.labelSize, 11.5, reason: 'con 4 hay espacio de sobra');
 
-    await menu.save(
-        ['inicio', 'vender', 'inventario', 'balance', 'cotizaciones']);
-    expect(menu.showLabels, isFalse, reason: 'con 5 ya no');
+    await menu
+        .save(['inicio', 'vender', 'inventario', 'balance', 'cotizaciones']);
+    expect(menu.showLabels, isTrue, reason: 'con 5 todavía caben');
+    expect(menu.labelSize, 10.5, reason: 'pero un poco más chicos');
+
+    await menu.save([
+      'inicio', 'vender', 'inventario', 'balance', 'cotizaciones', 'apartados',
+    ]);
+    expect(menu.showLabels, isFalse, reason: 'con 6 ya no caben');
   });
 
   test('la configuración sobrevive a reabrir la app', () async {

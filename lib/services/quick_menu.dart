@@ -17,15 +17,21 @@ class QuickMenu extends ChangeNotifier {
   /// Con lo que sale de fábrica: las cuatro de siempre.
   static const defaults = ['inicio', 'vender', 'inventario', 'balance'];
 
-  /// A partir de este número los botones se muestran **solo con icono**: cinco
-  /// etiquetas no caben en un celular sin cortarse.
-  static const labelLimit = 4;
+  /// Hasta aquí los botones llevan nombre. Con seis, la etiqueta más larga
+  /// ("Devoluciones") queda tan apretada que se corta y deja de servir.
+  static const labelLimit = 5;
+
+  /// Con cinco botones el nombre se dibuja un poco más chico para que quepa.
+  static const tightFrom = 5;
 
   List<String> _ids = List.of(defaults);
   List<String> get ids => List.unmodifiable(_ids);
 
-  /// ¿Se dibujan las etiquetas? Con 4 o menos sí; de 5 en adelante no.
+  /// ¿Se dibujan las etiquetas? Con 5 o menos sí; de 6 en adelante no.
   bool get showLabels => _ids.length <= labelLimit;
+
+  /// Tamaño del nombre según cuántos botones haya.
+  double get labelSize => _ids.length >= tightFrom ? 10.5 : 11.5;
 
   Future<void> load() async {
     final row = await (_db.select(_db.appSettings)

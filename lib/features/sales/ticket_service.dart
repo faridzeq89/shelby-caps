@@ -170,7 +170,9 @@ class TicketService {
               if (t.discountCents > 0)
                 row('Descuento', '-${_money(t.discountCents)}'),
               row('TOTAL', _money(t.totalCents), bold: true),
-              row('IVA incluido', _money(t.taxCents)),
+              // Sin IVA no se imprime el renglón: el negocio no factura y un
+              // impuesto en el ticket confunde al cliente.
+              if (t.taxCents > 0) row('IVA incluido', _money(t.taxCents)),
               pw.SizedBox(height: 4),
               for (final p in t.payments) row(p.$1, _money(p.$2)),
               if (t.changeCents > 0) row('Cambio', _money(t.changeCents)),

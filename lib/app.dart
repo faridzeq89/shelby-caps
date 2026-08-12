@@ -10,20 +10,30 @@ import 'services/auth_controller.dart';
 import 'services/catalog_sync_service.dart';
 import 'services/cloud_backup_service.dart';
 import 'services/sale_handoff.dart';
+import 'services/tax_settings.dart';
 
 /// Raíz de la app. Recibe la base y un [AuthController] ya sembrado para poder
 /// inyectar una base en memoria desde los tests.
 class BoutiquePosApp extends StatelessWidget {
   const BoutiquePosApp(
-      {super.key, required this.auth, required this.db, this.backup});
+      {super.key,
+      required this.auth,
+      required this.db,
+      this.backup,
+      this.tax});
 
   final AuthController auth;
   final AppDatabase db;
   final CloudBackupService? backup;
 
+  /// Ajuste de IVA ya cargado. Los tests pueden omitirlo: por defecto queda
+  /// apagado, que es como opera este negocio.
+  final TaxSettings? tax;
+
   @override
   Widget build(BuildContext context) {
     final backupSvc = backup ?? CloudBackupService(db, enabled: false);
+    final taxSvc = tax ?? TaxSettings(db);
     return MultiProvider(
       providers: [
         Provider<AppDatabase>.value(value: db),
@@ -36,6 +46,7 @@ class BoutiquePosApp extends StatelessWidget {
           dispose: (_, s) => s.dispose(),
         ),
         ChangeNotifierProvider<SaleHandoff>(create: (_) => SaleHandoff()),
+        ChangeNotifierProvider<TaxSettings>.value(value: taxSvc),
       ],
       child: MaterialApp(
         title: 'SHELBY CAPS',

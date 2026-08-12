@@ -8,6 +8,7 @@ import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
 import '../admin/loyalty_config_screen.dart';
 import '../admin/printers_screen.dart';
+import '../admin/tax_settings_screen.dart';
 import '../admin/reconciliation_screen.dart';
 import '../admin/users_screen.dart';
 import '../catalog/catalog_home_screen.dart';
@@ -132,6 +133,8 @@ class AppDrawer extends StatelessWidget {
                 onTap: () => push(const CloudBackupScreen())),
             _item(context, Icons.rule, 'Reconciliación',
                 onTap: () => push(const ReconciliationScreen())),
+            _item(context, Icons.percent, 'IVA',
+                onTap: () => push(const TaxSettingsScreen())),
             _item(context, Icons.campaign_outlined, 'Anuncios de la tienda',
                 onTap: () => push(const BannersScreen())),
             _item(context, Icons.science_outlined, 'Catálogo de prueba',

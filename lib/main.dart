@@ -8,6 +8,7 @@ import 'data/local/open_db.dart';
 import 'data/seed.dart';
 import 'services/auth_controller.dart';
 import 'services/cloud_backup_service.dart';
+import 'services/tax_settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,9 @@ Future<void> main() async {
   // actualizar; una tablet nueva queda sin reclamar hasta que el usuario decida.
   await backup.autoClaimIfHasData();
   backup.startPeriodic();
-  runApp(BoutiquePosApp(auth: auth, db: db, backup: backup));
+  final tax = TaxSettings(db);
+  await tax.load();
+  runApp(BoutiquePosApp(auth: auth, db: db, backup: backup, tax: tax));
 }
 
 /// Lee un valor de `app_settings`, o null si no existe / está vacío.

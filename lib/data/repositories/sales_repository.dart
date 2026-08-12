@@ -84,6 +84,7 @@ class SalesRepository {
     int? customerId,
     int? salespersonId,
     int redeemPoints = 0,
+    bool taxEnabled = false,
   }) async {
     assert(lines.isNotEmpty, 'No se puede cobrar un carrito vacío');
     if (redeemPoints > 0 && customerId == null) {
@@ -113,7 +114,10 @@ class SalesRepository {
           ? net - allocated
           : (baseSum == 0 ? 0 : (l.baseCents * net / baseSum).round());
       allocated += lineNet;
-      final bd = taxIncludedBreakdown(lineNet, l.product.taxRateBps);
+      // Con el IVA apagado (el negocio no factura) el precio es el precio: no
+      // se desglosa nada y la venta se guarda con impuesto cero.
+      final bd = taxIncludedBreakdown(
+          lineNet, taxEnabled ? l.product.taxRateBps : 0);
       subtotal += bd.baseCents;
       tax += bd.taxCents;
       lineRows.add(SaleLinesCompanion.insert(

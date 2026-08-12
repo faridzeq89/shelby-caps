@@ -20,6 +20,7 @@ import '../../services/auth_controller.dart';
 import '../../services/catalog_sync_service.dart';
 import '../../services/cloud_backup_service.dart';
 import '../../services/sale_handoff.dart';
+import '../../services/tax_settings.dart';
 import '../../services/image_service.dart';
 import '../customers/customers_screen.dart';
 import '../inventory/inventory_home_screen.dart';
@@ -385,6 +386,9 @@ class SaleScreenState extends State<SaleScreen> {
 
   Future<void> _checkout() async {
     if (_lines.isEmpty || _locationId == null) return;
+    // Se lee ANTES de abrir la hoja de cobro: después hay un `await` de por
+    // medio y el contexto ya no es seguro.
+    final taxEnabled = context.read<TaxSettings>().enabled;
     final payment = await showModalBottomSheet<_PaymentResult>(
       context: context,
       isScrollControlled: true,
@@ -420,6 +424,7 @@ class SaleScreenState extends State<SaleScreen> {
         discountReason: payment.discountReason,
         customerId: _customer?.id,
         redeemPoints: payment.redeemPoints,
+        taxEnabled: taxEnabled,
       );
     } catch (e) {
       _toast('Error al cobrar: $e');
@@ -1170,14 +1175,19 @@ class SaleScreenState extends State<SaleScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Expanded(
-                  child: StatBlock(
-                    label: 'IVA incluido',
-                    value: money(_tax),
-                    size: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+                // Sin IVA (el caso normal aquí) el renglón desaparece: no tiene
+                // sentido mostrar un impuesto que el negocio no cobra.
+                if (context.watch<TaxSettings>().enabled)
+                  Expanded(
+                    child: StatBlock(
+                      label: 'IVA incluido',
+                      value: money(_tax),
+                      size: 14,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  const Spacer(),
                 StatBlock(
                   label: 'Total',
                   value: money(_total),

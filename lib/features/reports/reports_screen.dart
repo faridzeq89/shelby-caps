@@ -213,7 +213,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     const Divider(height: 24),
                     _kv('Ventas', '${s.salesCount}'),
                     _kv('Piezas vendidas', '${s.itemsSold}'),
-                    _kv('IVA incluido', _money(s.taxCents)),
+                    // Solo aparece si de verdad se cobró IVA en el periodo.
+                    if (s.taxCents > 0) _kv('IVA incluido', _money(s.taxCents)),
                     _kv('Descuentos', _money(s.discountCents)),
                     _kv('Devoluciones',
                         '${s.returnsCount} · ${_money(s.returnsCents)}'),

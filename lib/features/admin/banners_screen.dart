@@ -52,9 +52,11 @@ class _BannersScreenState extends State<BannersScreen> {
     unawaited(sync.publishNow().whenComplete(() {
       if (!mounted) return;
       setState(() => _busy = false);
+      // En éxito, mensaje simple. Si falla, incluye la pista técnica.
       _toast(sync.lastError == null
           ? 'Publicado en la tienda ✓'
-          : 'No se pudo publicar: ${sync.lastError}');
+          : 'No se pudo publicar: ${sync.lastError}'
+              '${sync.dbgBannerNote != null ? ' · ${sync.dbgBannerNote}' : ''}');
     }));
   }
 

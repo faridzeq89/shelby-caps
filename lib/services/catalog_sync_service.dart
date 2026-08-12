@@ -51,6 +51,11 @@ class CatalogSyncService {
   DateTime? lastPublishedAt;
   String? lastError;
 
+  /// Diagnóstico de la última publicación de banners (para depurar en web).
+  int dbgBannersFound = 0;
+  int dbgBannersUploaded = 0;
+  String? dbgBannerNote;
+
   SupabaseClient get _client => Supabase.instance.client;
 
   /// ¿Hay conexión a Supabase? Sin ella la tienda simplemente no se actualiza.
@@ -267,12 +272,18 @@ class CatalogSyncService {
     final storage = _client.storage.from('catalog');
     final out = <Map<String, dynamic>>[];
     final list = await repo.published();
+    dbgBannersFound = list.length;
+    dbgBannerNote = null;
 
     for (var i = 0; i < list.length; i++) {
       final b = list[i];
       try {
         final bytes = await ImageService.bytesOf(b.path);
-        if (bytes == null) continue;
+        if (bytes == null) {
+          final head = b.path.length <= 22 ? b.path : b.path.substring(0, 22);
+          dbgBannerNote = 'sin bytes (${b.path.length} car., "$head…")';
+          continue;
+        }
         final remote = 'banners/b${b.id}.jpg';
         await storage.uploadBinary(
           remote,
@@ -287,10 +298,12 @@ class CatalogSyncService {
           'position': i,
           'is_cover': b.isCover,
         });
-      } catch (_) {
+      } catch (e) {
         // Un anuncio que no subió no debe tumbar la publicación del catálogo.
+        dbgBannerNote = 'error al subir: $e';
       }
     }
+    dbgBannersUploaded = out.length;
     return out;
   }
 

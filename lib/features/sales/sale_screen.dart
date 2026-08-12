@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/money.dart';
@@ -30,6 +29,7 @@ import 'gift_cards_screen.dart';
 import 'layaways_screen.dart';
 import 'quotes_screen.dart';
 import 'returns_screen.dart';
+import 'pdf_actions.dart';
 import 'ticket_service.dart';
 import 'variant_picker.dart';
 
@@ -471,12 +471,17 @@ class SaleScreenState extends State<SaleScreen> {
     final ticketCfg = await TicketConfig.load(_db);
 
     var printed = true;
-    try {
-      await Printing.layoutPdf(
-        onLayout: (_) => TicketService.buildPdf(ticket, config: ticketCfg),
-        name: 'ticket_${result.folio}',
+    if (mounted) {
+      // Se ofrece compartir además de imprimir: mandarle el ticket al cliente
+      // por WhatsApp es lo más común, y antes había que guardarlo como PDF y
+      // buscarlo a mano.
+      await showDocumentActions(
+        context,
+        title: 'Ticket ${result.folio}',
+        filename: 'ticket_${result.folio}',
+        build: (_) => TicketService.buildPdf(ticket, config: ticketCfg),
       );
-    } catch (_) {
+    } else {
       printed = false;
     }
 

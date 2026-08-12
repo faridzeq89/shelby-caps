@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui_kit.dart';
@@ -10,6 +9,7 @@ import '../../data/repositories/layaway_repository.dart';
 import '../../data/repositories/sales_repository.dart' show CheckoutLine;
 import '../../services/auth_controller.dart';
 import 'layaway_receipt.dart';
+import 'pdf_actions.dart';
 import 'ticket_service.dart';
 import 'variant_picker.dart';
 
@@ -262,8 +262,12 @@ class _NewLayawayScreenState extends State<_NewLayawayScreen> {
       );
       // Comprobante.
       final ticketCfg = await TicketConfig.load(_db);
-      await Printing.layoutPdf(
-        onLayout: (_) => LayawayReceiptService.build(
+      if (!mounted) return;
+      await showDocumentActions(
+        context,
+        title: 'Comprobante de apartado',
+        filename: 'apartado_${result.folio}',
+        build: (_) => LayawayReceiptService.build(
           config: ticketCfg,
           folio: result.folio,
           customerName: _name.text.trim(),
@@ -278,7 +282,6 @@ class _NewLayawayScreenState extends State<_NewLayawayScreen> {
           dueDate: DateTime.now()
               .add(const Duration(days: LayawayRepository.termDays)),
         ),
-        name: 'apartado_${result.folio}',
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -458,8 +461,12 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
       await _repo.settle(actor: _user, saleId: widget.saleId);
       // Ticket final con los pagos acumulados.
       final ticketCfg = await TicketConfig.load(_db);
-      await Printing.layoutPdf(
-        onLayout: (_) => TicketService.buildPdf(
+      if (!mounted) return;
+      await showDocumentActions(
+        context,
+        title: 'Ticket ${d.sale.folio}',
+        filename: 'apartado_liquidado_${d.sale.folio}',
+        build: (_) => TicketService.buildPdf(
           config: ticketCfg,
           TicketData(
           folio: d.sale.folio,
@@ -484,7 +491,6 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
           changeCents: 0,
           gift: false,
         )),
-        name: 'apartado_liquidado_${d.sale.folio}',
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -495,8 +501,12 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
   Future<void> _reprint(_Detail d) async {
     final paid = d.sale.totalCents - d.balance;
     final ticketCfg = await TicketConfig.load(_db);
-    await Printing.layoutPdf(
-      onLayout: (_) => LayawayReceiptService.build(
+    if (!mounted) return;
+    await showDocumentActions(
+      context,
+      title: 'Comprobante ${d.sale.folio}',
+      filename: 'apartado_${d.sale.folio}',
+      build: (_) => LayawayReceiptService.build(
         config: ticketCfg,
         folio: d.sale.folio,
         customerName: d.customer?.name ?? 'Cliente',
@@ -510,7 +520,6 @@ class _LayawayDetailScreenState extends State<_LayawayDetailScreen> {
         balanceCents: d.balance,
         dueDate: d.terms.dueDate,
       ),
-      name: 'apartado_${d.sale.folio}',
     );
   }
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui_kit.dart';
@@ -11,6 +10,7 @@ import '../../data/repositories/quote_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/sale_handoff.dart';
 import 'quote_service.dart';
+import 'pdf_actions.dart';
 import 'ticket_service.dart';
 
 /// Lista de cotizaciones vigentes. Se abre desde la pantalla de Venta. Al elegir
@@ -33,8 +33,6 @@ class _QuotesScreenState extends State<QuotesScreen> {
 
   void _reload() => setState(() => _future = _repo.open());
 
-  void _toast(String msg) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(msg)));
 
 
   /// Descripción legible de cada renglón (producto talla/color).
@@ -60,23 +58,23 @@ class _QuotesScreenState extends State<QuotesScreen> {
     if (q.customerId != null) {
       customerName = (await _customers.byId(q.customerId!))?.name;
     }
-    try {
-      await Printing.layoutPdf(
-        onLayout: (_) => QuoteService.build(
-          folio: q.folio,
-          dateTime: q.createdAt,
-          lines: pdfLines,
-          totalCents: q.totalCents,
-          customerName: customerName,
-          expiresAt: q.expiresAt,
-          notes: q.notes,
-          config: cfg,
-        ),
-        name: 'cotizacion_${q.folio}',
-      );
-    } catch (e) {
-      _toast('No se pudo generar el PDF: $e');
-    }
+    if (!mounted) return;
+    await showDocumentActions(
+      context,
+      title: 'Nota ${q.folio}',
+      filename: 'cotizacion_${q.folio}',
+      shareHint: 'Mandársela al cliente por WhatsApp o correo',
+      build: (_) => QuoteService.build(
+        folio: q.folio,
+        dateTime: q.createdAt,
+        lines: pdfLines,
+        totalCents: q.totalCents,
+        customerName: customerName,
+        expiresAt: q.expiresAt,
+        notes: q.notes,
+        config: cfg,
+      ),
+    );
   }
 
   Future<void> _cancel(Quote q) async {

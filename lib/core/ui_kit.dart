@@ -10,53 +10,81 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'palette.dart';
+
 /// Paleta de la marca. Única fuente de verdad: el tema la consume, y las
 /// pantallas que necesiten un color semántico (éxito, atenuado) lo toman de aquí
 /// en vez de escribir el hexadecimal.
 abstract final class AppColors {
-  /// Vino: relleno de las acciones principales. Es un vino saturado para que
-  /// resalte contra el gris oscuro; el vino de etiqueta clásico se apaga.
-  static const brand = Color(0xFFA62B47);
+  /// Repinta la paleta con la que eligió el dueño. La llama el arranque y la
+  /// pantalla de Colores; después basta con reconstruir la app.
+  ///
+  /// Son variables globales a propósito: la app tiene **un** tema, y la
+  /// alternativa (pasar la paleta por `context` en 85 lugares) sería más ruido
+  /// que beneficio para lo mismo.
+  static void apply(Palette p) {
+    brand = p.brand;
+    accent = p.accent;
+    onAccent = p.onAccent;
+    bar = p.bar;
+    onBar = p.onBar;
+    onBarMuted = p.onBarMuted;
+    bg = p.bg;
+    surface = p.surface;
+    border = p.border;
+    ink = p.ink;
+    inkMuted = p.inkMuted;
+    success = p.success;
+    danger = p.danger;
+  }
 
-  /// Vino claro para **texto e iconos** sobre fondo oscuro. El [brand] relleno
-  /// no alcanza contraste como texto; este sí.
-  static const accent = Color(0xFFE0657D);
+  /// Vino tirando a rojo: relleno de las acciones principales. Lleva poco azul
+  /// a propósito — en cuanto el azul sube, el vino se lee rosa.
+  static Color brand = Color(0xFFA81C22);
+
+  /// Rojo claro para **texto e iconos** sobre fondo oscuro. El [brand] relleno
+  /// no alcanza contraste como texto; este sí, sin irse al rosa.
+  static Color accent = Color(0xFFED5147);
 
   /// Texto sobre el vino relleno.
-  static const onAccent = Color(0xFFFFFFFF);
+  static Color onAccent = Color(0xFFFFFFFF);
 
   /// Barras de app: un escalón más oscuro que el fondo, para anclar la pantalla.
-  static const bar = Color(0xFF0E0E11);
+  static Color bar = Color(0xFF0E0E11);
 
   /// Texto sobre las barras.
-  static const onBar = Color(0xFFF2F2F5);
+  static Color onBar = Color(0xFFF2F2F5);
 
   /// Atenuado sobre las barras (subtítulos del header).
-  static const onBarMuted = Color(0xFF9B9BA6);
+  static Color onBarMuted = Color(0xFF9B9BA6);
 
   /// Fondo base: gris muy oscuro, casi negro.
-  static const bg = Color(0xFF121215);
+  static Color bg = Color(0xFF121215);
 
   /// Tarjetas e inputs: un escalón MÁS CLARO que el fondo. En oscuro las
   /// sombras no se ven, así que la separación se hace con luz y borde.
-  static const surface = Color(0xFF1B1B20);
+  static Color surface = Color(0xFF1B1B20);
 
   /// Borde tenue entre superficies.
-  static const border = Color(0xFF2B2B33);
+  static Color border = Color(0xFF2B2B33);
 
   /// Texto principal (blanco cálido, no blanco puro: cansa menos).
-  static const ink = Color(0xFFF4F4F7);
+  static Color ink = Color(0xFFF4F4F7);
 
   /// Texto secundario. La jerarquía se hace con esto, no con tamaños raros.
-  static const inkMuted = Color(0xFFA9A9B4);
+  static Color inkMuted = Color(0xFFA9A9B4);
 
   /// Verde: saldos a favor, stock sano, cobros completados. Aclarado respecto
   /// al tema claro porque un verde oscuro desaparece sobre negro.
-  static const success = Color(0xFF4FBF87);
+  static Color success = Color(0xFF4FBF87);
 
-  /// Rojo para acciones destructivas y faltantes. Se usa donde no hay un
-  /// `ColorScheme` a la mano; si lo hay, prefiere `theme.colorScheme.error`.
-  static const danger = Color(0xFFFF5C68);
+  /// Alarma: acciones destructivas y faltantes. Va corrido hacia el **naranja**
+  /// a propósito: con una marca roja, un rojo de error idéntico al de la marca
+  /// deja de avisar nada. Aquí el tono separa "borrar" de "cobrar".
+  ///
+  /// Se usa donde no hay un `ColorScheme` a la mano; si lo hay, prefiere
+  /// `theme.colorScheme.error`.
+  static Color danger = Color(0xFFFF8A3D);
 }
 
 /// Radios del sistema. `surface` para tarjetas y filas, `control` para campos y
@@ -449,7 +477,7 @@ class AppBarTitle extends StatelessWidget {
         if (subtitle != null)
           Text(
             subtitle!,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               color: AppColors.onBarMuted,
               fontWeight: FontWeight.w700,

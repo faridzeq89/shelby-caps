@@ -244,13 +244,13 @@ class _BannersScreenState extends State<BannersScreen> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const Icon(Icons.add_photo_alternate_outlined,
+          Icon(Icons.add_photo_alternate_outlined,
               size: 36, color: AppColors.accent),
           const SizedBox(height: 8),
           Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
           Text(action,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13, color: AppColors.accent)),
         ],
       ),

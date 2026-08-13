@@ -2,12 +2,12 @@
  * Treinta: fondo blanco, tipografía Nunito Sans, foto cuadrada mandando y
  * cero adornos alrededor de la tarjeta. Phone-first: 2 columnas en celular.
  *
- * El acento es el vino de la marca (#a62b47), el mismo del POS. El fondo se
+ * El acento es el vino de la marca (#a81c22), el mismo del POS. El fondo se
  * mantiene claro a propósito: un catálogo de venta se lee mejor con las fotos
  * sobre blanco, y así conserva el aire del catálogo que el cliente ya usaba. */
 
 :root {
-  --accent: #a62b47;          /* vino de la marca */
+  --accent: #a81c22;          /* vino tirando a rojo, el de la marca */
   --on-accent: #fff;
   --ink: #171717;             /* texto principal */
   --muted: #6b6b6b;

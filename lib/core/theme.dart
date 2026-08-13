@@ -12,16 +12,16 @@ import 'ui_kit.dart';
 /// La paleta vive en [AppColors] (`ui_kit.dart`), que es la única fuente de
 /// verdad: cambiar el vino ahí re-tinta la app entera, tema y primitivos.
 ThemeData buildAppTheme() {
-  const brand = AppColors.brand;
-  const accent = AppColors.accent;
-  const bar = AppColors.bar;
-  const onBar = AppColors.onBar;
-  const onAccent = AppColors.onAccent;
-  const bg = AppColors.bg;
-  const surface = AppColors.surface;
-  const border = AppColors.border;
-  const ink = AppColors.ink;
-  const inkMuted = AppColors.inkMuted;
+  final brand = AppColors.brand;
+  final accent = AppColors.accent;
+  final bar = AppColors.bar;
+  final onBar = AppColors.onBar;
+  final onAccent = AppColors.onAccent;
+  final bg = AppColors.bg;
+  final surface = AppColors.surface;
+  final border = AppColors.border;
+  final ink = AppColors.ink;
+  final inkMuted = AppColors.inkMuted;
   // En oscuro la sombra apenas se percibe; se deja sutil para dar profundidad
   // a lo que flota (diálogos, hojas) sin ensuciar.
   final shadow = Colors.black.withValues(alpha: 0.5);
@@ -48,7 +48,7 @@ ThemeData buildAppTheme() {
 
   final menuShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(14),
-    side: const BorderSide(color: border),
+    side: BorderSide(color: border),
   );
 
   return ThemeData(
@@ -61,7 +61,7 @@ ThemeData buildAppTheme() {
     // jerarquía sea la misma en toda la app.
     hintColor: inkMuted,
 
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 2,
@@ -86,7 +86,7 @@ ThemeData buildAppTheme() {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: border),
+        side: BorderSide(color: border),
       ),
     ),
 
@@ -133,7 +133,7 @@ ThemeData buildAppTheme() {
       style: OutlinedButton.styleFrom(
         foregroundColor: ink,
         minimumSize: const Size(0, 50),
-        side: const BorderSide(color: border),
+        side: BorderSide(color: border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
@@ -155,7 +155,7 @@ ThemeData buildAppTheme() {
     chipTheme: ChipThemeData(
       backgroundColor: surface,
       selectedColor: brand.withValues(alpha: 0.16),
-      side: const BorderSide(color: border),
+      side: BorderSide(color: border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
 
@@ -168,7 +168,7 @@ ThemeData buildAppTheme() {
       border: ob(border),
       enabledBorder: ob(border),
       focusedBorder: ob(brand, 2),
-      floatingLabelStyle: const TextStyle(color: accent),
+      floatingLabelStyle: TextStyle(color: accent),
     ),
 
     popupMenuTheme: PopupMenuThemeData(
@@ -181,7 +181,7 @@ ThemeData buildAppTheme() {
 
     menuTheme: MenuThemeData(
       style: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(surface),
+        backgroundColor: WidgetStatePropertyAll(surface),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         elevation: const WidgetStatePropertyAll(4),
         shadowColor: WidgetStatePropertyAll(shadow),
@@ -189,7 +189,7 @@ ThemeData buildAppTheme() {
       ),
     ),
 
-    dividerTheme: const DividerThemeData(
+    dividerTheme: DividerThemeData(
       color: border,
       space: 1,
       thickness: 1,
@@ -200,7 +200,7 @@ ThemeData buildAppTheme() {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: const Color(0xFF2E2E38),
-      contentTextStyle: const TextStyle(color: ink, fontWeight: FontWeight.w600),
+      contentTextStyle: TextStyle(color: ink, fontWeight: FontWeight.w600),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
 
@@ -210,7 +210,7 @@ ThemeData buildAppTheme() {
       elevation: 6,
       shadowColor: Colors.black.withValues(alpha: 0.18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      titleTextStyle: const TextStyle(
+      titleTextStyle: TextStyle(
           color: ink, fontSize: 20, fontWeight: FontWeight.w700),
     ),
 

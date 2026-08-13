@@ -106,7 +106,7 @@ class CloudBackupScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, color: AppColors.accent),
+              Icon(Icons.info_outline, color: AppColors.accent),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Esta tablet aún no respalda',
@@ -132,8 +132,8 @@ class CloudBackupScreen extends StatelessWidget {
         SyncState.syncing =>
           const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
         SyncState.ok =>
-          const Icon(Icons.cloud_done, color: AppColors.success),
-        SyncState.error => const Icon(Icons.cloud_off, color: AppColors.danger),
+          Icon(Icons.cloud_done, color: AppColors.success),
+        SyncState.error => Icon(Icons.cloud_off, color: AppColors.danger),
         SyncState.disabled => const Icon(Icons.cloud_off),
         SyncState.idle => const Icon(Icons.cloud_queue),
       };

@@ -78,7 +78,7 @@ class _ImportScreenState extends State<ImportScreen> {
             SelectableText(ImportRepository.columns,
                 style: const TextStyle(
                     fontFamily: 'monospace', fontWeight: FontWeight.bold)),
-            const Text(
+            Text(
                 'Obligatorias: producto, categoria, precio. El resto opcional.',
                 style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
             const SizedBox(height: 8),

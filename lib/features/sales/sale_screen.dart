@@ -882,7 +882,7 @@ class SaleScreenState extends State<SaleScreen> {
                     ),
                     if (line.wholesaleApplied) ...[
                       const SizedBox(width: 6),
-                      const StatusPill('Mayoreo',
+                      StatusPill('Mayoreo',
                           icon: Icons.bolt, color: AppColors.accent),
                     ],
                   ],
@@ -1272,7 +1272,7 @@ class _ProductTile extends StatelessWidget {
                         ?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
                 Text(money(product.basePriceCents),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                         color: AppColors.accent)),

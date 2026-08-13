@@ -9,6 +9,7 @@ import 'features/home/home_screen.dart';
 import 'services/auth_controller.dart';
 import 'services/catalog_sync_service.dart';
 import 'services/cloud_backup_service.dart';
+import 'services/palette_settings.dart';
 import 'services/quick_menu.dart';
 import 'services/sale_handoff.dart';
 import 'services/tax_settings.dart';
@@ -22,7 +23,8 @@ class BoutiquePosApp extends StatelessWidget {
       required this.db,
       this.backup,
       this.tax,
-      this.quickMenu});
+      this.quickMenu,
+      this.paleta});
 
   final AuthController auth;
   final AppDatabase db;
@@ -35,11 +37,15 @@ class BoutiquePosApp extends StatelessWidget {
   /// Botones de la barra de abajo ya cargados; sin él salen los de fábrica.
   final QuickMenu? quickMenu;
 
+  /// Colores elegidos por el dueño; sin ellos sale la paleta de fábrica.
+  final PaletteSettings? paleta;
+
   @override
   Widget build(BuildContext context) {
     final backupSvc = backup ?? CloudBackupService(db, enabled: false);
     final taxSvc = tax ?? TaxSettings(db);
     final quickSvc = quickMenu ?? QuickMenu(db);
+    final paletaSvc = paleta ?? PaletteSettings(db);
     return MultiProvider(
       providers: [
         Provider<AppDatabase>.value(value: db),
@@ -54,12 +60,17 @@ class BoutiquePosApp extends StatelessWidget {
         ChangeNotifierProvider<SaleHandoff>(create: (_) => SaleHandoff()),
         ChangeNotifierProvider<TaxSettings>.value(value: taxSvc),
         ChangeNotifierProvider<QuickMenu>.value(value: quickSvc),
+        ChangeNotifierProvider<PaletteSettings>.value(value: paletaSvc),
       ],
-      child: MaterialApp(
-        title: 'SHELBY CAPS',
-        debugShowCheckedModeBanner: false,
-        theme: buildAppTheme(),
-        home: const _RootGate(),
+      // El tema se reconstruye al cambiar de color: `buildAppTheme()` lee la
+      // paleta ya aplicada, y el `watch` es lo que dispara el repintado.
+      child: Consumer<PaletteSettings>(
+        builder: (context, _, _) => MaterialApp(
+          title: 'SHELBY CAPS',
+          debugShowCheckedModeBanner: false,
+          theme: buildAppTheme(),
+          home: const _RootGate(),
+        ),
       ),
     );
   }

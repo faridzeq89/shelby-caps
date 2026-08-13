@@ -333,7 +333,7 @@ class _CashSessionScreenState extends State<CashSessionScreen> {
                   const SizedBox(height: 4),
                   cancelled
                       ? StatusPill('Cancelada', color: theme.colorScheme.error)
-                      : const StatusPill('Completada',
+                      : StatusPill('Completada',
                           color: AppColors.success),
                 ],
               ),

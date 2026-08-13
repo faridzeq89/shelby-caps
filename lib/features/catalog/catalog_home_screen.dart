@@ -88,7 +88,7 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
                 'cuando cambias precios, fotos o existencias.'),
             const SizedBox(height: 12),
             SelectableText(url,
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.w800, color: AppColors.accent)),
           ],
         ),

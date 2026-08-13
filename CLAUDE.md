@@ -38,19 +38,32 @@ Supabase. Hereda del POS Boutique toda la base de retail.
 > la app (roles/PIN), no la RLS de Postgres (esa solo protege el espejo de respaldo).
 
 ## Sistema visual (no negociable)
-El estilo es **"Sastrería Moderna"**: latón sobre carbón, fondo lana, tarjetas de
-papel con borde greige. Vive en dos archivos y en ningún otro lado:
+De fábrica es **vino casi rojo sobre gris casi negro**, pero el color **lo elige el
+dueño** desde Ajustes → Colores. Vive en cuatro archivos y en ningún otro lado:
 
+- `core/palette.dart` — deriva la paleta completa de **un solo color** (`Palette.fromSeed`)
+  midiendo contraste WCAG. El dueño solo escoge la semilla y si el fondo es oscuro o
+  claro; todo lo demás se calcula para que siga leyéndose. Aquí no se ponen colores "a
+  ojo": si un tono no cumple, `readableOn` lo aclara u oscurece conservando el matiz, y
+  el semáforo (`success`/`danger`) se elige del que **no** se confunda con la marca.
 - `core/theme.dart` — estiliza los componentes Material estándar (AppBar, Card,
   botones, inputs, diálogos). **No pongas `border:` propio en un `InputDecoration`**:
   pisa el redondeo del tema y devuelve las esquinas cuadradas de Material.
 - `core/ui_kit.dart` — lo que Material no da: `AppColors`, `AppRadii`, `money()`,
   `SurfaceCard`, `SectionHeader`, `StatusPill`, `StatBlock`/`StatCard`,
   `QuickTile`, `SearchField`, `FilterChipsRow`, `EmptyState`, `AppBarTitle`.
+- `services/palette_settings.dart` — guarda **solo** la semilla y oscuro/claro
+  (`theme_seed`, `theme_dark`) y aplica la paleta. Nunca se guarda la paleta completa:
+  así no puede quedar grabada una combinación ilegible de una versión vieja.
 
 Reglas: ninguna pantalla define colores, radios ni formatea dinero a mano. Si algo
 no se puede armar con los primitivos, **se agrega al kit**, no se copia en la
 pantalla. Las listas vacías usan `EmptyState`, nunca `Center(child: Text(...))`.
+
+**`AppColors` es mutable** (cambia al elegir color), así que sus valores **no son
+`const`**: `const Icon(..., color: AppColors.accent)` no compila. Se escribe sin `const`.
+`test/paleta_test.dart` mide el contraste de las 12 sugerencias **y de casos extremos**
+(blanco, negro, neón, gris) en oscuro y en claro; si una pieza deja de leerse, falla.
 
 ## Convenciones (no negociables)
 - **Dinero en centavos enteros** (`*_cents INTEGER`). Nunca `double`/`float`.

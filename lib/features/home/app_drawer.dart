@@ -7,6 +7,7 @@ import '../admin/banners_screen.dart';
 import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
 import '../admin/loyalty_config_screen.dart';
+import '../admin/palette_screen.dart';
 import '../admin/printers_screen.dart';
 import '../admin/quick_menu_screen.dart';
 import '../admin/tax_settings_screen.dart';
@@ -66,13 +67,13 @@ class AppDrawer extends StatelessWidget {
                     Container(
                       width: 40,
                       height: 40,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                           color: AppColors.brand, shape: BoxShape.circle),
-                      child: const Icon(Icons.local_mall_outlined,
+                      child: Icon(Icons.local_mall_outlined,
                           color: AppColors.onAccent, size: 22),
                     ),
                     const SizedBox(width: 12),
-                    const Text('SHELBY CAPS',
+                    Text('SHELBY CAPS',
                         style: TextStyle(
                             color: AppColors.onBar,
                             fontWeight: FontWeight.w900,
@@ -83,7 +84,7 @@ class AppDrawer extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   '${auth.currentUser?.name ?? ''} · ${_roleLabel(isAdmin)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.onBarMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w700),
@@ -134,6 +135,8 @@ class AppDrawer extends StatelessWidget {
                 onTap: () => push(const CloudBackupScreen())),
             _item(context, Icons.rule, 'Reconciliación',
                 onTap: () => push(const ReconciliationScreen())),
+            _item(context, Icons.palette_outlined, 'Colores',
+                onTap: () => push(const PaletteScreen())),
             _item(context, Icons.dashboard_customize_outlined, 'Menú rápido',
                 onTap: () => push(const QuickMenuScreen())),
             _item(context, Icons.percent, 'IVA',
@@ -166,7 +169,7 @@ class AppDrawer extends StatelessWidget {
   Widget _group(String label) => Padding(
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
         child: Text(label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
                 color: AppColors.accent,
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
@@ -188,7 +191,7 @@ class AppDrawer extends StatelessWidget {
                   color: AppColors.brand,
                   borderRadius: BorderRadius.circular(6)),
               child: Text(trailing.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.onAccent,
                       fontSize: 9,
                       fontWeight: FontWeight.w900)),

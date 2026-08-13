@@ -528,7 +528,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                     borderRadius: BorderRadius.circular(AppRadii.pill),
                   ),
                   child: Text(label,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.onBar,
                           fontSize: 10,
                           fontWeight: FontWeight.w800)),
@@ -551,7 +551,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
           borderRadius: BorderRadius.circular(AppRadii.small),
           border: Border.all(color: Theme.of(context).dividerColor),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.add_a_photo_outlined, color: AppColors.accent),

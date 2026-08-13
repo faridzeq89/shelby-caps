@@ -130,7 +130,7 @@ class _QuickMenuScreenState extends State<QuickMenuScreen> {
                             style:
                                 const TextStyle(fontWeight: FontWeight.w700)),
                       ),
-                      const Icon(Icons.add, color: AppColors.accent),
+                      Icon(Icons.add, color: AppColors.accent),
                     ],
                   ),
                 ),

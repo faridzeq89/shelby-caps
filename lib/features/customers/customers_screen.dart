@@ -108,7 +108,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                               backgroundColor:
                                   AppColors.brand.withValues(alpha: 0.15),
                               child: Text(_initials(c.name),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontWeight: FontWeight.w900,
                                       color: AppColors.accent)),
                             ),
@@ -237,7 +237,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 children: [
                   if (c.phone != null)
                     Row(children: [
-                      const Icon(Icons.phone_outlined,
+                      Icon(Icons.phone_outlined,
                           size: 18, color: AppColors.accent),
                       const SizedBox(width: 8),
                       Text(c.phone!),
@@ -245,7 +245,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   if (c.email != null) ...[
                     const SizedBox(height: 6),
                     Row(children: [
-                      const Icon(Icons.mail_outline,
+                      Icon(Icons.mail_outline,
                           size: 18, color: AppColors.accent),
                       const SizedBox(width: 8),
                       Text(c.email!),
@@ -452,7 +452,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          const Icon(Icons.stars_rounded, size: 30, color: AppColors.brand),
+          Icon(Icons.stars_rounded, size: 30, color: AppColors.brand),
           const SizedBox(width: 14),
           Expanded(
             child: StatBlock(

@@ -211,6 +211,75 @@ class StatusPill extends StatelessWidget {
   }
 }
 
+/// Aviso franco de ancho completo: icono, título y explicación en el tono del
+/// mensaje (por omisión `danger`), sobre ese mismo color al 10 % y con su
+/// borde. Es para lo que el dueño **tiene que saber** aunque no lo haya
+/// buscado — no para adornar una pantalla.
+///
+/// No se puede cerrar a propósito: un aviso que se descarta se descarta la
+/// primera vez y ya no vuelve a leerse. Si la condición se arregla, quien lo
+/// muestra deja de construirlo.
+class WarningBanner extends StatelessWidget {
+  const WarningBanner({
+    super.key,
+    required this.title,
+    required this.message,
+    this.icon = Icons.warning_amber_rounded,
+    this.color,
+    this.action,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color? color;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? AppColors.danger;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadii.surface),
+        border: Border.all(color: c.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: c, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: c,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(color: AppColors.ink, fontSize: 13),
+                ),
+                if (action != null) ...[
+                  const SizedBox(height: 8),
+                  action!,
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Etiqueta chica + cifra grande. Es el bloque de dato de toda la app: el
 /// resumen del día, los totales del carrito y los KPIs de reportes.
 class StatBlock extends StatelessWidget {

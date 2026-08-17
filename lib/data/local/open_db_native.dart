@@ -18,6 +18,18 @@ QueryExecutor openDatabase() {
 /// En esta plataforma el respaldo a Supabase sí está disponible.
 const bool supportsFileBackup = true;
 
+/// Cómo guarda esta plataforma. Aquí es un archivo del sistema: la contraparte
+/// de las banderas de `open_db_web.dart`, para que la UI compartida compile en
+/// las tres superficies sin preguntar en qué plataforma corre.
+const String storageKind = 'archivo';
+
+/// En tablet/PC el guardado **siempre** es durable: SQLite escribe al archivo.
+/// La duda solo existe en el navegador.
+const bool storageIsDurable = true;
+
+/// Nunca falta nada aquí; existe para igualar la firma de la versión web.
+const List<String> storageMissingFeatures = [];
+
 /// Foto consistente de la base vía `VACUUM INTO` (no copia un archivo a medio
 /// escribir). Devuelve los bytes que se suben a la nube.
 Future<Uint8List> snapshotDatabase(

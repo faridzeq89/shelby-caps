@@ -1,0 +1,24 @@
+# Cabeceras para Cloudflare Pages (shelby-pos.pages.dev).
+#
+# **Sin esto el POS web pierde datos.** Drift guarda en el navegador de dos
+# maneras: OPFS (durable) o IndexedDB (escribe sin garantía de durabilidad —
+# si el dueño cambia un precio y cierra la pestaña, se puede perder; le pasó
+# al cliente el 13 ago 2026).
+#
+# En Chrome y Safari la única vía a OPFS es la implementación `opfsLocks` de
+# drift, que usa `Atomics.wait` y por eso exige `SharedArrayBuffer`, que el
+# navegador solo entrega si la página está **aislada entre orígenes**. Eso es
+# exactamente lo que activan estas dos cabeceras. (La otra vía, `opfsShared`,
+# necesita que un shared worker pueda abrir workers dedicados: solo Firefox.)
+#
+# Verificar tras desplegar, en la consola del navegador:
+#   crossOriginIsolated  →  debe ser true
+#
+# Precio de tenerlas: la página ya no puede cargar recursos de otros orígenes
+# sin CORS/CORP. Aquí no carga ninguno (CanvasKit va local por
+# `--no-web-resources-cdn`, las fotos se guardan como data URL y a Supabase se
+# le habla por fetch con CORS). Si algún día se agrega una imagen o un script
+# externo, hay que revisarlo aquí.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp

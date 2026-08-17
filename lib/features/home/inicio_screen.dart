@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/storage_notice.dart';
 import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/expense_repository.dart';
@@ -97,6 +98,9 @@ class InicioScreenState extends State<InicioScreen> {
             return ListView(
               padding: const EdgeInsets.all(14),
               children: [
+                // Primero que nada: si el navegador no guarda seguro, que se
+                // vea antes que las cifras del día.
+                const StorageDurabilityNotice(),
                 _heroCard(context, d),
                 const SizedBox(height: 18),
                 const SectionHeader('Accesos rápidos'),

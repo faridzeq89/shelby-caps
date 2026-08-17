@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/storage_notice.dart';
 import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../services/cloud_backup_service.dart';
@@ -19,6 +20,9 @@ class CloudBackupScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Con diagnóstico: esta es la pantalla a la que se llega cuando
+            // algo del guardado no cuadra.
+            const StorageDurabilityNotice(detailed: true),
             SurfaceCard(
               padding: const EdgeInsets.all(16),
               child: Column(

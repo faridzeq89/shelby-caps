@@ -421,6 +421,37 @@ Cómo se resolvió cada cosa que `dart:io` no da en el navegador:
 sin respaldo en la nube. Borrar los datos del sitio los borra. No es sustituto de la
 tablet: es una vista provisional.
 
+## Durabilidad en web: `web/_headers` no es opcional (2026-08-17, en `main`)
+El cliente reportó el 13 ago que en el POS web se le perdían cambios. **La causa no era
+el código:** el sitio desplegado no mandaba las cabeceras de aislamiento, así que drift
+caía a **IndexedDB**, que el propio sqlite3 documenta como *escribe sin garantías de
+durabilidad* — cambias un precio, cierras la pestaña y el volcado puede no alcanzar a
+ocurrir. `web/serve.json` (servidor local) **sí** traía las cabeceras desde siempre; por
+eso en pruebas locales nunca se reprodujo y en producción sí.
+
+- **`web/_headers`** (nuevo): COOP `same-origin` + COEP `require-corp` para Cloudflare
+  Pages. Flutter lo copia tal cual a `build/web/`. Sin él no hay `SharedArrayBuffer`, y
+  sin eso Chrome y Safari **no pueden** usar OPFS (la vía `opfsLocks` de drift usa
+  `Atomics.wait`; la otra, `opfsShared`, solo existe en Firefox).
+- **`open_db_web.dart`**: pide OPFS con `moveExistingIndexedDbToOpfs: true` (drift, por
+  omisión, se queda en IndexedDB si ya había base ahí — justo el caso del cliente),
+  pide `navigator.storage.persist()` y expone `storageKind` / `storageIsDurable` /
+  `storageMissingFeatures`. `open_db_native.dart` declara las mismas para que la UI
+  compartida compile en las tres superficies.
+- **La app lo dice cuando no puede garantizarlo**: `core/storage_notice.dart`
+  (`StorageDurabilityNotice`) sobre el primitivo nuevo `WarningBanner` del kit. Va arriba
+  de Inicio y, con diagnóstico técnico, en Admin → Respaldo. Si el guardado es durable
+  devuelve un widget de tamaño cero: en tablet nunca se ve.
+- **Verificado en el navegador**, no solo en el código: sin cabeceras la base queda en
+  IndexedDB y OPFS vacío; al agregarlas, `crossOriginIsolated` pasa a `true`, aparece
+  `drift_db/boutique_pos` en OPFS (434 KB) y **IndexedDB queda vacío** — o sea, drift
+  mudó la base existente, no creó una nueva. Comprobar tras cada despliegue con
+  `crossOriginIsolated` en la consola.
+- **Costo de las cabeceras**: la página ya no carga recursos de otros orígenes sin
+  CORS/CORP. Hoy no carga ninguno (CanvasKit local, fotos en data URL, Supabase por
+  fetch con CORS). Si algún día se agrega una imagen o script externo, revisar aquí.
+- 209 pruebas verdes (2 nuevas en `test/storage_notice_test.dart`), analyze limpio.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

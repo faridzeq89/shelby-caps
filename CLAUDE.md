@@ -582,6 +582,39 @@ versión web pesa más, porque cada recarga de la pestaña lo vuelve a pedir.
 **Si algún día entra un cajero, apagar este interruptor.** Con él prendido el cajero
 operaría con permisos de dueño (ve costos, edita precios, cancela ventas), que es
 exactamente lo que el modelo de roles existe para evitar.
+## "Nueva venta": elegir cobrar o cotizar al empezar (2026-08-17, en `main`)
+Sin cambio de esquema. Pedido del cliente, que venía de otra app que pregunta el tipo
+**antes** de armar nada y por eso no encontraba las cotizaciones.
+
+**La función ya existía**: los botones "Cotización" y "Cobrar" viven al pie del carrito.
+Lo que fallaba era dónde: en el diseño **ancho** (tablet) se ven los dos lado a lado, pero
+en el **angosto** (teléfono, que es lo que usa el cliente) la barra de abajo solo traía
+"Cobrar" y "Cotizar" quedaba dentro de la hoja del carrito. Ver "Cobrar" y nada más y
+concluir que no se puede cotizar es una lectura correcta de lo que se veía.
+
+- **`_NuevaVentaSheet`** (en `home_screen.dart`): hoja con dos opciones, Venta de
+  productos y Cotización. Devuelve `true`/`false`/`null`.
+- **Sale solo con el carrito vacío** (`_goVender`). "Vender" es una pestaña que conserva
+  su estado: si preguntara cada vez que se vuelve a ella, estorbaría a media venta. Con
+  carrito armado entra directo. Cerrar la hoja sin elegir no mueve de pantalla.
+- **No lleva "Venta libre"** (registrar un ingreso sin tocar productos), que sí trae la
+  app de la que viene el cliente: aquí el inventario es un libro mayor y una venta sin
+  líneas dejaría el stock diciendo una cosa y la caja otra.
+- **El modo solo decide cuál es el botón grande.** Los dos siguen a la vista, así que se
+  puede cambiar de opinión con el carrito ya armado — ésa era la ventaja de decidir al
+  final y no se sacrifica por preguntar al principio. En teléfono, donde solo cabe un
+  botón, el grande es el del modo.
+- **El título de la barra dice `COTIZACIÓN` o `VENTA`**: es el único indicador del modo y
+  se ve en las dos superficies. El modo se apaga solo al guardar la cotización o al
+  cobrar (los dos puntos donde se limpia el carrito).
+- **Bug encontrado por las pruebas**: la hoja desbordaba 17 px en pantalla corta. Lleva
+  `SingleChildScrollView`.
+- 216 pruebas verdes (4 nuevas en `test/nueva_venta_test.dart`), analyze limpio.
+
+Las pruebas fijan la ventana en 700×1400 (teléfono) a propósito: con la de 800×600 que
+trae `flutter_test` por omisión, la vitrina queda en 75 px y el "carrito vacío" desborda.
+Eso es artefacto de la prueba, no del POS.
+
 
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
@@ -598,7 +631,7 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
 ## Estado operativo (2026-08-17)
-Esquema local **v15**. Migraciones de Supabase **0001–0005**. Suite **212 pruebas**,
+Esquema local **v15**. Migraciones de Supabase **0001–0005**. Suite **216 pruebas**,
 `flutter analyze` limpio.
 
 **Tres superficies en vivo:** APK Android (mostrador), **POS web** `shelby-pos.pages.dev`

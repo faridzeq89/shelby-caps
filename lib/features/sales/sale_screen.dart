@@ -88,6 +88,12 @@ class SaleScreenState extends State<SaleScreen> {
   Customer? _customer; // cliente opcional asignado a la venta
   int? _originQuoteId; // cotización de origen si el carrito se cargó de una
 
+  /// Modo cotización: el dueño dijo desde el arranque que esto no se cobra.
+  /// **Solo cambia cuál es el botón grande** — los dos siguen a la vista, para
+  /// que pueda cambiar de opinión con el carrito ya armado, que es la ventaja
+  /// de decidir al final y no se sacrifica por preguntar al principio.
+  bool _quoteMode = false;
+
   // Vitrina
   List<Category> _categories = [];
   List<Product> _products = [];
@@ -109,6 +115,16 @@ class SaleScreenState extends State<SaleScreen> {
 
   static const _lineAuthThreshold = 0.15; // descuento por línea que exige gerente
   int get _itemCount => _lines.fold(0, (s, l) => s + l.qty);
+
+  /// ¿Hay algo en el carrito? Lo consulta el shell antes de preguntar el tipo
+  /// de venta: con un carrito a medias, preguntar sería estorbar a media venta.
+  bool get hasCart => _lines.isNotEmpty;
+
+  /// La elección de la hoja "Nueva venta" (ver `home_screen.dart`).
+  void setQuoteMode(bool value) {
+    if (_quoteMode == value) return;
+    setState(() => _quoteMode = value);
+  }
 
   @override
   void initState() {
@@ -332,6 +348,7 @@ class SaleScreenState extends State<SaleScreen> {
         _lines.clear();
         _customer = null;
         _originQuoteId = null;
+        _quoteMode = false;
       });
       _scanFocus.requestFocus();
     } catch (e) {
@@ -491,6 +508,7 @@ class SaleScreenState extends State<SaleScreen> {
       _lines.clear();
       _customer = null;
       _originQuoteId = null;
+      _quoteMode = false;
     });
     _refreshLowStock();
     _loadCatalog();
@@ -570,8 +588,10 @@ class SaleScreenState extends State<SaleScreen> {
                 onPressed: widget.onMenu,
                 tooltip: 'Menú'),
         titleSpacing: widget.onMenu == null ? null : 0,
+        // El título dice en qué se va a convertir el carrito. Es el único
+        // indicador del modo, y tiene que verse en tablet y en teléfono.
         title: AppBarTitle(
-          title: 'VENTA',
+          title: _quoteMode ? 'COTIZACIÓN' : 'VENTA',
           subtitle: _customer?.name.toUpperCase() ?? 'MOSTRADOR',
         ),
         actions: [
@@ -997,11 +1017,11 @@ class SaleScreenState extends State<SaleScreen> {
                   size: 22,
                 ),
               ),
-              FilledButton.icon(
-                onPressed: _lines.isEmpty ? null : _checkout,
-                icon: const Icon(Icons.point_of_sale),
-                label: const Text('Cobrar'),
-              ),
+              // En teléfono solo cabe un botón grande: el del modo elegido.
+              // El otro sigue disponible dentro de la hoja del carrito.
+              _quoteMode
+                  ? _cotizarButton(primary: true)
+                  : _cobrarButton(primary: true),
             ],
           ),
         ),
@@ -1163,6 +1183,29 @@ class SaleScreenState extends State<SaleScreen> {
     setState(() => line.lineDiscountCents = cents);
   }
 
+  /// Guardar el carrito como cotización. [primary] lo pinta como el botón
+  /// grande; de secundario se llama "Cotización" porque ahí nombra el
+  /// documento, no la acción.
+  Widget _cotizarButton({required bool primary}) {
+    final onPressed = _lines.isEmpty ? null : _saveQuote;
+    const icon = Icon(Icons.request_quote_outlined);
+    final label = Text(primary ? 'Cotizar' : 'Cotización');
+    return primary
+        ? FilledButton.icon(onPressed: onPressed, icon: icon, label: label)
+        : OutlinedButton.icon(onPressed: onPressed, icon: icon, label: label);
+  }
+
+  /// Cobrar el carrito. Existe también en modo cotización: el dueño puede
+  /// cambiar de opinión sin volver a armar nada.
+  Widget _cobrarButton({required bool primary}) {
+    final onPressed = _lines.isEmpty ? null : _checkout;
+    const icon = Icon(Icons.point_of_sale);
+    const label = Text('Cobrar');
+    return primary
+        ? FilledButton.icon(onPressed: onPressed, icon: icon, label: label)
+        : OutlinedButton.icon(onPressed: onPressed, icon: icon, label: label);
+  }
+
   Widget _summaryBar({required bool showCheckout}) {
     final theme = Theme.of(context);
     return Material(
@@ -1203,25 +1246,22 @@ class SaleScreenState extends State<SaleScreen> {
             ),
             if (showCheckout) ...[
               const SizedBox(height: 12),
+              // Lo elegido en "Nueva venta" decide cuál es el botón grande; el
+              // otro se queda al lado y nunca desaparece, para poder cambiar
+              // de opinión con el carrito ya armado.
               Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _lines.isEmpty ? null : _saveQuote,
-                      icon: const Icon(Icons.request_quote_outlined),
-                      label: const Text('Cotización'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: FilledButton.icon(
-                      onPressed: _lines.isEmpty ? null : _checkout,
-                      icon: const Icon(Icons.point_of_sale),
-                      label: const Text('Cobrar'),
-                    ),
-                  ),
-                ],
+                children: _quoteMode
+                    ? [
+                        Expanded(child: _cobrarButton(primary: false)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            flex: 2, child: _cotizarButton(primary: true)),
+                      ]
+                    : [
+                        Expanded(child: _cotizarButton(primary: false)),
+                        const SizedBox(width: 8),
+                        Expanded(flex: 2, child: _cobrarButton(primary: true)),
+                      ],
               ),
             ],
           ],

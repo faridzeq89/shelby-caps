@@ -151,6 +151,42 @@
     badge.classList.toggle("open", open);
   }
 
+  // ---- Envíos y compra ----
+  /// Preguntas frecuentes de `config.js`, sin producto de por medio. Los dos
+  /// enlaces que abren esta hoja (pie de página y pantalla de "Datos de
+  /// contacto") arrancan ocultos en el HTML y solo se muestran si hay algo
+  /// que contar, para que vaciar `SHIPPING.FAQ` no deje un botón que abre una
+  /// hoja en blanco.
+  function renderShipping() {
+    const info = CFG.SHIPPING;
+    const faq = info && info.FAQ ? info.FAQ : [];
+    if (!faq.length) return; // los enlaces se quedan `hidden` como en el HTML
+
+    const notice = info.NOTICE
+      ? `<p class="shipnotice">${esc(info.NOTICE)}</p>`
+      : "";
+    const items = faq.map((it) =>
+      `<div class="faq-item"><p class="faq-q">${esc(it.q)}</p>` +
+      `<p class="faq-a">${esc(it.a)}</p></div>`
+    ).join("");
+    $("shipBody").innerHTML = notice + items;
+
+    $("footShipping").hidden = false;
+    $("coShipping").hidden = false;
+  }
+
+  function openShipping() {
+    $("shippingSheet").hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+  function closeShipping() {
+    $("shippingSheet").hidden = true;
+    // Se puede abrir ENCIMA de "Datos de contacto" (esa hoja sigue ahí
+    // debajo, con su propio bloqueo de scroll); solo se libera si de verdad
+    // no queda ninguna otra hoja abierta.
+    if ($("checkoutSheet").hidden) document.body.style.overflow = "";
+  }
+
   // ---- Portada y banners ----
   /// Los anuncios los administra el dueño desde el POS. Mientras no suba
   /// ninguno, se muestran los de ejemplo de `config.js`, para que la tienda
@@ -685,6 +721,13 @@
     $("paySheet").onclick = (e) => { if (e.target === $("paySheet")) closePay(); };
     $("payWa").onclick = sendWhatsApp;
 
+    $("footShipping").onclick = openShipping;
+    $("coShipping").onclick = openShipping;
+    $("shipBack").onclick = closeShipping;
+    $("shippingSheet").onclick = (e) => {
+      if (e.target === $("shippingSheet")) closeShipping();
+    };
+
     // Mercado Pago: el botón solo aparece si está habilitado en config.js
     // (es decir, cuando ya están desplegadas las Edge Functions y el secreto).
     const mpBtn = $("payMp");
@@ -704,6 +747,7 @@
     document.onkeydown = (e) => {
       if (e.key !== "Escape") return;
       if (!$("detail").hidden) closeDetail();
+      else if (!$("shippingSheet").hidden) closeShipping();
       else if (!$("paySheet").hidden) closePay();
       else if (!$("checkoutSheet").hidden) closeCheckout();
       else if (!$("cartSheet").hidden) closeCart();
@@ -712,6 +756,7 @@
 
   async function init() {
     renderShopBar();
+    renderShipping();
     wire();
     renderCartCount();
 

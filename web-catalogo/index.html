@@ -78,6 +78,7 @@
 <footer class="foot">
   <p id="footName">SHELBY CAPS</p>
   <p class="muted">Catálogo en línea · precios en pesos mexicanos</p>
+  <button type="button" class="footlink" id="footShipping" hidden>Envíos y compra</button>
 </footer>
 
 <!-- Ficha de producto (galería + agregar). -->
@@ -164,6 +165,12 @@
           <span class="dot-radio" aria-hidden="true"></span>
         </label>
 
+        <button type="button" class="shiplink" id="coShipping" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v8H3zM14 10h4l3 3v2h-7z"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17.5" cy="17.5" r="1.6"/></svg>
+          <span>Ver información de envíos y compra</span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+        </button>
+
         <label class="flabel" for="coName">Nombre <b>*</b></label>
         <input id="coName" autocomplete="name" />
         <p class="ferr" id="errName" hidden>Este campo es requerido</p>
@@ -216,6 +223,22 @@
           <span class="otext">Pagar con Mercado Pago<small>Disponible próximamente</small></span>
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Envíos y compra: preguntas frecuentes, sin producto de por medio. -->
+<div class="sheet" id="shippingSheet" hidden role="dialog" aria-modal="true" aria-labelledby="shipTitle">
+  <div class="sheet-card">
+    <header class="sheet-head">
+      <button class="icon" id="shipBack" aria-label="Volver">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19 8 12l7-7"/></svg>
+      </button>
+      <h2 id="shipTitle">Envíos y compra</h2>
+      <span style="width:40px"></span>
+    </header>
+    <div class="sheet-body">
+      <div class="form" id="shipBody"></div>
     </div>
   </div>
 </div>

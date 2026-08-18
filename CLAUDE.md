@@ -616,6 +616,31 @@ trae `flutter_test` por omisión, la vitrina queda en 75 px y el "carrito vacío
 Eso es artefacto de la prueba, no del POS.
 
 
+## Envíos y compra en la tienda web (2026-08-18, en `main`)
+`web-catalogo/`, sin código nuevo del POS ni cambio de esquema: es contenido estático,
+editable desde `config.js` como los banners y el horario.
+
+- **`CFG.SHIPPING`** (`config.js`): un aviso destacado opcional (`NOTICE`) y una lista de
+  preguntas frecuentes (`FAQ`, `{q, a}`). Se edita ahí, no en el HTML ni en el JS.
+  **Vaciar `FAQ` oculta los dos enlaces** en vez de dejar un botón que abre una hoja en
+  blanco — el guardado es a propósito defensivo porque este archivo lo puede tocar
+  alguien sin tocar el resto del sitio.
+- **Dos puntos de entrada, no uno**: el pie de página (para quien quiere saberlo *antes*
+  de comprar) y dentro de "Datos de contacto", justo junto a elegir domicilio o recoger
+  — es literalmente la pantalla que habla de envío, y es donde el cliente pidió que se
+  viera.
+- El enlace de "Datos de contacto" **se abre encima** de esa hoja sin cerrarla. Al cerrar
+  "Envíos y compra" el bloqueo de scroll de la página **no se libera si "Datos de
+  contacto" sigue abierta detrás** — si no, un enlace informativo dejaría la pantalla
+  desplazable a media captura de datos.
+- El aviso destacado usa fondo blanco y borde de color, no un fondo tintado con
+  `color-mix()`: el acento cambia por tienda (`--accent` en `styles.css`) y no todo
+  navegador en uso soporta esa función.
+- Probado en el navegador contra el catálogo real (Supabase), no solo leído: sin errores
+  de consola, el aviso y las 5 preguntas se renderizan, Escape y el fondo cierran la
+  hoja, y el caso del bloqueo de scroll compartido se verificó simulando las dos hojas
+  abiertas a la vez.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

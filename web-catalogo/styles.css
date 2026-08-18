@@ -278,6 +278,45 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 #coSend { justify-content: space-between; padding: 0 16px; }
 #coSend span:first-child { font-size: 13px; opacity: .8; }
 
+/* ---------- Envíos y compra ---------- */
+/* Enlace dentro de "Datos de contacto": justo donde se elige domicilio o
+ * recoger, que es la pregunta que más se relaciona con el envío. Se ve como
+ * un link (sin caja propia) para no competir con las dos opciones de arriba,
+ * que sí son la decisión que hay que tomar en esa pantalla. */
+.shiplink {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 0; background: none; padding: 10px 2px; margin-top: 4px; color: var(--accent);
+}
+.shiplink svg:first-child { width: 20px; height: 20px; }
+.shiplink span { flex: 1 1 auto; font-weight: 700; font-size: 14px; }
+.shiplink .chev { width: 18px; height: 18px; color: var(--muted); }
+
+/* Enlace en el pie: la manera de encontrar esta información sin haber
+ * llegado al checkout (alguien que solo quiere saber antes de comprar). */
+.footlink {
+  display: inline-block; margin-top: 10px; border: 0; background: none;
+  color: var(--accent); font-weight: 700; font-size: 13px;
+  text-decoration: underline; text-decoration-color: currentColor;
+}
+
+/* Aviso destacado ("¡Los envíos salen el mismo día...!"). Mismo tratamiento
+ * de caja que `.tiers` (mayoreo) para que la tienda hable con un solo
+ * lenguaje visual de "esto es importante", pero en el color de marca en vez
+ * de verde: aquí no es una ganancia (precio), es una promesa de servicio.
+ * Fondo blanco y borde de color en vez de `color-mix()` (fondo tintado),
+ * porque `--accent` cambia por tienda vía `styles.css` y no todo navegador
+ * en uso soporta `color-mix()`. */
+.shipnotice {
+  margin: 0 0 6px; font-size: 13.5px; font-weight: 800; color: var(--accent);
+  background: #fff; border: 1.5px solid var(--accent);
+  padding: 10px 12px; border-radius: var(--radius);
+}
+
+.faq-item { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.faq-item:last-child { border-bottom: 0; }
+.faq-q { margin: 0 0 4px; font-weight: 800; font-size: 14.5px; }
+.faq-a { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+
 .foot { border-top: 1px solid var(--line); padding: 20px 14px calc(28px + env(safe-area-inset-bottom)); text-align: center; }
 .foot p { margin: 0; font-weight: 800; }
 .foot .muted { font-weight: 400; font-size: 12.5px; color: var(--muted); margin-top: 4px; }

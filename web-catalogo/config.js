@@ -45,4 +45,37 @@ window.CATALOGO_CONFIG = {
     5: ["11:00", "19:00"],
     6: ["11:00", "19:00"],
   },
+
+  // Información de envíos y compra (preguntas frecuentes). Se edita aquí sin
+  // tocar el HTML ni el JS. El enlace para verla aparece solo si esta lista
+  // trae algo — vaciarla (`[]`) la oculta sin dejar una pantalla rota.
+  SHIPPING: {
+    // Aviso destacado arriba de las preguntas. Vacío = sin aviso.
+    NOTICE: "¡Los envíos salen el mismo día de tu pago! Antes de las 4:00 p. m.",
+    FAQ: [
+      {
+        q: "¿Qué paquetería utilizamos?",
+        a: "Todos nuestros envíos son realizados por FedEx, Estafeta o DHL.",
+      },
+      {
+        q: "¿Cuánto tiempo tarda en llegar mi paquete?",
+        a: "Realizamos envíos express: tardan de 1 a 3 días dependiendo la " +
+          "zona y el código postal.",
+      },
+      {
+        q: "¿Aceptamos pago contra entrega?",
+        a: "No. Para mayor seguridad y confianza aceptamos pago por medio " +
+          "de Mercado Pago.",
+      },
+      {
+        q: "¿Se puede realizar videollamada?",
+        a: "Sí. Podemos hacer una videollamada, para más confianza y para " +
+          "que puedas escoger tus piezas.",
+      },
+      {
+        q: "¿Tienen referencias de ventas?",
+        a: "Contamos con cientos de referencias vía WhatsApp.",
+      },
+    ],
+  },
 };

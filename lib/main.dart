@@ -10,6 +10,7 @@ import 'services/auth_controller.dart';
 import 'services/cloud_backup_service.dart';
 import 'services/palette_settings.dart';
 import 'services/quick_menu.dart';
+import 'services/session_settings.dart';
 import 'services/tax_settings.dart';
 
 Future<void> main() async {
@@ -33,13 +34,20 @@ Future<void> main() async {
   await quick.load();
   final tax = TaxSettings(db);
   await tax.load();
+  final session = SessionSettings(db);
+  await session.load();
+  // Entra sin PIN solo si el dueño lo dejó configurado y ese perfil sigue
+  // activo; si no, la app abre en la pantalla de PIN de siempre.
+  final directo = await session.profileToAutoLogin();
+  if (directo != null) auth.loginAs(directo);
   runApp(BoutiquePosApp(
       auth: auth,
       db: db,
       backup: backup,
       tax: tax,
       quickMenu: quick,
-      paleta: paleta));
+      paleta: paleta,
+      session: session));
 }
 
 /// Lee un valor de `app_settings`, o null si no existe / está vacío.

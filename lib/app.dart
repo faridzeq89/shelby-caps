@@ -12,6 +12,7 @@ import 'services/cloud_backup_service.dart';
 import 'services/palette_settings.dart';
 import 'services/quick_menu.dart';
 import 'services/sale_handoff.dart';
+import 'services/session_settings.dart';
 import 'services/tax_settings.dart';
 
 /// Raíz de la app. Recibe la base y un [AuthController] ya sembrado para poder
@@ -24,7 +25,8 @@ class BoutiquePosApp extends StatelessWidget {
       this.backup,
       this.tax,
       this.quickMenu,
-      this.paleta});
+      this.paleta,
+      this.session});
 
   final AuthController auth;
   final AppDatabase db;
@@ -40,12 +42,17 @@ class BoutiquePosApp extends StatelessWidget {
   /// Colores elegidos por el dueño; sin ellos sale la paleta de fábrica.
   final PaletteSettings? paleta;
 
+  /// Acceso directo (entrar sin PIN). Sin él queda apagado, que es lo de
+  /// fábrica: siempre se pide el PIN.
+  final SessionSettings? session;
+
   @override
   Widget build(BuildContext context) {
     final backupSvc = backup ?? CloudBackupService(db, enabled: false);
     final taxSvc = tax ?? TaxSettings(db);
     final quickSvc = quickMenu ?? QuickMenu(db);
     final paletaSvc = paleta ?? PaletteSettings(db);
+    final sessionSvc = session ?? SessionSettings(db);
     return MultiProvider(
       providers: [
         Provider<AppDatabase>.value(value: db),
@@ -61,6 +68,7 @@ class BoutiquePosApp extends StatelessWidget {
         ChangeNotifierProvider<TaxSettings>.value(value: taxSvc),
         ChangeNotifierProvider<QuickMenu>.value(value: quickSvc),
         ChangeNotifierProvider<PaletteSettings>.value(value: paletaSvc),
+        ChangeNotifierProvider<SessionSettings>.value(value: sessionSvc),
       ],
       // El tema se reconstruye al cambiar de color: `buildAppTheme()` lee la
       // paleta ya aplicada, y el `watch` es lo que dispara el repintado.

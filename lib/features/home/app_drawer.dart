@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/ui_kit.dart';
 import '../../services/auth_controller.dart';
+import '../admin/access_screen.dart';
 import '../admin/banners_screen.dart';
 import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
@@ -131,6 +132,8 @@ class AppDrawer extends StatelessWidget {
                 onTap: () => push(const PrintersScreen())),
             _item(context, Icons.groups_outlined, 'Usuarios',
                 onTap: () => push(const UsersScreen())),
+            _item(context, Icons.lock_outline, 'Acceso',
+                onTap: () => push(const AccessScreen())),
             _item(context, Icons.cloud_outlined, 'Respaldo (nube)',
                 onTap: () => push(const CloudBackupScreen())),
             _item(context, Icons.rule, 'Reconciliación',

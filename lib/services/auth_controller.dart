@@ -75,6 +75,14 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Entra **sin PIN**. Solo para el acceso directo que el dueño configura en
+  /// Ajustes → Acceso (ver `SessionSettings`): el resto de la app siempre pasa
+  /// por [loginWithPin]. No se expone en ninguna pantalla de captura.
+  void loginAs(Profile profile) {
+    _currentUser = profile;
+    notifyListeners();
+  }
+
   void logout() {
     _currentUser = null;
     notifyListeners();

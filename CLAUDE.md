@@ -29,7 +29,8 @@ Hereda del POS Boutique toda la base de retail.
 - **Supabase** como respaldo/sincronización en la nube (dos proyectos: `dev` y `prod`).
 - Impresión de ticket **ESC/POS** reutilizando lo probado en el POS Maraco (restaurante).
 - Autenticación **por PIN + roles** (admin / manager / cashier). Email/password solo admin
-  para el login de respaldo en la nube.
+  para el login de respaldo en la nube. El PIN al arrancar se puede saltar con el
+  **acceso directo** (Ajustes → Acceso); el login sigue existiendo, ver abajo.
 - Proyecto Flutter: package `pos_boutique`, applicationId **`com.boutique.pos_boutique`**,
   solo plataforma Android. Estado con `provider`, base local con `drift`.
 
@@ -550,7 +551,37 @@ eso en pruebas locales nunca se reprodujo y en producción sí.
 - **Costo de las cabeceras**: la página ya no carga recursos de otros orígenes sin
   CORS/CORP. Hoy no carga ninguno (CanvasKit local, fotos en data URL, Supabase por
   fetch con CORS). Si algún día se agrega una imagen o script externo, revisar aquí.
-- 209 pruebas verdes (2 nuevas en `test/storage_notice_test.dart`), analyze limpio.
+- 207 pruebas verdes (3 nuevas en `test/storage_notice_test.dart`), analyze limpio.
+
+## Acceso directo: entrar sin PIN (2026-08-17, en `main`)
+Sin cambio de esquema (usa `app_settings`). El mostrador de Shelby Caps lo atiende **una
+sola persona**, y teclear el PIN al arrancar no le protege nada: entra como admin de todos
+modos, y las autorizaciones de gerente **ya se le saltan por rol**
+(`_authorizeManager` sale con `true` si el que está adentro ya puede autorizar). En la
+versión web pesa más, porque cada recarga de la pestaña lo vuelve a pedir.
+
+- **No se quitó el login**, se salta al arrancar. `_RootGate` (en `app.dart`) quedó igual;
+  lo que cambia es que `main()` puede llegar con la sesión ya iniciada.
+- **`services/session_settings.dart`** (mismo patrón que `TaxSettings`): guarda el **id
+  del perfil** en `auto_login_profile`, no un `true`, para que el día que haya un segundo
+  usuario quede dicho **cuál** entra solo en vez de adivinarlo. Vacío = apagado, que es
+  como sale de fábrica.
+- **`profileToAutoLogin()` resuelve contra los perfiles activos**: si el usuario guardado
+  se desactivó o se borró devuelve `null` y la app cae a la pantalla de PIN. Esa es la
+  salida segura — nadie se queda afuera y nadie entra de más. Vive en `SessionSettings` y
+  no suelto en `main()` justamente para poder probarlo.
+- **`AuthController.loginAs`** entra sin verificar PIN. Es el único punto que lo permite y
+  solo lo llama `main()`; ninguna pantalla de captura lo expone.
+- **Ajustes → Acceso** (`features/admin/access_screen.dart`, solo admin): el interruptor,
+  qué cambia, y un `WarningBanner` que dice lo que se pierde — quien tome el aparato entra
+  como dueño y la única barrera que queda es el bloqueo del propio teléfono o tablet.
+- **"Cerrar sesión" sigue siendo el escape** para prestarle el aparato a alguien más: lleva
+  a la pantalla de PIN dentro de esa sesión. El acceso directo solo corre al arrancar.
+- 212 pruebas verdes (5 nuevas en `test/acceso_directo_test.dart`), analyze limpio.
+
+**Si algún día entra un cajero, apagar este interruptor.** Con él prendido el cajero
+operaría con permisos de dueño (ve costos, edita precios, cancela ventas), que es
+exactamente lo que el modelo de roles existe para evitar.
 
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
@@ -567,7 +598,7 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
 ## Estado operativo (2026-08-17)
-Esquema local **v15**. Migraciones de Supabase **0001–0005**. Suite **209 pruebas**,
+Esquema local **v15**. Migraciones de Supabase **0001–0005**. Suite **212 pruebas**,
 `flutter analyze` limpio.
 
 **Tres superficies en vivo:** APK Android (mostrador), **POS web** `shelby-pos.pages.dev`

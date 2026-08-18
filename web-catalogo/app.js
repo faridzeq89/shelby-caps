@@ -152,13 +152,23 @@
   }
 
   // ---- Envíos y compra ----
-  /// Preguntas frecuentes de `config.js`, sin producto de por medio. Los dos
-  /// enlaces que abren esta hoja (pie de página y pantalla de "Datos de
-  /// contacto") arrancan ocultos en el HTML y solo se muestran si hay algo
-  /// que contar, para que vaciar `SHIPPING.FAQ` no deje un botón que abre una
-  /// hoja en blanco.
-  function renderShipping() {
-    const info = CFG.SHIPPING;
+  /// Preguntas frecuentes. **Fuente:** primero la tarjeta digital publicada
+  /// desde el POS (Admin → Tarjeta digital, tabla `business_card` — editable
+  /// sin tocar código); si no hay nada publicado ahí, cae a `config.js`. Es
+  /// el mismo patrón de resguardo que ya usan los banners: nunca se ve a
+  /// medias, y el dueño deja de necesitar ayuda para cambiar un tiempo de
+  /// entrega.
+  ///
+  /// Los dos enlaces que abren esta hoja (pie de página y pantalla de "Datos
+  /// de contacto") arrancan ocultos en el HTML y solo se muestran si hay algo
+  /// que contar, para que vaciar la FAQ no deje un botón que abre una hoja en
+  /// blanco.
+  function renderShipping(cardData) {
+    const fromCard = cardData && Array.isArray(cardData.shippingFaq) &&
+      cardData.shippingFaq.length
+      ? { NOTICE: cardData.shippingNotice, FAQ: cardData.shippingFaq }
+      : null;
+    const info = fromCard || CFG.SHIPPING;
     const faq = info && info.FAQ ? info.FAQ : [];
     if (!faq.length) return; // los enlaces se quedan `hidden` como en el HTML
 
@@ -756,9 +766,19 @@
 
   async function init() {
     renderShopBar();
-    renderShipping();
     wire();
     renderCartCount();
+
+    // La tarjeta digital (Admin → Tarjeta digital) es la fuente editable de
+    // la FAQ de envíos; sin ella (o sin el SQL 0006) se usa `config.js`.
+    let cardData = null;
+    try {
+      const rows = await rest("business_card?select=data&id=eq.1");
+      cardData = rows && rows[0] ? rows[0].data : null;
+    } catch (_) {
+      // Sin tabla `business_card`: renderShipping cae a CFG.SHIPPING.
+    }
+    renderShipping(cardData);
 
     // Los anuncios se piden aparte y primero: son lo primero que se ve, y si
     // el catálogo tardara no tiene por qué retrasarlos.

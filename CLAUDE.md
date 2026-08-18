@@ -641,6 +641,54 @@ editable desde `config.js` como los banners y el horario.
   hoja, y el caso del bloqueo de scroll compartido se verificó simulando las dos hojas
   abiertas a la vez.
 
+## Tarjeta digital (2026-08-18, en `main`)
+El dueño vio la "tarjeta digital" de Crave Marketing ($250/año) y le gustó cómo se ve. Sin
+esquema Drift nuevo: la tarjeta se guarda como **un solo JSON** en `app_settings`, mismo
+patrón que `TaxSettings`/`SessionSettings`/`QuickMenu`.
+
+- **`lib/services/business_card_settings.dart`**: modelo `BusinessCardData` (redes, liga al
+  catálogo, FAQ de envíos, proceso de compra, transferencia bancaria, depósito OXXO,
+  promociones, texto+foto de lealtad). `publish()` sube la foto de lealtad al bucket
+  `catalog` (si es local; si ya es URL no la vuelve a subir — `isLocalImage`, probado
+  aparte) y llama `publish_business_card` con el **mismo secreto** que ya usa
+  `publish_catalog` — no se crea una segunda credencial.
+- **`lib/features/admin/business_card_screen.dart`** (Admin → Tarjeta digital): formulario
+  largo, listas editables (FAQ/pasos/promociones) con el mismo patrón de diálogo
+  agregar/quitar que `banners_screen.dart`. **Los banners de la tarjeta NO se suben aquí**:
+  reusa los que ya se administran en Admin → Anuncios de la tienda (mismo carrusel, misma
+  tabla `catalog_banners`) — un botón "Administrar" lleva directo allá.
+- **SQL `0006_business_card.sql`**: tabla singleton `business_card` (`id=1`, columna
+  `data jsonb`), RLS de solo lectura para `anon`, función `publish_business_card(secret,
+  data)` que valida contra `catalog_config.publish_secret`. **Ya aplicada** en el proyecto
+  `shelbys` (verificado con `get_advisors`: las mismas advertencias esperadas que ya
+  acepta `publish_catalog`, ninguna nueva).
+- **`web-catalogo/tarjeta/`** (nuevo, mismo despliegue de Cloudflare Pages →
+  `shelby-caps.pages.dev/tarjeta/`): `index.html` + `app.js` propios, pero
+  **`tarjeta/styles.css` NO duplica `:root`** — hereda `../styles.css` con un segundo
+  `<link>`, así el acento y la tipografía nunca se desalinean entre el catálogo y la
+  tarjeta. El carrusel de banners es una copia literal del de `web-catalogo/app.js`
+  (misma tabla, mismo comportamiento). Los datos bancarios llevan botón de copiar
+  (`navigator.clipboard`); si falla, avisa con el mismo `toast()` en vez de fingir que
+  copió.
+- **La FAQ de envíos deja de vivir solo en `config.js`**: `renderShipping()` en
+  `web-catalogo/app.js` ahora intenta primero `business_card.shippingFaq` (editable desde
+  el POS) y cae a `CFG.SHIPPING` si no hay nada — mismo patrón de resguardo que ya usan
+  los banners. El catálogo se probó sin tocar y sigue mostrando las 5 preguntas de
+  `config.js` mientras nadie publique la tarjeta.
+- **Verificado con datos reales de Supabase, no solo local**: publiqué contenido de
+  prueba (obviamente falso, nunca los datos bancarios reales del cliente) por el mismo
+  RPC que usará la app, confirmé que las 10 secciones renderizan y los enlaces de redes
+  arman la URL correcta (wa.me, tiktok, facebook, instagram, Maps), y **revertí a vacío**
+  antes de terminar — publicar los datos reales por un atajo habría dejado el POS del
+  dueño (vacío) desincronizado de lo publicado, y el primer "Guardar y publicar" real
+  los habría borrado.
+- 222 pruebas verdes (6 nuevas en `test/business_card_settings_test.dart`), analyze
+  limpio.
+
+**Pendiente del dueño**: capturar el contenido real (redes, banco, promociones, foto de
+la tarjeta de lealtad) en Admin → Tarjeta digital y publicar — hoy la tarjeta pública
+está vacía a propósito. Sin cambio de esquema de Drift, sin tocar el APK en esta sesión.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.
@@ -655,8 +703,8 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
 - `docs/manual.html` — **manual completo con capturas** (puesta en marcha + uso de todo).
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
-## Estado operativo (2026-08-17)
-Esquema local **v15**. Migraciones de Supabase **0001–0005**. Suite **216 pruebas**,
+## Estado operativo (2026-08-18)
+Esquema local **v15**. Migraciones de Supabase **0001–0006**. Suite **222 pruebas**,
 `flutter analyze` limpio.
 
 **Tres superficies en vivo:** APK Android (mostrador), **POS web** `shelby-pos.pages.dev`
@@ -668,6 +716,8 @@ prod; sube y restaura). App fluida en release. El catálogo **arranca vacío** (
 productos demo).
 
 Pendientes del dueño:
+- **Capturar y publicar la tarjeta digital** (Admin → Tarjeta digital): hoy
+  `shelby-caps.pages.dev/tarjeta/` está publicada pero vacía a propósito.
 - **Cargar inventario y fotos reales** (o importar CSV/Excel).
 - **Credenciales de Mercado Pago** + desplegar las Edge Functions y prender `MP_ENABLED`;
   el andamiaje ya está. Cobro con **Mercado Pago Point** sigue sin arrancar.

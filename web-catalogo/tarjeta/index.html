@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SHELBY CAPS | Tarjeta digital</title>
+<meta name="description" content="Tarjeta digital de SHELBY CAPS: redes, catálogo, envíos, formas de pago y promociones, todo en un enlace." />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- Misma barra de marca que el catálogo, pero sin buscador ni carrito: esta
+     página no vende, es la tarjeta de presentación. -->
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="../">
+      <span class="brand-logo" aria-hidden="true"></span>
+      <span class="brand-name" id="shopName">SHELBY CAPS</span>
+    </a>
+  </div>
+</header>
+
+<!-- Mismo carrusel del catálogo (reusa los banners que ya se publican desde
+     Admin → Anuncios de la tienda): sin sistema propio de imágenes. -->
+<section class="banners" id="banners" hidden aria-label="Promociones">
+  <div class="btrack" id="btrack"></div>
+  <div class="dots" id="bdots"></div>
+</section>
+
+<main id="main">
+  <p class="state" id="state">Cargando…</p>
+</main>
+
+<footer class="foot">
+  <p id="footName">SHELBY CAPS</p>
+  <p class="muted">Tarjeta digital</p>
+  <a class="footlink" href="../">Ver catálogo completo</a>
+</footer>
+
+<script src="../config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

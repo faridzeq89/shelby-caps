@@ -7,6 +7,7 @@ import 'features/auth/change_pin_screen.dart';
 import 'features/auth/pin_login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'services/auth_controller.dart';
+import 'services/business_card_settings.dart';
 import 'services/catalog_sync_service.dart';
 import 'services/cloud_backup_service.dart';
 import 'services/palette_settings.dart';
@@ -69,6 +70,10 @@ class BoutiquePosApp extends StatelessWidget {
         ChangeNotifierProvider<QuickMenu>.value(value: quickSvc),
         ChangeNotifierProvider<PaletteSettings>.value(value: paletaSvc),
         ChangeNotifierProvider<SessionSettings>.value(value: sessionSvc),
+        // Sin preload: no gatea nada al arrancar, la pantalla la carga sola.
+        ChangeNotifierProvider<BusinessCardSettings>(
+          create: (_) => BusinessCardSettings(db),
+        ),
       ],
       // El tema se reconstruye al cambiar de color: `buildAppTheme()` lee la
       // paleta ya aplicada, y el `watch` es lo que dispara el repintado.

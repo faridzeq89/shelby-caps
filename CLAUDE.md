@@ -19,8 +19,9 @@ Este proyecto es un **fork independiente del POS Boutique**, separado el 11 ago 
 Punto de venta para **Shelby Caps** (gorras), en tablet Android y también en PC
 (Windows). Venta directa por mostrador con escaneo de código de barras, variantes,
 inventario por SKU, apartados, devoluciones/cambios, corte de caja, **mayoreo por
-cantidad**, gastos, cotizaciones, proveedores y **catálogo público web** publicado a
-Supabase. Hereda del POS Boutique toda la base de retail.
+cantidad**, gastos, cotizaciones, proveedores, **servicios** (precio a definir en la
+cotización) y **catálogo público web** con anuncios administrables, publicado a Supabase.
+Hereda del POS Boutique toda la base de retail.
 
 ## Stack (decidido)
 - **Flutter** (app Android nativa) + **Drift/SQLite local** como fuente de verdad.
@@ -421,6 +422,105 @@ Cómo se resolvió cada cosa que `dart:io` no da en el navegador:
 sin respaldo en la nube. Borrar los datos del sitio los borra. No es sustituto de la
 tablet: es una vista provisional.
 
+## Anuncios de la tienda (2026-08-11, en `main`)
+Esquema **v14**: `store_banners`. Menú → Ajustes → Anuncios: subir imagen (cámara o
+galería), ordenar, prender/apagar y quitar; se publica solo con el mecanismo del catálogo.
+- **Portada y banner comparten tabla** porque comparten todo lo demás (imagen, orden,
+  publicación); `is_cover` distingue. Fijar portada **borra** la anterior y devuelve su
+  ruta para que el llamador borre el archivo y no queden huérfanos.
+- **Apagar ≠ borrar**: un banner apagado se queda en la lista para la próxima temporada.
+- La tabla es `StoreBanners` y no `Banners` porque `Banner` **choca con el widget de
+  Flutter**.
+- SQL **`0004_catalog_banners.sql`**: `catalog_banners` con RLS de solo lectura para anon
+  y `publish_catalog` con un 6º argumento; **se conservan las firmas de 5 y 4** para que
+  un APK anterior siga publicando (sin anuncios) en vez de tronar.
+- La tienda cae a los ejemplos de `config.js` si no hay banners o si el proyecto aún no
+  tiene el SQL 0004: nunca se ve a medias. Los anuncios se piden **antes** que el catálogo.
+- **Los `Timer` se congelan en web** al cambiar de pestaña, así que el debounce de 20 s
+  nunca subía el banner: se publica con `publishNow()` y se muestra el resultado o el
+  error concreto. Es la trampa que ya costó dos commits (`af31779`, `d49be5b`).
+
+## Andamiaje de Mercado Pago (2026-08-11, en `main`)
+Todo lo que **no** depende de las llaves, listo para enchufar. Sigue sin arrancar: falta
+que el dueño dé de alta las credenciales y despliegue las funciones.
+- SQL **`0005_orders.sql`**: `web_orders` + `list_orders(secret)` (lectura para el POS;
+  `anon` no accede a los pedidos).
+- Edge Functions: `create-preference` (crea la preferencia de Checkout Pro y el pedido
+  `pending`, **recalcula el total en el servidor**) y `mp-webhook` (confirma consultando a
+  MP y marca `paid`/`failed`).
+- Tienda: botón "Pagar con Mercado Pago" detrás de `MP_ENABLED` en `config.js`
+  (**hoy `false`** → botón oculto y los pedidos siguen por WhatsApp).
+
+## Producto tipo servicio (2026-08-12, en `main`)
+Esquema **v15**: `products.es_servicio` (migración v14→v15 idempotente). Para lo que no
+tiene precio fijo (limpieza de gorra/tenis/bolsa): se cotiza, ahí se le pone precio según
+el estado, y al pasar a venta cuenta en reportes y caja **sin mover inventario**.
+- `checkout`: las líneas de servicio **no generan movimiento de inventario**.
+- El precio es **opcional, no cero forzado**: hay servicios con tarifa fija. Solo se
+  ocultan costo y existencias, que es lo único que de verdad no aplica.
+- El selector de variante **se salta la validación de existencia** para servicios (exigía
+  stock > 0, lo que los volvía invendibles) y muestra "Servicio — sin inventario". Si no
+  trae precio, lo **pregunta al agregarlo** en vez de meter un renglón en $0.
+- **`SaleHandoff`** reemplaza al `Navigator.pop(cotización)` de "Pasar a venta": eso solo
+  funcionaba si Cotizaciones se abría desde Venta; desde el menú lateral o Inicio la
+  cotización se perdía en silencio. Ahora quien la pase la deja ahí, el shell salta a
+  Vender y Venta la recoge — el origen deja de importar. El handoff **se consume una sola
+  vez** (si no, el carrito se recargaría dos veces).
+
+## Interruptor de IVA, apagado de fábrica (2026-08-12, en `main`)
+El cliente **no factura**: el precio de la etiqueta es lo que se cobra. Menú → Ajustes →
+IVA. Apagado desaparece del carrito, del ticket y de los reportes, y las ventas nuevas se
+guardan con impuesto **cero**.
+- **El impuesto se decide al cobrar, no al pintar**: `checkout` recibe `taxEnabled` y
+  desglosa con tasa 0. Ocultarlo solo en pantalla habría dejado ventas guardando un IVA
+  que nadie cobró y reportes mintiendo.
+- **El historial no se reescribe**: las ventas ya cobradas conservan su desglose. Un
+  reporte que cruce el antes y el después mezcla ambos criterios — está avisado en la
+  pantalla del ajuste y fijado con una prueba.
+- La tasa sigue viviendo **en el producto**; el interruptor solo decide si se usa.
+- El renglón de IVA se imprime solo si el importe es mayor a cero: una venta vieja lo
+  sigue mostrando y una nueva no imprime "IVA incluido $0".
+- Es interruptor y no borrado **a propósito**: el día que facture, prenderlo devuelve el
+  desglose sin tocar código.
+
+## Compartir tickets (2026-08-12, en `main`)
+Antes solo se abría el diálogo de impresión del sistema; compartir estaba escondido tras
+"guardar como PDF" y buscar el archivo a mano, así que **en la práctica no se le podía
+mandar el ticket al cliente por WhatsApp**. Ahora al generar cualquier documento sale una
+hoja con **Compartir** e **Imprimir**. Cubre los cinco puntos donde se genera PDF: venta,
+cotización, alta de apartado, liquidación y reimpresión. Sin dependencia nueva
+(`printing` ya traía `sharePdf`).
+
+## La barra de abajo la arma el dueño (2026-08-12, en `main`)
+Menú → Ajustes → Menú rápido: elegir botones, quitarlos y arrastrarlos. Además de las
+cuatro de siempre se pueden poner Cotizar, Apartados, Devoluciones, Tarjetas, Clientes,
+Gastos y Proveedores.
+- **Hay dos tipos de botón.** Las *pestañas* (Inicio, Vender, Inventario, Balance) viven
+  siempre en el `IndexedStack` y conservan su estado: si el dueño quita "Vender" de la
+  barra, la pantalla sigue ahí **con su carrito intacto** y solo pierde el atajo. Sacarlas
+  de verdad habría tirado un carrito a medio armar. Los *atajos* abren pantalla encima y
+  **nunca** se marcan como seleccionados: no son un lugar donde uno "está". Hay una prueba
+  que fija que las cuatro pestañas sigan siendo pestañas.
+- Barra vacía no existe (vuelve a lo de fábrica); un id desconocido de una config vieja se
+  ignora en silencio en vez de tumbar la pantalla; Gastos y Proveedores no aparecen para
+  un cajero aunque estén guardados.
+- **Se reemplaza el `NavigationBar` de Material** por una barra propia: el de Material
+  exige un número fijo de destinos, siempre pinta etiquetas y obliga a un `selectedIndex`
+  válido; aquí hacen falta cantidad libre, etiquetas condicionales y atajos sin selección.
+- Con 5 botones el nombre se dibuja más chico (10.5 en vez de 11.5) y usa
+  `FittedBox(scaleDown)`: "Devoluciones" se encoge y **se lee entero** en vez de quedar en
+  "Devolucion…". **Medir con `TextPainter` en pruebas no sirve**: Flutter usa una fuente
+  de relleno donde toda letra ocupa lo mismo y exagera los anchos casi al doble.
+
+## Colores elegibles por el dueño (2026-08-12/13, en `main`)
+La paleta vino sobre gris casi negro y el selector de color están descritos arriba, en
+**Sistema visual**. Lo que no hay que volver a aprender: **son dos vinos**, uno de relleno
+y otro aclarado para texto (el de relleno como texto sobre fondo oscuro da 2.5:1 y no se
+lee); y **en oscuro las sombras no se perciben**, así que las tarjetas se separan del
+fondo por luz y borde, subiendo un escalón en vez de bajarlo. La tienda web toma el vino
+como acento pero **conserva el fondo claro**: un catálogo de venta se lee mejor con las
+fotos sobre blanco.
+
 ## Durabilidad en web: `web/_headers` no es opcional (2026-08-17, en `main`)
 El cliente reportó el 13 ago que en el POS web se le perdían cambios. **La causa no era
 el código:** el sitio desplegado no mandaba las cabeceras de aislamiento, así que drift
@@ -466,11 +566,33 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
 - `docs/manual.html` — **manual completo con capturas** (puesta en marcha + uso de todo).
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
-## Estado operativo (2026-07-29)
-Respaldo en la nube (Fase 8) **confirmado funcionando por el dueño** (SQL de Supabase aplicado
-en dev y prod; sube y restaura). App fluida en release. El catálogo ya **arranca vacío** (semilla
-sin productos demo). Pendientes del dueño: **cargar inventario y fotos reales** (o importar CSV/
-Excel); DSN de Sentry (opcional). Pendientes de hardware: **probar impresora ESC/POS** (usar
-Admin→Impresoras) y etiquetadora ZPL. **Sin arrancar:** cobro con Mercado Pago Point (candidato a
-Fase 17). Diferidos: traspasos multisucursal, login de
-negocio (Supabase Auth).
+## Estado operativo (2026-08-17)
+Esquema local **v15**. Migraciones de Supabase **0001–0005**. Suite **209 pruebas**,
+`flutter analyze` limpio.
+
+**Tres superficies en vivo:** APK Android (mostrador), **POS web** `shelby-pos.pages.dev`
+(provisional para el iPhone del cliente mientras sale la licencia de Apple — él paga los
+$99) y la **tienda** `shelby-caps.pages.dev`.
+
+Respaldo en la nube (Fase 8) **confirmado funcionando por el dueño** (SQL aplicado en dev y
+prod; sube y restaura). App fluida en release. El catálogo **arranca vacío** (semilla sin
+productos demo).
+
+Pendientes del dueño:
+- **Cargar inventario y fotos reales** (o importar CSV/Excel).
+- **Credenciales de Mercado Pago** + desplegar las Edge Functions y prender `MP_ENABLED`;
+  el andamiaje ya está. Cobro con **Mercado Pago Point** sigue sin arrancar.
+- DSN de Sentry (opcional).
+
+Pendientes de hardware: **probar impresora ESC/POS** (usar Admin → Impresoras & Tickets) y
+etiquetadora ZPL.
+
+Diferidos: traspasos multisucursal, login de negocio (Supabase Auth).
+
+**Verificar tras cada despliegue del POS web:** `crossOriginIsolated` debe ser `true` en la
+consola del navegador. Si es `false`, el POS web vuelve a perder datos — ver la sección de
+durabilidad.
+
+Pendiente menor sin decidir: `web/index.html` todavía dice `pos_boutique` en `<title>` y en
+`apple-mobile-web-app-title`. Es lo que se ve en la pestaña antes de que cargue Flutter y el
+nombre que queda si el cliente agrega el POS a su pantalla de inicio.

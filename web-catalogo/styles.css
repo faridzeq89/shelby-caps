@@ -293,8 +293,15 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 
 /* Enlace en el pie: la manera de encontrar esta información sin haber
  * llegado al checkout (alguien que solo quiere saber antes de comprar). */
+/* Envuelve los enlaces del pie (tarjeta digital, envíos) en una fila que
+ * centra y separa parejo, sea uno solo o los dos a la vez — "Envíos y
+ * compra" arranca oculto hasta que hay algo que contar. */
+.footlinks {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px;
+  margin-top: 10px;
+}
 .footlink {
-  display: inline-block; margin-top: 10px; border: 0; background: none;
+  display: inline-block; border: 0; background: none;
   color: var(--accent); font-weight: 700; font-size: 13px;
   text-decoration: underline; text-decoration-color: currentColor;
 }

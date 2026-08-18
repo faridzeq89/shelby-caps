@@ -689,6 +689,41 @@ patrón que `TaxSettings`/`SessionSettings`/`QuickMenu`.
 la tarjeta de lealtad) en Admin → Tarjeta digital y publicar — hoy la tarjeta pública
 está vacía a propósito. Sin cambio de esquema de Drift, sin tocar el APK en esta sesión.
 
+## Rediseño visual de la tarjeta digital (2026-08-18, en `main`)
+Pedido del dueño tras ver la tarjeta publicada por primera vez: se veía "plana" comparada
+con la referencia. Todo en `web-catalogo/tarjeta/`, sin tocar el POS ni Supabase.
+
+- **Portada propia** (`tarjeta/img/portada.svg`): generada, no una foto real de la tienda
+  — mismo trazo de gorra (domo+visera) que ya usaba `img/banner-1.svg`, reacomodado en
+  vino/negro. **No es editable desde el POS** (decoración de la página, no contenido).
+- **Tarjeta de lealtad** (`tarjeta/img/lealtad.svg`): recreación de la que mandó el dueño
+  por chat (logo a la izquierda, "GRACIAS POR TU COMPRA" + 5 círculos + FREE CAP a la
+  derecha). **No es el archivo real** — Claude Code no tiene forma de leer los bytes de una
+  imagen pegada en el chat, solo la ve. Sirve de relleno (`renderLoyalty` cae a ella si
+  `loyaltyImagePath` viene vacío, mismo resguardo que los banners con `config.js`) hasta
+  que el dueño suba la foto real desde Admin → Tarjeta digital.
+- **FAQ como acordeón**: `<details name="faq">` nativo, cero JS de por medio. `name="faq"`
+  agrupa las preguntas para que abrir una cierre las demás (Safari 17+/Chrome/Firefox
+  modernos; en un navegador viejo simplemente pueden quedar varias abiertas, no se rompe).
+  La primera trae `open`. Estas reglas viven en `tarjeta/styles.css`, no en
+  `../styles.css` — la FAQ del catálogo (que comparte las mismas clases `.faq-item`) sigue
+  como `<div>` sin acordeón, sin que un cambio afecte al otro.
+- **Proceso de compra como diagrama**: los círculos numerados quedan unidos por una línea
+  vertical (`.step-row::before`, en vino al 30% de opacidad). **No es un rastreador de
+  pedido real** — la tarjeta es un enlace público sin sesión de cliente, nadie sabe "en qué
+  paso vas". Es la misma razón por la que la lealtad es texto y no un contador (sesión
+  anterior). Solo comunica que son pasos de un mismo flujo.
+- **Pago como estado de cuenta**: cada cuenta es una tarjeta con encabezado oscuro (banco +
+  "Transferencia"/"Depósito OXXO"), sombra, esquinas redondeadas; CLABE/cuenta/tarjeta se
+  muestran **agrupadas de 4 en 4** (`grouped()`) para leerse fácil, pero lo que se copia
+  (`data-copy`) sigue siendo el número real sin espacios — verificado que no cambia.
+- **Promociones en rojo**: bloque propio (`.promo-section`, no `.card-section`) con el
+  acento de marca de fondo y texto blanco; los renglones quedan semi-transparentes encima
+  para que se lean sobre el rojo.
+- Probado en el navegador (no solo leído): sin errores de consola, las dos imágenes cargan
+  (no rotas), el acordeón abre/cierra de verdad con un clic real y mantiene una sola
+  pregunta abierta, y en 375px de ancho (celular) no hay desbordamiento horizontal.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

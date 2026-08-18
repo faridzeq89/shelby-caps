@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 640" width="2000" height="640" role="img"
+     aria-label="Tarjeta de lealtad Shelby Caps: gracias por tu compra, en cada visita tachamos un número, al reunir 5 la sexta gorra es gratis">
+  <defs>
+    <clipPath id="l-panel"><rect x="0" y="0" width="960" height="640" rx="18"/></clipPath>
+    <clipPath id="r-panel"><rect x="0" y="0" width="960" height="640" rx="18"/></clipPath>
+  </defs>
+
+  <!-- Panel izquierdo: logo, como la tarjeta física que mandó el dueño. -->
+  <g transform="translate(0 0)" clip-path="url(#l-panel)">
+    <rect width="960" height="640" fill="#0a0a0a"/>
+    <text x="480" y="290" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="108"
+          font-weight="900" fill="#fff" text-anchor="middle" letter-spacing="2">SHELBY</text>
+    <rect x="330" y="322" width="300" height="5" fill="#fff"/>
+    <text x="480" y="430" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="108"
+          font-weight="900" fill="#fff" text-anchor="middle" letter-spacing="2">CAPS</text>
+  </g>
+
+  <!-- Panel derecho: la promo, con la marca de agua repetida como en el
+       original. -->
+  <g transform="translate(1040 0)" clip-path="url(#r-panel)">
+    <rect width="960" height="640" fill="#232323"/>
+    <g opacity="0.10" fill="#fff" font-family="Nunito Sans, Segoe UI, sans-serif" font-weight="900">
+      <text x="-40" y="90" font-size="130">SHELBY CAPS</text>
+      <text x="-40" y="230" font-size="130">SHELBY CAPS</text>
+      <text x="-40" y="370" font-size="130">SHELBY CAPS</text>
+      <text x="-40" y="510" font-size="130">SHELBY CAPS</text>
+      <text x="-40" y="650" font-size="130">SHELBY CAPS</text>
+    </g>
+
+    <text x="60" y="90" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="46"
+          font-weight="900" fill="#d8d8d8" letter-spacing="1">GRACIAS POR TU COMPRA</text>
+    <text x="60" y="134" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="20"
+          font-weight="700" fill="#fff">EN CADA VISITA QUE REALICES, TACHAREMOS 1 NÚMERO,</text>
+    <text x="60" y="164" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="20"
+          font-weight="700" fill="#fff">AL REUNIR 5, EN TU 6TA VISITA, TE LLEVAS UNA GORRA GRATIS</text>
+    <text x="60" y="194" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="20"
+          font-weight="700" fill="#fff">EN AGRADECIMIENTO POR TU CONFIANZA Y FIDELIDAD</text>
+
+    <g font-family="Nunito Sans, Segoe UI, sans-serif" font-weight="900" font-size="46" text-anchor="middle">
+      <circle cx="100" cy="300" r="55" fill="#fff"/>
+      <text x="100" y="317" fill="#111">1</text>
+      <circle cx="240" cy="300" r="55" fill="#fff"/>
+      <text x="240" y="317" fill="#111">2</text>
+      <circle cx="380" cy="300" r="55" fill="#fff"/>
+      <text x="380" y="317" fill="#111">3</text>
+      <circle cx="520" cy="300" r="55" fill="#fff"/>
+      <text x="520" y="317" fill="#111">4</text>
+      <circle cx="660" cy="300" r="55" fill="#fff"/>
+      <text x="660" y="317" fill="#111">5</text>
+      <circle cx="820" cy="300" r="60" fill="#d4a437"/>
+      <text x="820" y="291" font-size="30" fill="#1a1400">FREE</text>
+      <text x="820" y="325" font-size="30" fill="#1a1400">CAP</text>
+    </g>
+
+    <text x="60" y="450" font-family="Nunito Sans, Segoe UI, sans-serif" font-size="22"
+          font-weight="800" fill="#111">NOMBRE</text>
+    <rect x="60" y="470" width="840" height="86" rx="10" fill="#fff"/>
+  </g>
+</svg>

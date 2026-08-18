@@ -132,8 +132,9 @@
     chev: '<svg class="chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>',
   };
 
-  function section(title, inner) {
-    return '<section class="card-section"><h2>' + esc(title) + '</h2>' + inner + '</section>';
+  function section(title, inner, extraClass) {
+    const cls = "card-section" + (extraClass ? " " + extraClass : "");
+    return '<section class="' + cls + '"><h2>' + esc(title) + '</h2>' + inner + '</section>';
   }
 
   function renderSocials(s) {
@@ -161,16 +162,27 @@
       "<span>Ver catálogo</span></a>");
   }
 
+  // `<details>` nativo: se abre y se cierra sin una línea de JS. `name="faq"`
+  // agrupa las preguntas para que abrir una cierre las demás (Safari 17+,
+  // Chrome/Firefox modernos; en un navegador viejo simplemente se pueden
+  // quedar varias abiertas a la vez, sin romperse). La primera trae `open`.
   function renderShipping(notice, faq) {
     const items = Array.isArray(faq) ? faq.filter((f) => f && f.q && f.a) : [];
     if (!notice && !items.length) return "";
     const noticeHtml = notice ? '<p class="shipnotice">' + esc(notice) + "</p>" : "";
-    const faqHtml = items.map((f) =>
-      '<div class="faq-item"><p class="faq-q">' + esc(f.q) + '</p>' +
-      '<p class="faq-a">' + esc(f.a) + "</p></div>").join("");
+    const faqHtml = items.map((f, i) =>
+      '<details class="faq-item" name="faq"' + (i === 0 ? " open" : "") + '>' +
+      '<summary class="faq-q">' + esc(f.q) + "</summary>" +
+      '<p class="faq-a">' + esc(f.a) + "</p></details>").join("");
     return section("Dudas sobre envíos", noticeHtml + faqHtml);
   }
 
+  // No es un rastreador real (esto es un enlace público, sin sesión de
+  // cliente: no hay forma de saber en qué paso va quien lo abre — la misma
+  // razón por la que la lealtad es texto y no un contador). Lo que se pide
+  // aquí es que SE VEA como un flujo: los círculos numerados quedan unidos
+  // por una línea vertical (dibujada en CSS, `.step-list::before`), como un
+  // diagrama de proceso, no una lista suelta.
   function renderSteps(steps) {
     const list = Array.isArray(steps) ? steps.filter(Boolean) : [];
     if (!list.length) return "";
@@ -180,27 +192,47 @@
     return section("Proceso de compra", '<div class="step-list">' + rows + "</div>");
   }
 
-  function payField(label, value) {
+  // Números largos (CLABE, cuenta, tarjeta) agrupados de 4 en 4 — se leen y
+  // se comparan dígito por dígito mucho más fácil así que en un bloque
+  // corrido de 18 caracteres. El valor que se copia sigue siendo el original
+  // sin espacios (`data-copy`), el agrupado es solo para mostrar.
+  function grouped(value) {
+    return (value || "").replace(/\s+/g, "").replace(/(.{4})/g, "$1 ").trim();
+  }
+
+  function payField(label, value, monospace) {
     if (!value) return "";
-    const id = "cp" + Math.random().toString(36).slice(2, 8);
+    const display = monospace ? grouped(value) : esc(value);
     return '<div class="pay-field"><div class="pf-text"><p class="pf-label">' + esc(label) +
-      '</p><p class="pf-value">' + esc(value) + '</p></div>' +
-      '<button class="copy-btn" type="button" data-copy="' + esc(value) + '" id="' + id + '" ' +
+      '</p><p class="pf-value' + (monospace ? " mono" : "") + '">' + display + '</p></div>' +
+      '<button class="copy-btn" type="button" data-copy="' + esc(value) + '" ' +
       'aria-label="Copiar ' + esc(label) + '">' + ICONS.copy + "</button></div>";
   }
 
+  // Cada cuenta se pinta como un estado de cuenta: encabezado oscuro con el
+  // banco, los números en monoespaciada agrupados como en una tarjeta física,
+  // el titular al pie en mayúsculas. Nada de esto cambia lo que se copia.
+  function statementCard(kind, bank, fields) {
+    if (!fields) return "";
+    return '<div class="statement statement-' + kind + '">' +
+      '<div class="statement-head"><span>' + esc(bank || "") + '</span>' +
+      '<span class="statement-kind">' +
+      (kind === "bank" ? "Transferencia" : "Depósito OXXO / 7-Eleven") +
+      "</span></div>" + fields + "</div>";
+  }
+
   function renderPayments(bank, oxxo) {
-    const bankFields = bank
-      ? payField("Banco", bank.bank) + payField("CLABE", bank.clabe) +
-        payField("Número de cuenta", bank.accountNumber) + payField("Titular", bank.holder)
+    const bankFields = bank && (bank.clabe || bank.accountNumber)
+      ? payField("CLABE", bank.clabe, true) +
+        payField("Número de cuenta", bank.accountNumber, true) +
+        payField("Titular", bank.holder)
       : "";
-    const oxxoFields = oxxo
-      ? payField("Banco", oxxo.bank) + payField("Número de tarjeta", oxxo.cardNumber)
+    const oxxoFields = oxxo && oxxo.cardNumber
+      ? payField("Número de tarjeta", oxxo.cardNumber, true)
       : "";
     if (!bankFields && !oxxoFields) return "";
-    let inner = "";
-    if (bankFields) inner += '<p class="pf-label" style="margin:0 0 6px">Transferencia bancaria</p><div class="pay-box">' + bankFields + "</div>";
-    if (oxxoFields) inner += '<p class="pf-label" style="margin:0 0 6px">Depósito en OXXO / 7-Eleven</p><div class="pay-box">' + oxxoFields + "</div>";
+    const inner = statementCard("bank", bank?.bank, bankFields) +
+      statementCard("oxxo", oxxo?.bank, oxxoFields);
     return section("Formas de pago", inner);
   }
 
@@ -209,12 +241,18 @@
     if (!items.length) return "";
     const rows = items.map((p) =>
       '<div class="promo-row">' + ICONS.tag + "<span>" + esc(p) + "</span></div>").join("");
-    return section("Paquetes y promociones", '<div class="promo-list">' + rows + "</div>");
+    // "promo-section": fondo rojo pedido a propósito. Sección propia (no
+    // .card-section) porque cambia de fondo, no solo de contenido.
+    return section("Paquetes y promociones", '<div class="promo-list">' + rows + "</div>", "promo-section");
   }
 
+  // Sin foto propia todavía: se usa la ilustración de fábrica (img/lealtad.svg)
+  // para que la sección no se vea vacía mientras el dueño sube la foto real
+  // desde el POS — mismo resguardo que ya usan los banners con config.js.
   function renderLoyalty(text, image) {
     if (!text && !image) return "";
-    const img = image ? '<img class="loyalty-photo" src="' + esc(image) + '" alt="Tarjeta de lealtad" />' : "";
+    const src = image || "img/lealtad.svg";
+    const img = '<img class="loyalty-photo" src="' + esc(src) + '" alt="Tarjeta de lealtad" />';
     const p = text ? '<p class="loyalty-text">' + esc(text) + "</p>" : "";
     return section("Tarjeta de lealtad", img + p);
   }

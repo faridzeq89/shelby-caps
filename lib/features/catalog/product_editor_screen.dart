@@ -8,9 +8,11 @@ import '../../core/ui_kit.dart';
 import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
+import '../../data/repositories/inventory_repository.dart';
 import '../../data/repositories/supplier_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/catalog_sync_service.dart';
+import '../../services/cloud_backup_service.dart';
 import '../../services/image_service.dart';
 import 'label_service.dart';
 
@@ -48,6 +50,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   late final AppDatabase _db = context.read<AppDatabase>();
   late final CatalogRepository _repo = CatalogRepository(_db);
   late final SupplierRepository _suppliers = SupplierRepository(_db);
+  late final InventoryRepository _inventory = InventoryRepository(_db);
   final ImageService _images = ImageService();
   late Future<_EditorData> _future = _load();
   int? _locationId;
@@ -56,6 +59,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   Profile get _actor => context.read<AuthController>().currentUser!;
   bool get _canSeeCosts => Permissions.canSeeCosts(_actor.role);
   bool get _canEditPrices => Permissions.canEditPrices(_actor.role);
+  bool get _canMoveStock => Permissions.canManageInventory(_actor.role);
+  bool get _canEditName => Permissions.canManageCatalog(_actor.role);
 
   Future<_EditorData> _load() async {
     _locationId ??= (await _db.select(_db.locations).getSingleOrNull())?.id;
@@ -211,6 +216,63 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   }
 
   /// Elige el proveedor del producto (o lo quita). -1 = sin proveedor.
+  /// Cambia el nombre. Antes solo se podía escribir al dar de alta y quedaba
+  /// congelado: un dedazo obligaba a borrar el producto y capturarlo de nuevo,
+  /// perdiendo su historial.
+  Future<void> _editName(_EditorData data) async {
+    final nuevo =
+        await _askText('Nombre del producto', initial: data.product.name);
+    if (nuevo == null || nuevo.trim() == data.product.name) return;
+    try {
+      await _repo.updateProductName(
+          actor: _actor, productId: data.product.id, newName: nuevo);
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  /// Corrige las existencias sin salir del producto.
+  ///
+  /// El dueño escribe **cuántas tiene**, no cuántas sumar: es como cuenta en el
+  /// mostrador. La app saca la diferencia y registra un **movimiento de ajuste**
+  /// con su motivo, porque el inventario aquí es un libro mayor que solo crece;
+  /// nunca se sobrescribe una existencia (ni existe esa columna que pisar).
+  Future<void> _adjustStock(_EditorData data, _VariantRow r) async {
+    final etiqueta =
+        '${r.variant.size ?? ''} ${r.variant.color ?? ''}'.trim();
+    final result = await showDialog<_StockResult>(
+      context: context,
+      builder: (_) => _StockDialog(
+        titulo: etiqueta.isEmpty ? data.product.name : etiqueta,
+        actual: r.stock.onHand,
+      ),
+    );
+    if (result == null) return;
+    final delta = result.objetivo - r.stock.onHand;
+    if (delta == 0) {
+      _toast('Las existencias quedaron igual');
+      return;
+    }
+    try {
+      final locationId = _locationId ?? await _inventory.defaultLocationId();
+      await _inventory.adjust(
+        _actor,
+        variantId: r.variant.id,
+        locationId: locationId,
+        qty: delta,
+        reason: result.motivo,
+        note: result.nota,
+      );
+      if (mounted) context.read<CloudBackupService>().backupSoon();
+      _reload();
+      _toast('Existencias: ${r.stock.onHand} → ${result.objetivo} '
+          '(${delta > 0 ? '+' : ''}$delta)');
+    } catch (e) {
+      _toast('No se pudo ajustar: $e');
+    }
+  }
+
   Future<void> _editSupplier(_EditorData data) async {
     final suppliers = await _suppliers.all();
     if (!mounted) return;
@@ -707,8 +769,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     return (value * 100).round();
   }
 
-  Future<String?> _askText(String title) async {
-    final ctrl = TextEditingController();
+  Future<String?> _askText(String title, {String initial = ''}) async {
+    final ctrl = TextEditingController(text: initial);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -835,6 +897,29 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                   if (data.product.brand != null)
                     Text(data.product.brand!,
                         style: Theme.of(context).textTheme.bodySmall),
+                  InkWell(
+                    onTap: _canEditName ? () => _editName(data) : null,
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            data.product.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_canEditName) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.edit,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.primary),
+                        ],
+                      ],
+                    ),
+                  ),
                   Text('Precio base: \$${(data.product.basePriceCents / 100).toStringAsFixed(2)}',
                       style: Theme.of(context).textTheme.titleMedium),
                   Text('IVA: ${(data.product.taxRateBps / 100).toStringAsFixed(0)}%',
@@ -991,10 +1076,16 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               _editCost(r.variant);
             case 'supplier':
               _addSupplierCode(r.variant);
+            case 'stock':
+              _adjustStock(data, r);
           }
         },
         itemBuilder: (_) => [
           const PopupMenuItem(value: 'price', child: Text('Editar precio')),
+          // Un servicio (limpieza de gorra) no tiene piezas que contar.
+          if (_canMoveStock && !data.product.esServicio)
+            const PopupMenuItem(
+                value: 'stock', child: Text('Ajustar existencias')),
           if (_canSeeCosts)
             const PopupMenuItem(value: 'cost', child: Text('Editar costo')),
           const PopupMenuItem(
@@ -1282,6 +1373,132 @@ class _TiersDialogState extends State<_TiersDialog> {
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_collect()),
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+// ===========================================================================
+// Diálogo de existencias
+// ===========================================================================
+
+class _StockResult {
+  const _StockResult(this.objetivo, this.motivo, this.nota);
+
+  /// Cuántas piezas dice el dueño que tiene. La diferencia contra lo registrado
+  /// es lo que se asienta como ajuste.
+  final int objetivo;
+  final AdjustmentReason motivo;
+  final String? nota;
+}
+
+/// Pregunta **cuántas hay**, no cuántas sumar o restar.
+///
+/// En el mostrador nadie calcula deltas: se cuentan las gorras y se escribe el
+/// número. El motivo es obligatorio porque el ajuste queda asentado en el libro
+/// mayor y alguien va a tener que explicar por qué bajó el inventario.
+class _StockDialog extends StatefulWidget {
+  const _StockDialog({required this.titulo, required this.actual});
+  final String titulo;
+  final int actual;
+
+  @override
+  State<_StockDialog> createState() => _StockDialogState();
+}
+
+class _StockDialogState extends State<_StockDialog> {
+  late final _qty = TextEditingController(text: '${widget.actual}');
+  final _nota = TextEditingController();
+  AdjustmentReason _motivo = AdjustmentReason.correction;
+
+  @override
+  void dispose() {
+    _qty.dispose();
+    _nota.dispose();
+    super.dispose();
+  }
+
+  int? get _objetivo {
+    final v = int.tryParse(_qty.text.trim());
+    return (v == null || v < 0) ? null : v;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final objetivo = _objetivo;
+    final delta = objetivo == null ? 0 : objetivo - widget.actual;
+    return AlertDialog(
+      title: Text('Existencias · ${widget.titulo}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Registradas: ${widget.actual}',
+                style: theme.textTheme.bodySmall),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _qty,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '¿Cuántas tienes?',
+                helperText: 'Cuenta las piezas y escribe el total',
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            if (objetivo == null)
+              Text('Escribe un número de piezas (0 o más)',
+                  style: TextStyle(color: theme.colorScheme.error))
+            else if (delta == 0)
+              Text('Sin cambios', style: theme.textTheme.bodySmall)
+            else
+              Text(
+                delta > 0
+                    ? 'Se agregan $delta'
+                    : 'Se descuentan ${-delta}',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            const SizedBox(height: 16),
+            Text('Motivo', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final r in AdjustmentReason.values)
+                  ChoiceChip(
+                    label: Text(r.label),
+                    selected: _motivo == r,
+                    onSelected: (_) => setState(() => _motivo = r),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _nota,
+              decoration: const InputDecoration(labelText: 'Nota (opcional)'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: objetivo == null
+              ? null
+              : () {
+                  final nota = _nota.text.trim();
+                  Navigator.of(context).pop(_StockResult(
+                      objetivo, _motivo, nota.isEmpty ? null : nota));
+                },
           child: const Text('Guardar'),
         ),
       ],

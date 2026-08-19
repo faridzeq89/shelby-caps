@@ -452,6 +452,27 @@ class CatalogRepository {
     });
   }
 
+  /// Cambia el nombre del producto. Es el que ve el cliente en el ticket y en
+  /// la tienda web, así que se guarda ya recortado y nunca vacío: un producto
+  /// sin nombre es invendible en el mostrador.
+  Future<void> updateProductName({
+    required Profile actor,
+    required int productId,
+    required String newName,
+  }) async {
+    _requireCatalog(actor);
+    final name = newName.trim();
+    if (name.isEmpty) {
+      throw ArgumentError('El nombre del producto no puede quedar vacío');
+    }
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(name: Value(name)));
+      await _audit(actor, 'update_name', 'product', productId.toString(),
+          'name=$name');
+    });
+  }
+
   Future<void> updateProductBasePrice({
     required Profile actor,
     required int productId,

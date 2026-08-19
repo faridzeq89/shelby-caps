@@ -111,19 +111,41 @@ class OxxoDeposit {
       OxxoDeposit(bank: bank ?? this.bank, cardNumber: cardNumber ?? this.cardNumber);
 }
 
+/// Un banner propio de la tarjeta (carrusel superior). Ya **no** son los de la
+/// tienda: la tarjeta tiene su propio juego de imágenes. `image` es una ruta
+/// local (tablet) o una URL ya publicada; `caption` es opcional y sirve de
+/// texto alternativo y de etiqueta para acordarse de cuál es.
+class CardBanner {
+  const CardBanner({required this.image, this.caption = ''});
+  final String image;
+  final String caption;
+
+  factory CardBanner.fromJson(Map<String, dynamic> j) => CardBanner(
+        image: j['image'] as String? ?? '',
+        caption: j['caption'] as String? ?? '',
+      );
+  Map<String, dynamic> toJson() =>
+      {'image': image, if (caption.isNotEmpty) 'caption': caption};
+
+  CardBanner copyWith({String? image, String? caption}) =>
+      CardBanner(image: image ?? this.image, caption: caption ?? this.caption);
+}
+
 /// Todo el contenido de la tarjeta digital, como un solo bloque. Es contenido
 /// de presentación (no se reporta ni se cruza contra nada), así que no hace
 /// falta una tabla por sección — un campo más aquí no pide otra migración de
 /// esquema, ni local ni en Supabase.
 ///
-/// Los banners (servicios de limpieza, promociones que se deslizan) **no
-/// viven aquí**: la tarjeta reusa los que ya se administran en
-/// Admin → Anuncios de la tienda (`BannerRepository`), para no construir un
-/// segundo sistema de subir imágenes.
+/// Las imágenes (portada, banners del carrusel, foto de lealtad) son **propias
+/// de la tarjeta**: se guardan como rutas locales aquí y `publish()` las sube
+/// al bucket `catalog` bajo `business-card/`. La tarjeta ya no depende de los
+/// anuncios de la tienda.
 class BusinessCardData {
   const BusinessCardData({
     this.socials = const CardSocials(),
     this.catalogUrl = '',
+    this.coverImagePath,
+    this.banners = const [],
     this.shippingNotice = '',
     this.shippingFaq = const [],
     this.purchaseSteps = const [],
@@ -136,6 +158,14 @@ class BusinessCardData {
 
   final CardSocials socials;
   final String catalogUrl;
+
+  /// Portada decorativa de arriba (ruta local o URL publicada). Si es `null`,
+  /// la página cae a su ilustración de fábrica (`img/portada.svg`).
+  final String? coverImagePath;
+
+  /// Carrusel superior, propio de la tarjeta (ya no los de la tienda).
+  final List<CardBanner> banners;
+
   final String shippingNotice;
   final List<FaqItem> shippingFaq;
   final List<String> purchaseSteps;
@@ -156,6 +186,12 @@ class BusinessCardData {
             ? CardSocials.fromJson(Map<String, dynamic>.from(j['socials'] as Map))
             : const CardSocials(),
         catalogUrl: j['catalogUrl'] as String? ?? '',
+        coverImagePath: j['coverImagePath'] as String?,
+        banners: (j['banners'] as List?)
+                ?.map((e) =>
+                    CardBanner.fromJson(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
         shippingNotice: j['shippingNotice'] as String? ?? '',
         shippingFaq: (j['shippingFaq'] as List?)
                 ?.map((e) => FaqItem.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -179,6 +215,8 @@ class BusinessCardData {
   Map<String, dynamic> toJson() => {
         'socials': socials.toJson(),
         'catalogUrl': catalogUrl,
+        if (coverImagePath != null) 'coverImagePath': coverImagePath,
+        'banners': banners.map((e) => e.toJson()).toList(),
         'shippingNotice': shippingNotice,
         'shippingFaq': shippingFaq.map((e) => e.toJson()).toList(),
         'purchaseSteps': purchaseSteps,
@@ -192,6 +230,8 @@ class BusinessCardData {
   BusinessCardData copyWith({
     CardSocials? socials,
     String? catalogUrl,
+    String? coverImagePath,
+    List<CardBanner>? banners,
     String? shippingNotice,
     List<FaqItem>? shippingFaq,
     List<String>? purchaseSteps,
@@ -204,6 +244,8 @@ class BusinessCardData {
       BusinessCardData(
         socials: socials ?? this.socials,
         catalogUrl: catalogUrl ?? this.catalogUrl,
+        coverImagePath: coverImagePath ?? this.coverImagePath,
+        banners: banners ?? this.banners,
         shippingNotice: shippingNotice ?? this.shippingNotice,
         shippingFaq: shippingFaq ?? this.shippingFaq,
         purchaseSteps: purchaseSteps ?? this.purchaseSteps,
@@ -280,21 +322,39 @@ class BusinessCardSettings extends ChangeNotifier {
     notifyListeners();
     try {
       var payload = _data;
-      final imagePath = payload.loyaltyImagePath;
-      if (isLocalImage(imagePath)) {
-        final bytes = await ImageService.bytesOf(imagePath!);
-        if (bytes != null) {
-          final storage = Supabase.instance.client.storage.from('catalog');
-          const remote = 'business-card/loyalty.jpg';
-          await storage.uploadBinary(
-            remote,
-            bytes,
-            fileOptions:
-                const FileOptions(upsert: true, contentType: 'image/jpeg'),
-          );
-          payload = payload.copyWith(loyaltyImagePath: storage.getPublicUrl(remote));
-        }
+      final storage = Supabase.instance.client.storage.from('catalog');
+
+      // Sube una imagen local a `business-card/<remote>` y devuelve su URL
+      // pública. Si ya es URL (o no hay bytes) la deja tal cual: una segunda
+      // publicación no vuelve a subir la misma foto. Las rutas van por índice
+      // (`banner-0.jpg`…), así al re-publicar se sobrescriben en su lugar en vez
+      // de acumular archivos.
+      Future<String?> upload(String? path, String remote) async {
+        if (!isLocalImage(path)) return path;
+        final bytes = await ImageService.bytesOf(path!);
+        if (bytes == null) return path;
+        await storage.uploadBinary(
+          remote,
+          bytes,
+          fileOptions:
+              const FileOptions(upsert: true, contentType: 'image/jpeg'),
+        );
+        return storage.getPublicUrl(remote);
       }
+
+      final newBanners = <CardBanner>[];
+      for (var i = 0; i < payload.banners.length; i++) {
+        final b = payload.banners[i];
+        final url = await upload(b.image, 'business-card/banner-$i.jpg');
+        newBanners.add(b.copyWith(image: url ?? b.image));
+      }
+      payload = payload.copyWith(
+        loyaltyImagePath:
+            await upload(payload.loyaltyImagePath, 'business-card/loyalty.jpg'),
+        coverImagePath:
+            await upload(payload.coverImagePath, 'business-card/cover.jpg'),
+        banners: newBanners,
+      );
 
       final secret = await sync.ensureSecret();
       await Supabase.instance.client.rpc('publish_business_card', params: {

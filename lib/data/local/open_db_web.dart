@@ -108,3 +108,58 @@ Future<Uint8List> snapshotDatabase(
 Future<void> replaceDatabaseFile(Uint8List bytes) async {
   throw UnsupportedError('El respaldo por archivo no aplica en el navegador');
 }
+
+/// Borra por completo la base local del navegador (**empezar de cero**) y
+/// recarga la página para que la app se vuelva a sembrar limpia. Usa la API de
+/// drift (`probe`/`deleteDatabase`), que cubre tanto OPFS como IndexedDB — más
+/// seguro que borrar filas (el libro mayor `inventory_movements` tiene triggers
+/// que impiden borrarlo) o tocar el almacenamiento a mano. El llamador cierra la
+/// base antes. Recarga siempre, aunque el borrado falle, para no dejar la app a
+/// medias.
+Future<void> wipeLocalDatabaseAndReload() async {
+  try {
+    final probe = await WasmDatabase.probe(
+      sqlite3Uri: Uri.parse('sqlite3.wasm'),
+      driftWorkerUri: Uri.parse('drift_worker.js'),
+      databaseName: 'boutique_pos',
+    );
+    for (final existing in probe.existingDatabases) {
+      // existing = (WebStorageApi, String nombre): solo la nuestra.
+      if (existing.$2 == 'boutique_pos') {
+        await probe.deleteDatabase(existing);
+      }
+    }
+  } finally {
+    reloadApp();
+  }
+}
+
+/// Exporta la base local del navegador como los bytes de un archivo SQLite, para
+/// subirla a la nube y que la **app nativa la restaure** (paso a iOS sin perder
+/// datos). Usa la API de drift (`probe`/`exportDatabase`), que lee la base sin
+/// borrarla. **El llamador cierra la base antes** para soltar el candado de OPFS
+/// (con la base abierta, OPFS no deja que otro proceso la lea).
+Future<Uint8List> exportDatabaseBytes() async {
+  final probe = await WasmDatabase.probe(
+    sqlite3Uri: Uri.parse('sqlite3.wasm'),
+    driftWorkerUri: Uri.parse('drift_worker.js'),
+    databaseName: 'boutique_pos',
+  );
+  for (final existing in probe.existingDatabases) {
+    if (existing.$2 == 'boutique_pos') {
+      final bytes = await probe.exportDatabase(existing);
+      if (bytes != null) return bytes;
+    }
+  }
+  throw StateError('No se encontró la base local para exportar.');
+}
+
+/// Recarga la página (en web reabre la app y su base). En nativo no aplica.
+void reloadApp() => _jsLocation.reload();
+
+@JS('location')
+external _Location get _jsLocation;
+
+extension type _Location._(JSObject _) implements JSObject {
+  external void reload();
+}

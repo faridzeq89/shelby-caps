@@ -724,6 +724,144 @@ con la referencia. Todo en `web-catalogo/tarjeta/`, sin tocar el POS ni Supabase
   (no rotas), el acordeón abre/cierra de verdad con un clic real y mantiene una sola
   pregunta abierta, y en 375px de ancho (celular) no hay desbordamiento horizontal.
 
+## Tarjeta: portada y banners propios (2026-08-18, en `main`)
+Antes la tarjeta reusaba los banners de la tienda (`catalog_banners`): subir un
+anuncio en *Anuncios de la tienda* lo mostraba en la portada del catálogo **y**
+en la tarjeta. El dueño pidió que la tarjeta tenga **sus propias imágenes**.
+Sin cambio de esquema Drift ni SQL: las imágenes viajan en el mismo JSON de
+`business_card` (mismo patrón que la foto de lealtad), así que `0006` no cambia.
+
+- **`business_card_settings.dart`**: `BusinessCardData` gana `coverImagePath`
+  (portada) y `banners` (`List<CardBanner>`, cada uno `{image, caption}`).
+  `publish()` sube al bucket `catalog` bajo `business-card/`: `cover.jpg` y
+  `banner-{i}.jpg` (rutas por índice → al re-publicar se sobrescriben en su
+  lugar en vez de acumular). El guard `isLocalImage` evita re-subir lo que ya es
+  URL — mismo criterio que la lealtad. Se generalizó a un helper `upload()`.
+- **`business_card_screen.dart`**: se quitó el enlace a *Anuncios de la tienda*;
+  ahora hay secciones **Portada** (subir/cambiar/quitar) y **Banners del
+  carrusel** (agregar con caption opcional, reordenar ↑↓, quitar). El selector
+  de imagen se extrajo a `_pickImage()` compartido por portada, banners y
+  lealtad. Ya **no** importa `banners_screen.dart` (esa pantalla sigue viva para
+  los anuncios de la tienda, solo dejó de enlazarse desde la tarjeta).
+- **`web-catalogo/tarjeta/`**: `app.js` ya **no** consulta `catalog_banners`;
+  la portada (`applyCover`) y el carrusel (`applyCardBanners`) salen de
+  `business_card.data`. `index.html`: la portada lleva `id="coverImg"` para que
+  el JS le cambie el `src`. **Sin fallback** a la tienda (decisión del dueño:
+  tarjeta 100% independiente): sin banners propios, el carrusel no aparece; sin
+  portada propia, cae a la ilustración de fábrica `img/portada.svg`.
+- **Verificado en el navegador** con un arnés local que simula el `fetch` (sin
+  tocar Supabase): la portada se cambió a la imagen publicada, el carrusel se
+  llenó con los 2 banners propios y no hubo errores de consola.
+- 222 pruebas verdes (se ampliaron los tests de `business_card_settings`),
+  `analyze` limpio. **Pendiente del dueño**: subir su portada y banners en
+  Admin → Tarjeta digital y publicar (siguen vacíos a propósito).
+
+**Imagen completa, no recortada (mismo día):** el dueño pidió que la portada y
+los banners de la tarjeta **no** se recorten a apaisado — una imagen vertical
+debe verse entera, del alto que alcance en el ancho. El recorte era CSS, no de
+la subida (`ImageService` ya reescala proporcional y conserva la imagen). Como
+`.cover img`/`.btrack img` viven en `../styles.css` **compartido con el
+catálogo** (que sí quiere banners apaisados uniformes), el override va **solo**
+en `tarjeta/styles.css`: `aspect-ratio: auto; height: auto` (mismo criterio que
+`.loyalty-photo`, que nunca se recortó). El editor del POS hace juego: la vista
+previa de portada/banner usa `BoxFit.fitWidth` (no `AspectRatio` + `cover`).
+Verificado en el navegador con una imagen vertical de prueba: el `aspect-ratio`
+computado quedó en `auto` (no el apaisado heredado). Sin tope de alto a
+propósito (el dueño lo pidió completo).
+
+## POS web: fallback de Supabase compilado (2026-08-18, en `main`)
+El cliente vio **"Se guardó, pero no se pudo publicar: Sin conexión a Supabase
+configurada"** al publicar la tarjeta desde SU teléfono. Dos capas del problema:
+
+1. En **web cada navegador tiene su propia base local**, así que la conexión que
+   el dueño configuró en su teléfono (Admin → Respaldo → Configurar conexión, en
+   `app_settings`) **no viaja** al del cliente.
+2. El fallback al `.env` **nunca funcionó en ninguna plataforma**: Flutter **no
+   registra en el AssetManifest los archivos que empiezan con "."** (dotfiles),
+   así que `rootBundle.loadString('.env')` lanza y `flutter_dotenv` no carga
+   nada. Verificado: el `.env` está en `build/web/assets/.env` pero **no** en
+   `AssetManifest.bin`, y en el arranque no hay ninguna petición a `/assets/.env`.
+   (Por eso el dueño siempre tuvo que configurar la conexión a mano.)
+
+- **Arreglo (el bueno):** `lib/main.dart` trae `_fallbackSupabaseUrl` /
+  `_fallbackSupabaseAnon` **hardcodeados** (la URL `phyjseekbyitlntmjwwe` y la
+  llave `anon` **pública** — la misma que ya va, commiteada, en
+  `web-catalogo/config.js`). `_initSupabase` los usa como último recurso tras
+  `app_settings` y el `.env`. Ahora **cualquier dispositivo conecta solo**, sin
+  teclear el JWT, y sin depender de un asset. Es consistente con el repo, que ya
+  hardcodea el (más sensible) secreto de publicación en `catalog_sync_service`.
+- **La `anon` es segura de empaquetar**: rol `anon`, solo lee; RLS bloquea
+  escrituras; la publicación usa el secreto aparte. **Nunca** hardcodear
+  `service_role` ni el secreto de publicación.
+- **El `.env` quedó vacío** con una nota de por qué no sirve; `app_settings`
+  sigue teniendo prioridad (un aparato puede apuntar a otro proyecto sin
+  recompilar).
+- **Para que al cliente le tome el cambio**: cerrar del todo la pestaña y reabrir
+  (la conexión se inicializa en `main()`; una recarga puede servir el
+  `main.dart.js` cacheado por el service worker de Flutter).
+
+## Reset de producción + mensaje del día (2026-08-18, en `main`)
+Preparación para entregar al cliente.
+
+**Reset de datos.** Los 28 productos publicados eran de prueba. Se limpió la
+**tienda pública** llamando `publish_catalog` con listas vacías (RPC + el secreto
+de `catalog_sync_service`, HTTP 204) → `catalog_products`/`catalog_images`/
+`catalog_banners` quedaron en 0. **Ojo (fuente de verdad):** lo publicado es un
+reflejo del catálogo **local del dispositivo**; en web cada navegador tiene su
+base. Para dejar el aparato del cliente en cero de verdad hay que **borrar los
+datos del sitio EN ese dispositivo** (no se puede desde aquí); tras eso la app
+re-siembra vacía (sucursal + prefijo, admin PIN 1234) y reconecta sola a Supabase
+por el fallback compilado. La **tarjeta digital** (`business_card`) también se
+limpió: `publish_business_card` con `{}` (HTTP 204) → `data` = `{}`, la página la
+muestra vacía. `web_orders` no se tocó (MP apagado, sin pedidos). Los archivos en
+el bucket `catalog` (fotos de productos y de la tarjeta) quedan huérfanos pero
+inofensivos (no referenciados).
+
+**Mensaje del día.** La primera vez de cada día (por dispositivo) la app saluda
+al dueño con una frase motivadora **muy mexicana**, a **pantalla completa, fondo
+negro y texto blanco**. `services/motd_settings.dart` guarda solo la fecha del
+último aviso en `app_settings` (`motd_last_shown`, sin migración); frase
+determinista por fecha (rota entre días). `features/motd/daily_motd.dart` es la
+vista (fuera del tema de la app a propósito). Enganchado en `home_screen`
+initState (post-frame), **se marca antes de mostrar** para que sea una sola vez
+al día aunque cierren la pestaña. **Solo web** (`kIsWeb`): es el mostrador del
+cliente, y así no estorba a las pruebas de widget que montan `HomeScreen`.
+3 pruebas en `test/motd_settings_test.dart`, analyze limpio.
+
+**Botón "Empezar de cero" (reset en un toque).** Menú → Ajustes → *Empezar de
+cero* (`features/admin/factory_reset_screen.dart`, admin): borra TODA la base
+local del dispositivo y recarga → la app se re-siembra limpia (PIN 1234). Para
+entregar el equipo sin pelear con los ajustes de Safari. Pide teclear `BORRAR`.
+**Solo web**: `wipeLocalDatabaseAndReload()` en `open_db_web.dart` usa la API de
+drift `WasmDatabase.probe`/`deleteDatabase` (cubre OPFS e IndexedDB) — NO borra
+filas porque los triggers del ledger `inventory_movements` lo impiden; ni toca el
+almacenamiento a mano. El stub nativo lanza `UnsupportedError` (la UI lo esconde
+con `kIsWeb`). Verificado en el navegador que la base OPFS es `drift_db/
+boutique_pos`, justo el `databaseName` que el borrado apunta. NO toca lo
+publicado en Supabase (eso se limpia aparte, arriba).
+
+## Puente web → app nativa (pasar datos a iOS) (2026-08-18, en `main`)
+En web los datos viven en Safari (OPFS); la app nativa usa su propio archivo
+aislado y **no ve** lo de Safari. Sin puente, instalar la app nativa arranca
+vacío (el respaldo por archivo está apagado en web). El puente lo resuelve:
+
+- **Menú → Ajustes → "Pasar a la app de iPhone"** (`migrate_to_app_screen.dart`,
+  **solo web** via `kIsWeb` en el drawer). Sube una copia **completa** de la base
+  al mismo `backups/boutique.sqlite` que la app nativa lee con
+  **"Restaurar desde la nube"** (ver `CloudBackupService`). Flujo en el iPhone:
+  subir aquí → instalar la app → Respaldo → Restaurar → reabrir.
+- **`exportDatabaseBytes()`** (`open_db_web.dart`): drift `WasmDatabase.probe`/
+  `exportDatabase` devuelve los bytes del SQLite (formato portable → la nativa lo
+  abre igual, mismo schema v15). Exige **cerrar la base antes** (OPFS no deja leer
+  con la base abierta), por eso el llamador cierra y **`reloadApp()`** recarga al
+  terminar (reabre la misma base intacta). **No borra nada**: es copia. Stub
+  nativo lanza `UnsupportedError`.
+- **Verificado**: la web sí puede subir al bucket `backups` con la llave anon
+  (HTTP 200; borrar con anon está denegado por RLS, normal). La base OPFS es
+  `drift_db/boutique_pos`, el `databaseName` que exporta.
+- **Ojo**: migrar ANTES de "Empezar de cero" (borrar la web se lleva lo que
+  habría para migrar).
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.

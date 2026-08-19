@@ -6,6 +6,20 @@
 
 main { max-width: 640px; margin: 0 auto; padding: 4px 14px 40px; }
 
+/* ---------- Portada y banners: imagen completa, no recortada ----------
+ * El catálogo (que comparte .cover/.btrack en ../styles.css) las recorta a
+ * apaisado con `aspect-ratio` + `object-fit: cover`, para que todos los
+ * banners queden del mismo alto. La tarjeta hace lo contrario: muestra la
+ * imagen ENTERA, del alto que alcance en el ancho disponible — una imagen
+ * vertical se ve completa y alta, sin recorte. Se pisan las reglas compartidas
+ * solo en esta página; el catálogo no se toca. */
+.cover img,
+.btrack img {
+  aspect-ratio: auto;
+  height: auto;
+  object-fit: fill; /* sin alto fijo el recorte `cover` heredado no aplica */
+}
+
 .card-section { padding: 22px 0; border-bottom: 1px solid var(--line); }
 .card-section:last-child { border-bottom: 0; }
 .card-section h2 {

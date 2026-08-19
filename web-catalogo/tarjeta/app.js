@@ -4,9 +4,9 @@
  * la tabla `business_card` de Supabase — aquí solo se lee y se pinta, sin
  * carrito ni checkout.
  *
- * Los banners que rotan arriba **no son propios de esta página**: son los
- * mismos que ya se administran en Admin → Anuncios de la tienda y que rotan
- * en la portada del catálogo (misma tabla `catalog_banners`, mismo carrusel).
+ * La portada y los banners que rotan arriba son **propios de esta página**:
+ * se capturan en Admin → Tarjeta digital y viajan en el JSON de
+ * `business_card`. Ya no se reusan los anuncios de la tienda.
  */
 (function () {
   "use strict";
@@ -42,15 +42,20 @@
     document.title = (CFG.SHOP_NAME || "Catálogo") + " | Tarjeta digital";
   }
 
-  // ---- Banners (idéntico al carrusel del catálogo: misma tabla, mismo
-  // comportamiento — se detiene en cuanto el usuario lo toca). ----
+  // ---- Banners (propios de la tarjeta: llegan en el JSON de `business_card`
+  // como [{image, caption}], ya NO de la tabla de anuncios de la tienda). El
+  // carrusel se detiene en cuanto el usuario lo toca. ----
   let BANNER_LIST = [];
-  function applyPublishedBanners(rows) {
-    if (!rows || !rows.length) return;
-    BANNER_LIST = rows
-      .filter((r) => !r.is_cover)
-      .sort((a, b) => a.position - b.position)
-      .map((r) => ({ image: r.url, alt: r.caption || "", link: r.link || null }));
+  function applyCardBanners(list) {
+    if (!Array.isArray(list) || !list.length) return;
+    BANNER_LIST = list
+      .filter((b) => b && b.image)
+      .map((b) => ({ image: b.image, alt: b.caption || "", link: null }));
+  }
+
+  // Portada propia: si el dueño subió una, reemplaza la ilustración de fábrica.
+  function applyCover(path) {
+    if (path) $("coverImg").src = path;
   }
 
   function renderBanners() {
@@ -301,19 +306,17 @@
     renderShopBar();
 
     try {
-      applyPublishedBanners(await rest("catalog_banners?select=*&order=position.asc"));
-    } catch (_) {
-      // Sin anuncios publicados: la tarjeta simplemente no muestra el carrusel.
-    }
-    renderBanners();
-
-    try {
       const rows = await rest("business_card?select=data&id=eq.1");
       const data = rows && rows[0] ? rows[0].data : null;
       if (!data) {
         $("state").textContent = "Esta tarjeta todavía no se ha publicado.";
         return;
       }
+      // La portada y los banners viajan en el mismo `business_card`: la tarjeta
+      // no consulta la tienda para nada.
+      applyCover(data.coverImagePath);
+      applyCardBanners(data.banners);
+      renderBanners();
       render(data);
     } catch (e) {
       $("state").textContent = "No se pudo cargar la tarjeta: " + e.message;

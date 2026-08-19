@@ -1,12 +1,16 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 
 import '../../core/ui_kit.dart';
+import '../../data/local/database.dart';
 import '../../services/auth_controller.dart';
+import '../../services/motd_settings.dart';
 import '../../services/quick_menu.dart';
 import '../../services/sale_handoff.dart';
 import '../catalog/catalog_home_screen.dart';
+import '../motd/daily_motd.dart';
 import '../reports/reports_screen.dart';
 import '../sales/sale_screen.dart';
 import 'app_drawer.dart';
@@ -35,6 +39,27 @@ class _HomeScreenState extends State<HomeScreen> {
   int _balEpoch = 0;
 
   SaleHandoff? _handoff;
+
+  @override
+  void initState() {
+    super.initState();
+    // La primera vez de cada día (en este aparato) se saluda con una frase
+    // motivadora. Post-frame para no mostrar un diálogo a medio construir.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowMotd());
+  }
+
+  Future<void> _maybeShowMotd() async {
+    // El saludo del día es de la versión web (el mostrador del cliente). En la
+    // app instalada no aplica; además así no estorba a las pruebas de widget.
+    if (!kIsWeb) return;
+    final motd = MotdSettings(context.read<AppDatabase>());
+    if (!await motd.shouldShowToday()) return;
+    // Se marca ANTES de mostrar: si cierran la pestaña con el mensaje abierto,
+    // igual cuenta como visto de hoy y no reaparece al reabrir.
+    await motd.markShownToday();
+    if (!mounted) return;
+    await showDailyMotd(context);
+  }
 
   @override
   void didChangeDependencies() {

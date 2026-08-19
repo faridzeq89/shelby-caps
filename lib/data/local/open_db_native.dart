@@ -52,3 +52,21 @@ Future<void> replaceDatabaseFile(Uint8List bytes) async {
   final file = File(p.join(dir.path, 'boutique_pos.sqlite'));
   await file.writeAsBytes(bytes, flush: true);
 }
+
+/// Contraparte del "empezar de cero" web. En la app instalada no recarga una
+/// página; el borrado en un toque se ofrece solo en la versión web (la UI lo
+/// esconde en nativo). Existe para que la firma compile en las tres superficies.
+Future<void> wipeLocalDatabaseAndReload() async {
+  throw UnsupportedError(
+      'El borrado en un toque solo está disponible en la versión web.');
+}
+
+/// Contraparte web-only: exportar la base para pasarla a la app nativa solo
+/// aplica desde la web (la app nativa YA es el destino). Existe para compilar.
+Future<Uint8List> exportDatabaseBytes() async {
+  throw UnsupportedError(
+      'Exportar para migrar solo aplica en la versión web.');
+}
+
+/// En la app instalada no se recarga una página; no-op para igualar la firma.
+void reloadApp() {}

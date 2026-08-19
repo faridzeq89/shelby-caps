@@ -21,6 +21,8 @@ void main() {
     expect(settings.data.socials.whatsapp, isEmpty);
     expect(settings.data.shippingFaq, isEmpty);
     expect(settings.data.purchaseSteps, isEmpty);
+    expect(settings.data.banners, isEmpty);
+    expect(settings.data.coverImagePath, isNull);
     expect(settings.data.loyaltyImagePath, isNull);
   });
 
@@ -35,6 +37,11 @@ void main() {
         locationUrl: 'https://maps.app.goo.gl/xyz',
       ),
       catalogUrl: 'https://shelby-caps.pages.dev',
+      coverImagePath: 'business_card_cover.jpg',
+      banners: const [
+        CardBanner(image: 'business_card_banner_0.jpg', caption: '3x2 en réplicas'),
+        CardBanner(image: 'https://cdn.example.com/banner-1.jpg'),
+      ],
       shippingNotice: '¡Los envíos salen el mismo día de tu pago!',
       shippingFaq: const [
         FaqItem(q: '¿Qué paquetería utilizamos?', a: 'FedEx, Estafeta o DHL.'),
@@ -66,6 +73,12 @@ void main() {
     expect(loaded.socials.whatsapp, original.socials.whatsapp);
     expect(loaded.socials.locationUrl, original.socials.locationUrl);
     expect(loaded.catalogUrl, original.catalogUrl);
+    expect(loaded.coverImagePath, original.coverImagePath);
+    expect(loaded.banners.length, 2);
+    expect(loaded.banners[0].image, 'business_card_banner_0.jpg');
+    expect(loaded.banners[0].caption, '3x2 en réplicas');
+    expect(loaded.banners[1].image, 'https://cdn.example.com/banner-1.jpg');
+    expect(loaded.banners[1].caption, isEmpty);
     expect(loaded.shippingNotice, original.shippingNotice);
     expect(loaded.shippingFaq.length, 2);
     expect(loaded.shippingFaq[0].q, original.shippingFaq[0].q);

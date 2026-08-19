@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,7 +9,9 @@ import '../admin/banners_screen.dart';
 import '../admin/business_card_screen.dart';
 import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
+import '../admin/factory_reset_screen.dart';
 import '../admin/loyalty_config_screen.dart';
+import '../admin/migrate_to_app_screen.dart';
 import '../admin/palette_screen.dart';
 import '../admin/printers_screen.dart';
 import '../admin/quick_menu_screen.dart';
@@ -151,6 +154,11 @@ class AppDrawer extends StatelessWidget {
                 onTap: () => push(const BusinessCardScreen())),
             _item(context, Icons.science_outlined, 'Catálogo de prueba',
                 onTap: () => push(const DemoCatalogScreen())),
+            if (kIsWeb)
+              _item(context, Icons.phone_iphone, 'Pasar a la app de iPhone',
+                  onTap: () => push(const MigrateToAppScreen())),
+            _item(context, Icons.delete_forever_outlined, 'Empezar de cero',
+                onTap: () => push(const FactoryResetScreen())),
           ],
 
           const Divider(height: 24),

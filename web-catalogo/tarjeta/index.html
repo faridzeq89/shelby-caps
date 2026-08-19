@@ -21,15 +21,16 @@
   </div>
 </header>
 
-<!-- Portada propia de la tarjeta (no la del catálogo, para que la tarjeta se
-     sienta como su propia página): reusa la clase .cover ya definida en
-     ../styles.css. -->
+<!-- Portada propia de la tarjeta. Por omisión es la ilustración de la marca
+     (img/portada.svg); el dueño la reemplaza desde el POS (Admin → Tarjeta
+     digital) y `app.js` cambia el `src` a la imagen publicada. -->
 <figure class="cover">
-  <img src="img/portada.svg" alt="SHELBY CAPS" />
+  <img id="coverImg" src="img/portada.svg" alt="SHELBY CAPS" />
 </figure>
 
-<!-- Mismo carrusel del catálogo (reusa los banners que ya se publican desde
-     Admin → Anuncios de la tienda): sin sistema propio de imágenes. -->
+<!-- Carrusel propio de la tarjeta: sus imágenes se suben en Admin → Tarjeta
+     digital y viajan en el JSON de `business_card`, ya NO son los anuncios de
+     la tienda. -->
 <section class="banners" id="banners" hidden aria-label="Promociones">
   <div class="btrack" id="btrack"></div>
   <div class="dots" id="bdots"></div>

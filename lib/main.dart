@@ -13,6 +13,19 @@ import 'services/quick_menu.dart';
 import 'services/session_settings.dart';
 import 'services/tax_settings.dart';
 
+/// Proyecto Supabase de Shelby Caps, empaquetado como último recurso para que
+/// el POS **web conecte solo en cualquier dispositivo** (el cliente no teclea
+/// nada). La llave anon es **PÚBLICA** por diseño: rol `anon`, solo lectura;
+/// las escrituras las bloquea RLS y la publicación usa un secreto aparte. Es la
+/// misma que ya va, commiteada, en `web-catalogo/config.js`. **NUNCA** poner
+/// aquí `service_role` ni el secreto de publicación.
+///
+/// (El `.env` no sirve en web: Flutter no registra en el AssetManifest los
+/// archivos que empiezan con ".", así que `rootBundle` no lo encuentra.)
+const _fallbackSupabaseUrl = 'https://phyjseekbyitlntmjwwe.supabase.co';
+const _fallbackSupabaseAnon =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoeWpzZWVrYnlpdGxudG1qd3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0MDg4MzMsImV4cCI6MjEwMTk4NDgzM30.0xbMKEAN6cmzua3YPeHwOFx5rAapMcGHOk8LJrooY20';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final db = AppDatabase();
@@ -80,7 +93,11 @@ Future<bool> _initSupabase(AppDatabase db) async {
         // Sin .env empaquetado: no pasa nada, seguimos con lo que haya.
       }
     }
-    if (url == null || key == null) return false;
+    // Último recurso: llaves públicas empaquetadas. Garantiza que el POS web
+    // conecte solo aunque no haya config en la app ni `.env` cargable.
+    url ??= _fallbackSupabaseUrl;
+    key ??= _fallbackSupabaseAnon;
+    if (url.isEmpty || key.isEmpty) return false;
     // Llave anon (JWT legacy). El parámetro anonKey sigue funcionando para estas.
     // ignore: deprecated_member_use
     await Supabase.initialize(url: url, anonKey: key);

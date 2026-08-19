@@ -56,7 +56,6 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   final ImageService _images = ImageService();
   late Future<_EditorData> _future = _load();
   int? _locationId;
-  String? _scanResult;
 
   Profile get _actor => context.read<AuthController>().currentUser!;
   bool get _canSeeCosts => Permissions.canSeeCosts(_actor.role);
@@ -185,15 +184,6 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     );
   }
 
-  Future<void> _testScan(String code) async {
-    if (code.trim().isEmpty) return;
-    final v = await _repo.resolveByCode(code);
-    setState(() {
-      _scanResult = v == null
-          ? 'Código "$code": sin resultado'
-          : 'Código "$code" → ${v.sku}  (${v.size ?? ''} ${v.color ?? ''})';
-    });
-  }
 
   Future<void> _editPrice(_EditorData data, {Variant? variant}) async {
     final current = variant != null
@@ -757,6 +747,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               PopupMenuButton<String>(
                 onSelected: (v) {
                   switch (v) {
+                    case 'variants':
+                      _generateVariants();
                     case 'zpl':
                       _showZpl(data);
                     case 'archive':
@@ -766,6 +758,9 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                   }
                 },
                 itemBuilder: (_) => [
+                  const PopupMenuItem(
+                      value: 'variants',
+                      child: Text('Generar variantes (talla × color)')),
                   const PopupMenuItem(
                       value: 'zpl', child: Text('Ver ZPL (Zebra)')),
                   PopupMenuItem(
@@ -782,25 +777,25 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: _generateVariants,
-            icon: const Icon(Icons.grid_on),
-            label: const Text('Generar variantes'),
-          ),
           body: ListView(
-            padding: const EdgeInsets.only(bottom: 88),
+            padding: const EdgeInsets.only(bottom: 24),
             children: [
               _header(data),
               _photoStrip(data),
               _mayoreoCard(data),
-              _scanTester(),
-              const Divider(),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: SectionHeader(data.rows.length > 1
+                    ? 'Tallas y colores'
+                    : 'Existencias'),
+              ),
               if (data.rows.isEmpty)
                 const Padding(
-                  padding: EdgeInsets.all(24),
+                  padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                   child: Text(
-                    'Sin variantes. Usa "Generar variantes" para crear la '
-                    'matriz talla × color.',
+                    'Sin variantes. Usa el menú de arriba → "Generar variantes" '
+                    'para crear la matriz talla × color.',
                     textAlign: TextAlign.center,
                   ),
                 )
@@ -813,80 +808,78 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     );
   }
 
+  /// Ficha del producto: **solo lectura**. Todo lo editable vive detras del
+  /// unico boton "Editar", que va ancho abajo y no le roba ancho al texto (con
+  /// el boton al lado, el precio se partia en cuatro renglones en un telefono).
   Widget _header(_EditorData data) {
+    final t = Theme.of(context);
     return Card(
-      margin: const EdgeInsets.all(12),
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _photoThumb(data),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!data.product.active)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Chip(
-                        label: const Text('ARCHIVADO'),
-                        visualDensity: VisualDensity.compact,
-                        backgroundColor: const Color(0xFF3A2E1C),
-                        labelStyle: TextStyle(
-                            color: const Color(0xFFE0A458),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11),
-                      ),
-                    ),
-                  if (data.product.brand != null)
-                    Text(data.product.brand!,
-                        style: Theme.of(context).textTheme.bodySmall),
-                  Text(
-                    data.product.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  Text(
-                      '\${(data.product.basePriceCents / 100).toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  // El IVA solo se anuncia si el negocio factura; con el
-                  // interruptor apagado prometía un impuesto que no se cobra.
-                  if (context.watch<TaxSettings>().enabled)
-                    Text(
-                        'IVA: ${(data.product.taxRateBps / 100).toStringAsFixed(0)}%',
-                        style: Theme.of(context).textTheme.bodySmall),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        Icon(Icons.local_shipping_outlined,
-                            size: 14,
-                            color: Theme.of(context).colorScheme.outline),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            data.supplierName ?? 'Sin proveedor',
-                            style: Theme.of(context).textTheme.bodySmall,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _photoThumb(data),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!data.product.active)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 6),
+                          child: StatusPill('ARCHIVADO'),
                         ),
-                      ],
-                    ),
+                      if (data.product.brand != null)
+                        Text(data.product.brand!,
+                            style: t.textTheme.bodySmall),
+                      Text(data.product.name,
+                          style: t.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      Text(money(data.product.basePriceCents),
+                          style: t.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.accent)),
+                      // El IVA solo se anuncia si el negocio factura; apagado,
+                      // prometia un impuesto que nunca llega al ticket.
+                      if (context.watch<TaxSettings>().enabled)
+                        Text(
+                            'IVA ${(data.product.taxRateBps / 100).toStringAsFixed(0)}%',
+                            style: t.textTheme.bodySmall),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            // Una sola puerta para editar: nombre, marca, descripción, precio,
-            // costo, existencias y proveedor viven todos ahí adentro.
-            if (_canEditName)
-              OutlinedButton.icon(
-                onPressed: () => _abrirFormulario(),
-                icon: const Icon(Icons.edit),
-                label: const Text('Editar'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.local_shipping_outlined,
+                    size: 15, color: t.colorScheme.outline),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(data.supplierName ?? 'Sin proveedor',
+                      style: t.textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+            if (_canEditName) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _abrirFormulario,
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Editar'),
+                ),
               ),
+            ],
           ],
         ),
       ),
@@ -960,72 +953,91 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     }
   }
 
-  Widget _scanTester() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            decoration: const InputDecoration(
-              labelText: 'Probar escaneo (escanea o teclea un código + Enter)',
-              prefixIcon: Icon(Icons.qr_code_scanner),
-            ),
-            onSubmitted: _testScan,
-          ),
-          if (_scanResult != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(_scanResult!,
-                  style: Theme.of(context).textTheme.bodyMedium),
-            ),
-        ],
-      ),
-    );
-  }
 
+  /// Un renglon por variante. Con talla unica es UNA fila que dice cuantas hay;
+  /// con matriz talla x color son varias y ahi si cada una lleva su menu.
   Widget _variantTile(_EditorData data, _VariantRow r) {
     final varias = data.rows.length > 1;
-    final price = effectivePrice(data.product, r.variant);
-    final subtitle = StringBuffer('SKU ${r.variant.sku}');
-    subtitle.write('  ·  stock ${r.stock.available}');
-    if (r.internalCode != null) subtitle.write('  ·  ${r.internalCode}');
-    if (_canSeeCosts) {
-      subtitle.write('  ·  costo \$${(r.variant.costCents / 100).toStringAsFixed(2)}');
-    }
-    return ListTile(
-      title: Text(
-          '${r.variant.size ?? ''} ${r.variant.color ?? ''}  —  \$${(price / 100).toStringAsFixed(2)}'),
-      subtitle: Text(subtitle.toString()),
-      trailing: PopupMenuButton<String>(
-        onSelected: (v) {
-          switch (v) {
-            case 'price':
-              _editPrice(data, variant: r.variant);
-            case 'cost':
-              _editCost(r.variant);
-            case 'supplier':
-              _addSupplierCode(r.variant);
-            case 'stock':
-              _adjustStock(data, r);
-          }
-        },
-        itemBuilder: (_) => [
-          // Con UNA variante, su precio, costo y existencias ya se editan en
-          // "Editar" (arriba): repetirlos aquí es justo el desorden que había.
-          // Con matriz talla × color cada renglón sí necesita los suyos.
-          if (varias) ...[
-            const PopupMenuItem(value: 'price', child: Text('Editar precio')),
-            // Un servicio (limpieza de gorra) no tiene piezas que contar.
-            if (_canMoveStock && !data.product.esServicio)
-              const PopupMenuItem(
-                  value: 'stock', child: Text('Ajustar existencias')),
-            if (_canSeeCosts)
-              const PopupMenuItem(value: 'cost', child: Text('Editar costo')),
+    final t = Theme.of(context);
+    final etiqueta = '${r.variant.size ?? ''} ${r.variant.color ?? ''}'.trim();
+    final detalle = StringBuffer('SKU ${r.variant.sku}');
+    if (r.internalCode != null) detalle.write('  ·  ${r.internalCode}');
+    if (_canSeeCosts) detalle.write('  ·  costo ${money(r.variant.costCents)}');
+    final sinPiezas = r.stock.available <= 0;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          etiqueta.isEmpty ? 'Talla única' : etiqueta,
+                          style: t.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (varias) ...[
+                        const SizedBox(width: 8),
+                        Text(money(effectivePrice(data.product, r.variant)),
+                            style: t.textTheme.titleSmall),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(detalle.toString(),
+                      style: t.textTheme.bodySmall, maxLines: 2),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // El servicio no maneja piezas: anunciar "0" ahi es una alarma falsa.
+            if (!data.product.esServicio)
+              StatusPill(
+                sinPiezas ? 'Agotado' : '${r.stock.available} pzas',
+                color: sinPiezas ? AppColors.danger : AppColors.success,
+              ),
+            PopupMenuButton<String>(
+                onSelected: (v) {
+                  switch (v) {
+                    case 'price':
+                      _editPrice(data, variant: r.variant);
+                    case 'cost':
+                      _editCost(r.variant);
+                    case 'supplier':
+                      _addSupplierCode(r.variant);
+                    case 'stock':
+                      _adjustStock(data, r);
+                  }
+                },
+                itemBuilder: (_) => [
+                  // Con UNA variante su precio, costo y existencias ya se
+                  // editan arriba en "Editar": repetirlos aquí es el desorden
+                  // que había. Con matriz, cada renglón sí necesita los suyos.
+                  if (varias) ...[
+                    const PopupMenuItem(
+                        value: 'price', child: Text('Editar precio')),
+                    if (_canMoveStock && !data.product.esServicio)
+                      const PopupMenuItem(
+                          value: 'stock', child: Text('Ajustar existencias')),
+                    if (_canSeeCosts)
+                      const PopupMenuItem(
+                          value: 'cost', child: Text('Editar costo')),
+                  ],
+                  const PopupMenuItem(
+                      value: 'supplier',
+                      child: Text('Agregar código proveedor')),
+                ],
+              ),
           ],
-          const PopupMenuItem(
-              value: 'supplier', child: Text('Agregar código proveedor')),
-        ],
+        ),
       ),
     );
   }

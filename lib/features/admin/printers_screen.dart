@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/ui_kit.dart';
 import '../../core/app_dropdown.dart';
 import '../../data/local/database.dart';
+import '../../data/repositories/catalog_repository.dart';
 import '../sales/ticket_service.dart';
 
 /// Admin → Impresoras & Tickets. Configura la impresora de tickets (ancho de
@@ -27,6 +28,10 @@ class PrintersScreen extends StatefulWidget {
 
 class _PrintersScreenState extends State<PrintersScreen> {
   late final AppDatabase _db = context.read<AppDatabase>();
+  late final CatalogRepository _catalog = CatalogRepository(_db);
+
+  /// Resultado de la última prueba del lector, o null si no se ha probado.
+  String? _scanResult;
 
   static const _kPaper = 'printer_paper_mm';
   static const _kDrawer = 'printer_open_drawer';
@@ -215,6 +220,17 @@ class _PrintersScreenState extends State<PrintersScreen> {
     ];
   }
 
+  Future<void> _testScan(String code) async {
+    if (code.trim().isEmpty) return;
+    final v = await _catalog.resolveByCode(code);
+    if (!mounted) return;
+    setState(() {
+      _scanResult = v == null
+          ? 'Código "$code": sin resultado'
+          : 'Código "$code" → ${v.sku}  (${v.size ?? ''} ${v.color ?? ''})';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -371,6 +387,38 @@ class _PrintersScreenState extends State<PrintersScreen> {
                             label: const Text('Vista previa'),
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Vivía dentro de la pantalla del producto, donde no pintaba
+                // nada: es una prueba de hardware, como la impresión de prueba.
+                const SectionHeader('Lector de códigos'),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                            'Dispara el lector sobre una etiqueta. Si el código '
+                            'aparece aquí y encuentra el producto, el lector ya '
+                            'quedó configurado.',
+                            style: TextStyle(fontSize: 12)),
+                        const SizedBox(height: 10),
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Escanea o teclea un código + Enter',
+                            prefixIcon: Icon(Icons.qr_code_scanner),
+                          ),
+                          onSubmitted: _testScan,
+                        ),
+                        if (_scanResult != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Text(_scanResult!),
+                          ),
                       ],
                     ),
                   ),

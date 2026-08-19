@@ -30,6 +30,14 @@ class CatalogSyncService {
   /// Clave donde vive el secreto de publicación dentro de la app.
   static const secretKey = 'catalog_publish_secret';
 
+  /// ¿Este equipo puede publicar la tienda? **Por dispositivo**, no compartido.
+  ///
+  /// La tienda no acumula: cada publicación reemplaza el catálogo completo, así
+  /// que el último que publica gana. Con dos POS (el del dueño y el de soporte)
+  /// bastaba con editar algo en el equivocado para borrarle el catálogo al otro
+  /// —pasó el 19 ago 2026—. Apagando esto, ese equipo deja de publicar.
+  static const publishEnabledKey = 'catalog_publish_enabled';
+
   /// Secreto con el que sale configurada la tienda. Está aquí para que el dueño
   /// **nunca tenga que escribirlo**: publicar debe ser invisible.
   ///
@@ -81,6 +89,21 @@ class CatalogSyncService {
     await _db.into(_db.appSettings).insertOnConflictUpdate(
         AppSettingsCompanion.insert(key: secretKey, value: defaultSecret));
     return defaultSecret;
+  }
+
+  /// ¿Este equipo publica? De fábrica **sí**: apagarlo es una decisión, y un
+  /// dispositivo recién instalado no tiene por qué quedarse mudo.
+  Future<bool> publishEnabled() async {
+    final row = await (_db.select(_db.appSettings)
+          ..where((t) => t.key.equals(publishEnabledKey)))
+        .getSingleOrNull();
+    return row?.value.trim() != 'false';
+  }
+
+  Future<void> setPublishEnabled(bool value) async {
+    await _db.into(_db.appSettings).insertOnConflictUpdate(
+        AppSettingsCompanion.insert(
+            key: publishEnabledKey, value: value ? 'true' : 'false'));
   }
 
   /// Publica en cuanto se calme el movimiento. Es lo que hace que la tienda web
@@ -314,6 +337,10 @@ class CatalogSyncService {
   /// lenta cuando hay muchos productos con varias vistas cada uno.
   Future<int> publish(String secret,
       {void Function(int done, int total)? onProgress}) async {
+    // Candado en el ÚNICO punto que toca el RPC: cualquier ruta de publicación
+    // —automática, botón Compartir, anuncios— pasa por aquí, así ninguna nueva
+    // se lo salta por olvido.
+    if (!await publishEnabled()) throw const PublishDisabledException();
     final snap = await currentSnapshot();
     final products = await (_db.select(_db.products)
           ..where((t) => t.active.equals(true)))
@@ -330,4 +357,16 @@ class CatalogSyncService {
     });
     return snap.productCount;
   }
+}
+
+/// Este equipo tiene apagada la publicación de la tienda.
+///
+/// No es un fallo: es la protección para que un POS de respaldo no reemplace el
+/// catálogo del dueño. Se prende en Ajustes → Publicación de la tienda.
+class PublishDisabledException implements Exception {
+  const PublishDisabledException();
+
+  @override
+  String toString() =>
+      'Este equipo no publica la tienda (Ajustes → Publicación de la tienda).';
 }

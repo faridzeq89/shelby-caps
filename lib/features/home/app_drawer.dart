@@ -14,6 +14,7 @@ import '../admin/loyalty_config_screen.dart';
 import '../admin/migrate_to_app_screen.dart';
 import '../admin/palette_screen.dart';
 import '../admin/printers_screen.dart';
+import '../admin/publish_settings_screen.dart';
 import '../admin/quick_menu_screen.dart';
 import '../admin/tax_settings_screen.dart';
 import '../admin/reconciliation_screen.dart';
@@ -150,6 +151,9 @@ class AppDrawer extends StatelessWidget {
                 onTap: () => push(const TaxSettingsScreen())),
             _item(context, Icons.campaign_outlined, 'Anuncios de la tienda',
                 onTap: () => push(const BannersScreen())),
+            _item(context, Icons.cloud_upload_outlined,
+                'Publicación de la tienda',
+                onTap: () => push(const PublishSettingsScreen())),
             _item(context, Icons.badge_outlined, 'Tarjeta digital',
                 onTap: () => push(const BusinessCardScreen())),
             _item(context, Icons.science_outlined, 'Catálogo de prueba',

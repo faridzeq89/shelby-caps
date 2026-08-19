@@ -74,7 +74,8 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
     final url = await sync.storeUrl();
     // Se fuerza una publicación inmediata para que quien reciba la liga vea lo
     // que hay ahora mismo, sin esperar el retraso normal.
-    unawaited(sync.publishNow());
+    final publica = await sync.publishEnabled();
+    if (publica) unawaited(sync.publishNow());
     if (!mounted) return;
     await showDialog<void>(
       context: context,
@@ -84,8 +85,12 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Manda esta liga a tus clientes. Se actualiza sola '
-                'cuando cambias precios, fotos o existencias.'),
+            Text(publica
+                ? 'Manda esta liga a tus clientes. Se actualiza sola '
+                    'cuando cambias precios, fotos o existencias.'
+                : 'Ojo: este equipo NO publica la tienda, así que la liga '
+                    'muestra lo que subió otro equipo. Se prende en '
+                    'Ajustes → Publicación de la tienda.'),
             const SizedBox(height: 12),
             SelectableText(url,
                 style: TextStyle(

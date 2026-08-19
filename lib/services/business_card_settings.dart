@@ -318,6 +318,14 @@ class BusinessCardSettings extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    // La tarjeta también es la tienda: si este equipo no publica, tampoco
+    // debe reemplazar la tarjeta del dueño.
+    if (!await sync.publishEnabled()) {
+      lastError = 'Este equipo no publica la tienda '
+          '(Ajustes → Publicación de la tienda)';
+      notifyListeners();
+      return false;
+    }
     publishing = true;
     notifyListeners();
     try {

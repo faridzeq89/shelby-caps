@@ -12,9 +12,11 @@ import '../../data/repositories/inventory_repository.dart';
 import '../../data/repositories/supplier_repository.dart';
 import '../../services/auth_controller.dart';
 import '../../services/catalog_sync_service.dart';
+import '../../services/tax_settings.dart';
 import '../../services/cloud_backup_service.dart';
 import '../../services/image_service.dart';
 import 'label_service.dart';
+import 'product_form_screen.dart';
 
 class ProductEditorScreen extends StatefulWidget {
   const ProductEditorScreen({super.key, required this.productId});
@@ -216,20 +218,14 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   }
 
   /// Elige el proveedor del producto (o lo quita). -1 = sin proveedor.
-  /// Cambia el nombre. Antes solo se podía escribir al dar de alta y quedaba
-  /// congelado: un dedazo obligaba a borrar el producto y capturarlo de nuevo,
-  /// perdiendo su historial.
-  Future<void> _editName(_EditorData data) async {
-    final nuevo =
-        await _askText('Nombre del producto', initial: data.product.name);
-    if (nuevo == null || nuevo.trim() == data.product.name) return;
-    try {
-      await _repo.updateProductName(
-          actor: _actor, productId: data.product.id, newName: nuevo);
-      _reload();
-    } catch (e) {
-      _toast('$e');
-    }
+  /// Abre el formulario único. Todo lo que era un lápiz suelto en esta pantalla
+  /// se llena ahí y se guarda de una vez.
+  Future<void> _abrirFormulario() async {
+    final cambio = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+          builder: (_) => ProductFormScreen(productId: widget.productId)),
+    );
+    if (cambio == true) _reload();
   }
 
   /// Corrige las existencias sin salir del producto.
@@ -273,57 +269,6 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     }
   }
 
-  Future<void> _editSupplier(_EditorData data) async {
-    final suppliers = await _suppliers.all();
-    if (!mounted) return;
-    final chosen = await showModalBottomSheet<int>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(
-              dense: true,
-              title: Text('Proveedor del producto',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.block),
-              title: const Text('Sin proveedor'),
-              selected: data.product.supplierId == null,
-              onTap: () => Navigator.of(context).pop(-1),
-            ),
-            for (final s in suppliers)
-              ListTile(
-                leading: const Icon(Icons.local_shipping_outlined),
-                title: Text(s.name),
-                subtitle: s.phone == null ? null : Text(s.phone!),
-                selected: data.product.supplierId == s.id,
-                onTap: () => Navigator.of(context).pop(s.id),
-              ),
-            if (suppliers.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                    'No hay proveedores. Créalos en Admin → Proveedores.',
-                    textAlign: TextAlign.center),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (chosen == null) return;
-    try {
-      await _repo.updateProductSupplier(
-        actor: _actor,
-        productId: data.product.id,
-        supplierId: chosen == -1 ? null : chosen,
-      );
-      _reload();
-    } catch (e) {
-      _toast('$e');
-    }
-  }
 
   Future<void> _editCost(Variant variant) async {
     final cents = await _askPesos('Costo de la variante', variant.costCents);
@@ -897,67 +842,51 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                   if (data.product.brand != null)
                     Text(data.product.brand!,
                         style: Theme.of(context).textTheme.bodySmall),
-                  InkWell(
-                    onTap: _canEditName ? () => _editName(data) : null,
+                  Text(
+                    data.product.name,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                      '\${(data.product.basePriceCents / 100).toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  // El IVA solo se anuncia si el negocio factura; con el
+                  // interruptor apagado prometía un impuesto que no se cobra.
+                  if (context.watch<TaxSettings>().enabled)
+                    Text(
+                        'IVA: ${(data.product.taxRateBps / 100).toStringAsFixed(0)}%',
+                        style: Theme.of(context).textTheme.bodySmall),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
                     child: Row(
                       children: [
+                        Icon(Icons.local_shipping_outlined,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.outline),
+                        const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                            data.product.name,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
+                            data.supplierName ?? 'Sin proveedor',
+                            style: Theme.of(context).textTheme.bodySmall,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (_canEditName) ...[
-                          const SizedBox(width: 6),
-                          Icon(Icons.edit,
-                              size: 14,
-                              color: Theme.of(context).colorScheme.primary),
-                        ],
                       ],
-                    ),
-                  ),
-                  Text('Precio base: \$${(data.product.basePriceCents / 100).toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  Text('IVA: ${(data.product.taxRateBps / 100).toStringAsFixed(0)}%',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  InkWell(
-                    onTap: _canEditPrices ? () => _editSupplier(data) : null,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          Icon(Icons.local_shipping_outlined,
-                              size: 14,
-                              color: Theme.of(context).colorScheme.outline),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              'Proveedor: ${data.supplierName ?? 'sin asignar'}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (_canEditPrices)
-                            Text('  editar',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: Theme.of(context).colorScheme.primary)),
-                        ],
-                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            OutlinedButton.icon(
-              onPressed: () => _editPrice(data),
-              icon: const Icon(Icons.edit),
-              label: const Text('Precio'),
-            ),
+            // Una sola puerta para editar: nombre, marca, descripción, precio,
+            // costo, existencias y proveedor viven todos ahí adentro.
+            if (_canEditName)
+              OutlinedButton.icon(
+                onPressed: () => _abrirFormulario(),
+                icon: const Icon(Icons.edit),
+                label: const Text('Editar'),
+              ),
           ],
         ),
       ),
@@ -1056,6 +985,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   }
 
   Widget _variantTile(_EditorData data, _VariantRow r) {
+    final varias = data.rows.length > 1;
     final price = effectivePrice(data.product, r.variant);
     final subtitle = StringBuffer('SKU ${r.variant.sku}');
     subtitle.write('  ·  stock ${r.stock.available}');
@@ -1081,13 +1011,18 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
           }
         },
         itemBuilder: (_) => [
-          const PopupMenuItem(value: 'price', child: Text('Editar precio')),
-          // Un servicio (limpieza de gorra) no tiene piezas que contar.
-          if (_canMoveStock && !data.product.esServicio)
-            const PopupMenuItem(
-                value: 'stock', child: Text('Ajustar existencias')),
-          if (_canSeeCosts)
-            const PopupMenuItem(value: 'cost', child: Text('Editar costo')),
+          // Con UNA variante, su precio, costo y existencias ya se editan en
+          // "Editar" (arriba): repetirlos aquí es justo el desorden que había.
+          // Con matriz talla × color cada renglón sí necesita los suyos.
+          if (varias) ...[
+            const PopupMenuItem(value: 'price', child: Text('Editar precio')),
+            // Un servicio (limpieza de gorra) no tiene piezas que contar.
+            if (_canMoveStock && !data.product.esServicio)
+              const PopupMenuItem(
+                  value: 'stock', child: Text('Ajustar existencias')),
+            if (_canSeeCosts)
+              const PopupMenuItem(value: 'cost', child: Text('Editar costo')),
+          ],
           const PopupMenuItem(
               value: 'supplier', child: Text('Agregar código proveedor')),
         ],

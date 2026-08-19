@@ -112,6 +112,49 @@ void main() {
     });
   });
 
+  group('marca y descripción (lo que ve la tienda web)', () {
+    test('se pueden escribir: antes se publicaban y no había dónde llenarlas',
+        () async {
+      final admin = await user(UserRole.admin);
+      final id = await producto('Gorra NY');
+
+      await catalogo.updateProductPresentation(
+          actor: admin,
+          productId: id,
+          brand: 'New Era',
+          description: '59FIFTY, cerrada, talla única');
+
+      final p = (await catalogo.productById(id))!;
+      expect(p.brand, 'New Era');
+      expect(p.description, '59FIFTY, cerrada, talla única');
+    });
+
+    test('vacío se guarda como nulo, no como cadena vacía', () async {
+      final admin = await user(UserRole.admin);
+      final id = await producto('Gorra NY');
+      await catalogo.updateProductPresentation(
+          actor: admin, productId: id, brand: 'New Era', description: 'algo');
+
+      await catalogo.updateProductPresentation(
+          actor: admin, productId: id, brand: '  ', description: '');
+
+      final p = (await catalogo.productById(id))!;
+      expect(p.brand, isNull);
+      expect(p.description, isNull,
+          reason: 'la tienda esconde el bloque con nulo; "" lo dejaría vacío');
+    });
+
+    test('el cajero no las toca', () async {
+      final cajero = await user(UserRole.cashier);
+      final id = await producto('Gorra NY');
+      await expectLater(
+        catalogo.updateProductPresentation(
+            actor: cajero, productId: id, brand: 'X'),
+        throwsA(isA<PermissionException>()),
+      );
+    });
+  });
+
   group('existencias desde el producto', () {
     test('escribir "tengo 12" cuando hay 5 asienta un ajuste de +7', () async {
       final admin = await user(UserRole.admin);

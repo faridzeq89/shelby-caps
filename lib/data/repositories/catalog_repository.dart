@@ -473,6 +473,35 @@ class CatalogRepository {
     });
   }
 
+  /// Marca y descripción: lo que el cliente lee en la **tienda web** (la
+  /// descripción sale en la ficha del producto y las dos alimentan su
+  /// buscador). Se publicaban desde siempre, pero no había dónde escribirlas.
+  ///
+  /// Vacío se guarda como nulo, no como cadena vacía: la tienda esconde el
+  /// bloque cuando no hay descripción, y "" lo dejaría abierto y en blanco.
+  Future<void> updateProductPresentation({
+    required Profile actor,
+    required int productId,
+    String? brand,
+    String? description,
+  }) async {
+    _requireCatalog(actor);
+    String? limpio(String? v) {
+      final t = v?.trim();
+      return (t == null || t.isEmpty) ? null : t;
+    }
+
+    final marca = limpio(brand);
+    final desc = limpio(description);
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(
+              brand: Value(marca), description: Value(desc)));
+      await _audit(actor, 'update_presentation', 'product',
+          productId.toString(), 'brand=${marca ?? '-'}; desc=${desc == null ? '-' : '${desc.length} car.'}');
+    });
+  }
+
   Future<void> updateProductBasePrice({
     required Profile actor,
     required int productId,

@@ -1018,6 +1018,60 @@ Notas adicionales
 y `60cb3cf`, de otra sesión del mismo día) y hubo que reconciliarlo: la pantalla de
 Categorías y `productHasQuotes` ya existían. Antes de programar, `git fetch`.
 
+## La tarde que la tienda no publicaba (2026-08-20, cierre)
+
+Tras desplegar lo de arriba, el dueño acomodó las categorías y **nada llegaba a la tienda**.
+Tres causas encadenadas, en el orden en que se destaparon:
+
+**1. La pantalla se quedaba callada.** Publicaba con `unawaited(publishNow())`, y
+`publishNow` no lanza —guarda el error adentro—, así que un equipo que fallaba se veía
+idéntico a uno que publicaba bien. Arreglado: tarjeta de estado en Categorías ("Tienda
+actualizada a las HH:MM" / el error / "este equipo no publica") con botón **Publicar
+ahora**, y la publicación se **espera**. Sin esto, lo demás no se hubiera encontrado.
+
+**2. Publicar re-subía TODAS las fotos, siempre.** `_uploadImages` hacía `upsert` a ciegas:
+medido en el proyecto, **161 objetos y 8 MB**. Cada cambio de precio desde el teléfono
+mandaba 8 MB antes de llegar al RPC, y ahí moría con `ClientException: Load failed`.
+Arreglado con una **huella sha1 por foto** en `app_settings` (`catalog_images_uploaded`):
+si no cambió, no se sube. Publicar pasa de 8 MB a ~60 KB. Las huellas se guardan **antes**
+del RPC, así que un RPC que falla no obliga a re-subir en el siguiente intento.
+
+**3. El bug de verdad era mío: `DELETE` sin `WHERE`.** El bloque de categorías de `0007`
+usaba `delete from catalog_categories;` a secas, y Supabase **aborta** eso (SQLSTATE
+21000). La función entera se caía en el último paso: no se publicaba nada, ni precios ni
+existencias ni fotos. Arreglado en `0008` con `TRUNCATE`.
+
+**Las dos lecciones, que son el valor de esta sección:**
+
+- **Verificar el trabajo, no el candado.** Yo "verifiqué" `publish_catalog` llamándola con
+  un secreto inválido: retorna ANTES de tocar nada. Probé la validación y firmé la función
+  entera. La prueba correcta es con el secreto REAL y el catálogo publicado como carga
+  (idempotente y transaccional: entra lo mismo que sale, y si falla no cambia nada). Ojo:
+  la carga se materializa en variables dentro de un `do $$`, porque con subconsultas en los
+  argumentos quedan cursores abiertos y el `TRUNCATE` truena con 55006.
+- **Y el comentario ya lo advertía.** `0002` dice, con esas palabras, "TRUNCATE (no DELETE)
+  para no chocar con la protección DELETE requires a WHERE clause". Leerlo no basta.
+
+Herramientas que quedaron de esto:
+- **`web/diag.html`** — página de diagnóstico en el MISMO origen del POS (hereda sus
+  cabeceras COOP/COEP): aislamiento, lectura, escritura chica, escritura de ~200 KB y
+  subida al bucket. No toca datos (usa secreto inválido a propósito). Corrida en el
+  teléfono del cliente descartó red, llave, CORS y tamaño en un solo tiro. Úsala la próxima
+  vez que "no publica" y no se pueda abrir la consola de ese equipo.
+- **`lastStep`** en `CatalogSyncService`: el error dice en qué paso murió ("fotos: 3
+  subidas, 71 ya estaban", "mandando 75 productos"). Con eso, el bug del DELETE se ubicó
+  en un minuto.
+- `dbgImagesUploaded` / `dbgImagesSkipped`: si las subidas dejan de ser 0 con el catálogo
+  cargado, algo está invalidando las huellas.
+
+**Trampa de verificación en el artefacto:** dart2js escapa los acentos (`así`), así que
+`grep` en `build/web/main.dart.js` debe buscar trozos **sin** acentos o no encuentra nada
+aunque la cadena esté.
+
+Verificado al cierre: el dueño publicó desde su teléfono (19:31 UTC) y la tienda quedó con
+sus 5 categorías **en su orden** y 75 productos. Una categoría activa **sin producto
+publicado no saca botón** (LIMPIEZA): un botón que abre una vitrina vacía es peor que nada.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.
@@ -1033,13 +1087,14 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
 ## Estado operativo (2026-08-20)
-Esquema local **v17**. Migraciones de Supabase **0001–0007**. Suite **274 pruebas**,
+Esquema local **v17**. Migraciones de Supabase **0001–0008**. Suite **277 pruebas**,
 `flutter analyze` limpio.
 
-`0007_catalog_categories.sql` **ya está aplicada** en el proyecto `shelbys` (20 ago 2026,
-por la Management API). Verificado desde fuera con la llave anon: `catalog_categories`
-responde 200 y `publish_catalog` con 7 argumentos rechaza el secreto malo (existe) en vez
-de dar PGRST202.
+`0007` y `0008` **ya están aplicadas** en el proyecto `shelbys` (20 ago 2026, por la
+Management API). Verificado corriendo `publish_catalog` con el secreto REAL y el catálogo
+publicado como carga: 75 productos, 75 variantes, 74 fotos, 6 anuncios, 5 categorías, sin
+error — no con un secreto inválido, que no prueba nada (ver la sección de la tarde que la
+tienda no publicaba).
 
 **Tres superficies en vivo:** APK Android (mostrador), **POS web** `shelby-pos.pages.dev`
 (provisional para el iPhone del cliente mientras sale la licencia de Apple — él paga los

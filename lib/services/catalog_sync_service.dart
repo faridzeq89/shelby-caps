@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/local/database.dart';
@@ -10,10 +11,16 @@ import 'image_service.dart';
 /// El catálogo listo para publicar, ya como JSON (listas de mapas) que la
 /// función `publish_catalog` de Supabase espera.
 class CatalogSnapshot {
-  const CatalogSnapshot(this.products, this.variants, this.tiers);
+  const CatalogSnapshot(this.products, this.variants, this.tiers,
+      [this.categories = const []]);
   final List<Map<String, dynamic>> products;
   final List<Map<String, dynamic>> variants;
   final List<Map<String, dynamic>> tiers;
+
+  /// Las categorías con **el orden que eligió el dueño** (`position`) y si están
+  /// archivadas. Sin esto la tienda solo podía acomodarlas alfabéticamente,
+  /// porque las deducía de los productos publicados.
+  final List<Map<String, dynamic>> categories;
   int get productCount => products.length;
   int get variantCount => variants.length;
 }
@@ -50,10 +57,24 @@ class CatalogSyncService {
   /// Espera antes de publicar tras un cambio. Una venta toca varias tablas y el
   /// dueño suele editar varias cosas seguidas: con esto se publica una vez, no
   /// veinte.
-  static const _debounce = Duration(seconds: 20);
+  /// **En web es corta a propósito.** El POS web corre en Safari, donde los
+  /// `Timer` se congelan al cambiar de pestaña o bloquear el teléfono: con 20 s,
+  /// el dueño archivaba algo, salía de la pestaña y la publicación nunca corría
+  /// —la tienda se quedaba mostrando el catálogo viejo—. Tres segundos siguen
+  /// juntando una ráfaga de ediciones sin dar tiempo a perderse.
+  static const _debounce = Duration(seconds: kIsWeb ? 3 : 20);
 
   Timer? _timer;
   bool _publishing = false;
+
+  /// Llegó un cambio mientras se publicaba: hay que volver a publicar al
+  /// terminar. Sin esto, el último cambio de una ráfaga se quedaba sin subir.
+  bool _dirty = false;
+
+  /// La función `publish_catalog` de este proyecto todavía no acepta categorías
+  /// (falta correr `0007_catalog_categories.sql`). Lo muestra la pantalla de
+  /// categorías para que el dueño sepa por qué el orden no llega a la tienda.
+  bool categoriesUnsupported = false;
 
   /// Último resultado, para que la pantalla de catálogo pueda mostrarlo.
   DateTime? lastPublishedAt;
@@ -116,7 +137,12 @@ class CatalogSyncService {
 
   /// Publica sin lanzar: esto corre en segundo plano y no debe estorbar.
   Future<void> _publishQuiet() async {
-    if (_publishing) return;
+    if (_publishing) {
+      // Publicar tarda (sube fotos). Lo que llegó mientras tanto no se tira: se
+      // apunta y se publica en cuanto termine la vuelta actual.
+      _dirty = true;
+      return;
+    }
     _publishing = true;
     try {
       await publish(await ensureSecret());
@@ -126,6 +152,10 @@ class CatalogSyncService {
       lastError = '$e';
     } finally {
       _publishing = false;
+    }
+    if (_dirty) {
+      _dirty = false;
+      await _publishQuiet();
     }
   }
 
@@ -157,6 +187,7 @@ class CatalogSyncService {
     required Map<int, String> categoryNames,
     required List<({Variant variant, int stock})> variants,
     required List<PriceTier> tiers,
+    List<Category> categories = const [],
   }) {
     final byId = {for (final p in products) p.id: p};
     final productIds = byId.keys.toSet();
@@ -202,7 +233,22 @@ class CatalogSyncService {
           }
     ];
 
-    return CatalogSnapshot(productsJson, variantsJson, tiersJson);
+    // Se publican TODAS, archivadas incluidas, con su bandera: la tienda necesita
+    // saber que una categoría existe pero está archivada para NO ponerle botón,
+    // aunque algún producto siga apuntando a ella. Si solo se mandaran las
+    // activas, la tienda no distinguiría "archivada" de "categoría publicada por
+    // un POS más viejo" y la volvería a mostrar.
+    final categoriesJson = [
+      for (var i = 0; i < categories.length; i++)
+        {
+          'name': categories[i].name,
+          'position': i,
+          'active': categories[i].active,
+        }
+    ];
+
+    return CatalogSnapshot(
+        productsJson, variantsJson, tiersJson, categoriesJson);
   }
 
   /// Lee el catálogo local (productos activos, variantes activas con existencia
@@ -211,9 +257,9 @@ class CatalogSyncService {
     final products = await (_db.select(_db.products)
           ..where((t) => t.active.equals(true)))
         .get();
-    final cats = {
-      for (final c in await _db.select(_db.categories).get()) c.id: c.name
-    };
+    // En el orden del dueño: es el orden con el que salen en la tienda.
+    final catRows = await CatalogRepository(_db).categories();
+    final cats = {for (final c in catRows) c.id: c.name};
     final variantsRaw = await (_db.select(_db.variants)
           ..where((t) => t.active.equals(true)))
         .get();
@@ -228,6 +274,7 @@ class CatalogSyncService {
       categoryNames: cats,
       variants: variants,
       tiers: tiers,
+      categories: catRows,
     );
   }
 
@@ -347,14 +394,32 @@ class CatalogSyncService {
         .get();
     final images = await _uploadImages(products, onProgress);
     final banners = await _uploadBanners();
-    await _client.rpc('publish_catalog', params: {
+    final params = {
       'p_secret': secret,
       'p_products': snap.products,
       'p_variants': snap.variants,
       'p_tiers': snap.tiers,
       'p_images': images,
       'p_banners': banners,
-    });
+    };
+    try {
+      await _client.rpc('publish_catalog', params: {
+        ...params,
+        'p_categories': snap.categories,
+      });
+      categoriesUnsupported = false;
+    } on PostgrestException catch (e) {
+      // La firma con categorías la agrega `0007_catalog_categories.sql`. Si ese
+      // script todavía no se corrió en Supabase, PostgREST responde "no existe
+      // esa función" (PGRST202): se publica con la firma anterior en vez de
+      // dejar la tienda sin actualizar. Lo único que se pierde es el orden
+      // manual de las categorías.
+      if (e.code != 'PGRST202' && !e.message.contains('does not exist')) {
+        rethrow;
+      }
+      categoriesUnsupported = true;
+      await _client.rpc('publish_catalog', params: params);
+    }
     return snap.productCount;
   }
 }

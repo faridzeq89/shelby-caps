@@ -28,6 +28,8 @@ class TicketConfig {
     this.subheading = '',
     this.footerLegend = '¡Gracias por su compra!',
     this.qrData = '',
+    this.businessPhone = '899 703 4922',
+    this.businessAddress = 'Calle Monterrey 455 Col. Rdz',
   });
 
   final String title; // encabezado (nombre del negocio)
@@ -35,10 +37,20 @@ class TicketConfig {
   final String footerLegend; // leyenda al pie
   final String qrData; // contenido del QR (URL/texto); vacío = sin QR
 
+  /// WhatsApp del negocio, impreso en el bloque "Datos del negocio" de la nota
+  /// de servicio. Trae el número real de fábrica para que el dueño no tenga que
+  /// capturarlo antes de poder imprimir su primera nota.
+  final String businessPhone;
+
+  /// Ubicación del negocio, mismo bloque y mismo motivo.
+  final String businessAddress;
+
   static const kTitle = 'ticket_title';
   static const kSubheading = 'ticket_subheading';
   static const kFooter = 'ticket_footer';
   static const kQr = 'ticket_qr';
+  static const kBusinessPhone = 'business_phone';
+  static const kBusinessAddress = 'business_address';
 
   /// Lee la configuración desde `app_settings`. Si una clave no existe usa el
   /// valor por defecto (retrocompatibilidad con instalaciones previas).
@@ -52,11 +64,17 @@ class TicketConfig {
 
     const def = TicketConfig();
     final title = (await get(kTitle))?.trim();
+    // Los datos del negocio caen al valor de fábrica solo si NUNCA se han
+    // guardado; si el dueño los borra a propósito, se respetan vacíos.
+    final phone = (await get(kBusinessPhone))?.trim();
+    final address = (await get(kBusinessAddress))?.trim();
     return TicketConfig(
       title: (title != null && title.isNotEmpty) ? title : def.title,
       subheading: (await get(kSubheading))?.trim() ?? def.subheading,
       footerLegend: (await get(kFooter)) ?? def.footerLegend,
       qrData: (await get(kQr))?.trim() ?? def.qrData,
+      businessPhone: phone ?? def.businessPhone,
+      businessAddress: address ?? def.businessAddress,
     );
   }
 }

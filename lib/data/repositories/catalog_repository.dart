@@ -43,8 +43,13 @@ class CatalogRepository {
   /// las pantallas que solo MUESTRAN el nombre de un producto ya existente deben
   /// dejarlo en `false` para poder resolver el nombre de una categoría archivada).
   Future<List<Category>> categories({bool activeOnly = false}) {
+    // El id desempata: si dos quedaran con el mismo lugar, el orden dejaría de
+    // ser estable y las categorías se moverían solas entre pantallas.
     final q = _db.select(_db.categories)
-      ..orderBy([(t) => OrderingTerm(expression: t.sortOrder)]);
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.sortOrder),
+        (t) => OrderingTerm(expression: t.id),
+      ]);
     if (activeOnly) q.where((t) => t.active.equals(true));
     return q.get();
   }
@@ -193,12 +198,66 @@ class CatalogRepository {
   // -------------------------------------------------------------------------
   // Altas
   // -------------------------------------------------------------------------
+  /// Da de alta una categoría **al final** del orden del dueño. Se usa
+  /// `MAX(sort_order) + 1` y no el conteo de filas: al borrar una categoría el
+  /// conteo repite un número y dos categorías empatan en el orden.
   Future<int> createCategory(Profile actor, String name) async {
     _requireCatalog(actor);
-    final count = (await _db.select(_db.categories).get()).length;
+    final limpio = name.trim();
+    if (limpio.isEmpty) {
+      throw StateError('La categoría necesita nombre');
+    }
+    final row = await _db.customSelect(
+      'SELECT COALESCE(MAX(sort_order), -1) AS n FROM categories',
+      readsFrom: {_db.categories},
+    ).getSingle();
     return _db.into(_db.categories).insert(
-          CategoriesCompanion.insert(name: name, sortOrder: Value(count)),
+          CategoriesCompanion.insert(
+              name: limpio, sortOrder: Value(row.read<int>('n') + 1)),
         );
+  }
+
+  /// Cuántos productos cuelgan de cada categoría (archivados incluidos: siguen
+  /// colgando). Lo usa la pantalla de categorías para no dejar al dueño
+  /// adivinando qué se lleva por delante.
+  Future<Map<int, int>> categoryProductCounts() async {
+    final rows = await _db.customSelect(
+      'SELECT category_id AS cid, COUNT(*) AS n FROM products GROUP BY category_id',
+      readsFrom: {_db.products},
+    ).get();
+    return {for (final r in rows) r.read<int>('cid'): r.read<int>('n')};
+  }
+
+  /// Renombra una categoría. El nombre es lo que ve el cliente en la tienda y se
+  /// publica tal cual: un dedazo aquí se ve en la web. Antes no había forma de
+  /// corregirlo.
+  Future<void> renameCategory(Profile actor, int categoryId, String name) async {
+    _requireCatalog(actor);
+    final limpio = name.trim();
+    if (limpio.isEmpty) {
+      throw StateError('La categoría necesita nombre');
+    }
+    await (_db.update(_db.categories)..where((t) => t.id.equals(categoryId)))
+        .write(CategoriesCompanion(name: Value(limpio)));
+    await _audit(actor, 'rename', 'category', categoryId.toString(), limpio);
+  }
+
+  /// Guarda el orden que el dueño acomodó a mano: [idsInOrder] tal como quedaron
+  /// en la pantalla, y `sort_order` se reescribe 0, 1, 2… en ese orden.
+  ///
+  /// Es el orden en que salen las categorías en el mostrador **y en la tienda
+  /// web**: lo que más vende va primero, no lo que empieza con "A".
+  Future<void> reorderCategories(Profile actor, List<int> idsInOrder) async {
+    _requireCatalog(actor);
+    await _db.transaction(() async {
+      for (var i = 0; i < idsInOrder.length; i++) {
+        await (_db.update(_db.categories)
+              ..where((t) => t.id.equals(idsInOrder[i])))
+            .write(CategoriesCompanion(sortOrder: Value(i)));
+      }
+      await _audit(actor, 'reorder', 'category', '',
+          '${idsInOrder.length} categorías reordenadas');
+    });
   }
 
   /// ¿Hay productos (activos o archivados) ligados a esta categoría?
@@ -734,28 +793,54 @@ class CatalogRepository {
     return row.read<int>('n') > 0;
   }
 
-  /// True si el producto se puede BORRAR de verdad: sin ventas, sin movimientos
-  /// de inventario y sin cotizaciones (p. ej. un alta por error). Si no, archívalo.
+  /// True si el producto se puede BORRAR de verdad: **nunca se vendió** y no está
+  /// en ninguna cotización.
+  ///
+  /// Antes también exigía cero movimientos de inventario, y eso volvía imposible
+  /// lo que el dueño más necesita: borrar una gorra capturada por error. Al darla
+  /// de alta con su existencia inicial ya queda una entrada en el ledger, así que
+  /// el producto nacía imborrable y solo se podía archivar (reportado el 20 ago
+  /// 2026).
+  ///
+  /// La línea nueva está donde importa: **si se vendió, no se borra**. Ahí hay
+  /// dinero, tickets, cortes de caja y devoluciones que dependen de esa fila; para
+  /// eso está [setProductActive]. La cotización sigue bloqueando porque es un
+  /// documento que ya se le entregó a un cliente.
   Future<bool> canDeleteProduct(int productId) async {
     return !(await productHasSales(productId)) &&
-        !(await productHasMovements(productId)) &&
         !(await productHasQuotes(productId));
   }
 
-  /// Borrado REAL. Solo para productos SIN ventas, movimientos ni cotizaciones.
-  /// Si tiene historial lanza [StateError] (el historial es inmutable): en ese
-  /// caso usa [setProductActive] para archivar. Borra códigos, variantes y el
-  /// producto en una transacción.
+  /// Borrado REAL, para el alta por error. Solo si el producto **nunca se vendió**
+  /// y no aparece en ninguna cotización; si no, lanza [StateError] y hay que
+  /// archivarlo.
+  ///
+  /// Se lleva todo lo que cuelga del producto en una sola transacción: códigos,
+  /// líneas de conteo, fotos, escalones de mayoreo, **sus movimientos de
+  /// inventario**, sus variantes y el producto. Los movimientos exigen abrir el
+  /// candado del ledger ([AppDatabase.withLedgerDeleteAllowed]) — se abre aquí,
+  /// después de verificar que no hay ventas, y se vuelve a cerrar al salir.
   Future<void> deleteProduct(Profile actor, int productId) async {
     _requireCatalog(actor);
-    if (!await canDeleteProduct(productId)) {
+    if (await productHasSales(productId)) {
       throw StateError(
-          'El producto tiene ventas, movimientos de inventario o cotizaciones '
-          'y no se puede borrar (el historial es inmutable). Archívalo en su '
-          'lugar.');
+          'Este producto ya se vendió: borrarlo dejaría tickets y cortes de caja '
+          'apuntando a algo que no existe. Archívalo en su lugar.');
+    }
+    if (await productHasQuotes(productId)) {
+      throw StateError(
+          'Este producto está en una cotización que ya se le dio a un cliente. '
+          'Archívalo, o cancela esa cotización primero.');
     }
     await _db.transaction(() async {
       final vs = await variantsOf(productId);
+      await _db.withLedgerDeleteAllowed(() async {
+        for (final v in vs) {
+          await (_db.delete(_db.inventoryMovements)
+                ..where((t) => t.variantId.equals(v.id)))
+              .go();
+        }
+      });
       for (final v in vs) {
         await (_db.delete(_db.barcodes)..where((t) => t.variantId.equals(v.id)))
             .go();
@@ -765,6 +850,12 @@ class CatalogRepository {
         await (_db.delete(_db.variants)..where((t) => t.id.equals(v.id))).go();
       }
       await (_db.delete(_db.priceTiers)
+            ..where((t) => t.productId.equals(productId)))
+          .go();
+      // Las fotos: se borran las filas. El archivo en disco lo limpia
+      // `ImageService` aparte; una foto huérfana no rompe nada, una fila sí
+      // (queda apuntando a un producto que ya no existe).
+      await (_db.delete(_db.productImages)
             ..where((t) => t.productId.equals(productId)))
           .go();
       await (_db.delete(_db.products)..where((t) => t.id.equals(productId))).go();

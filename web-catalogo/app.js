@@ -19,6 +19,7 @@
   let VARIANTS = new Map(); // productId -> [variant]
   let TIERS = new Map(); // productId -> [tier]
   let IMAGES = new Map(); // productId -> [url] (posición 0 = principal)
+  let CATEGORIES = []; // [{name, position, active}] tal como las publicó el POS
   let categoryFilter = null; // null = todas
   let query = "";
   let sortBy = "none";
@@ -278,8 +279,30 @@
   }
 
   // ---- Categorías ----
+  /* El orden y las archivadas los decide el POS (tabla `catalog_categories`,
+   * SQL 0007). Reglas:
+   *
+   *  - Con lista publicada: manda ella. Sale la categoría que esté ACTIVA y que
+   *    además tenga productos a la venta; en el orden que el dueño acomodó, no
+   *    alfabético. Una categoría archivada no sale ni con productos colgando.
+   *  - Sin lista (proyecto sin el SQL 0007, o publicado por un POS viejo): se
+   *    deducen de los productos y se acomodan por nombre, como antes.
+   *  - Una categoría que viene en los productos pero no en la lista (publicada
+   *    por una versión anterior) se agrega al final, alfabética: es mejor que
+   *    esconder mercancía. */
+  function orderedCategories() {
+    const enUso = new Set(PRODUCTS.map((p) => p.category).filter(Boolean));
+    if (!CATEGORIES.length) return [...enUso].sort();
+    const conocidas = new Set(CATEGORIES.map((c) => c.name));
+    const orden = CATEGORIES.filter((c) => c.active !== false && enUso.has(c.name))
+      .sort((a, b) => (a.position || 0) - (b.position || 0))
+      .map((c) => c.name);
+    const sueltas = [...enUso].filter((n) => !conocidas.has(n)).sort();
+    return [...orden, ...sueltas];
+  }
+
   function renderChips() {
-    const cats = [...new Set(PRODUCTS.map((p) => p.category).filter(Boolean))].sort();
+    const cats = orderedCategories();
     const el = $("chips");
     el.innerHTML = "";
     const mk = (label, value) => {
@@ -792,13 +815,17 @@
     renderBanners();
 
     try {
-      const [products, variants, tiers, images] = await Promise.all([
+      const [products, variants, tiers, images, categories] = await Promise.all([
         rest("catalog_products?select=*&active=eq.true&order=name.asc"),
         rest("catalog_variants?select=*&active=eq.true"),
         rest("catalog_price_tiers?select=*"),
         rest("catalog_images?select=*&order=position.asc").catch(() => []),
+        // Sin el SQL 0007 esta tabla no existe: se sigue sin ella (categorías
+        // deducidas de los productos, alfabéticas).
+        rest("catalog_categories?select=*&order=position.asc").catch(() => []),
       ]);
       PRODUCTS = products;
+      CATEGORIES = Array.isArray(categories) ? categories : [];
       VARIANTS = new Map(); TIERS = new Map(); IMAGES = new Map();
       const push = (map, key, val) => {
         if (!map.has(key)) map.set(key, []);

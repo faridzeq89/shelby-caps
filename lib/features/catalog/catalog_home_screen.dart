@@ -27,10 +27,16 @@ class CatalogHomeScreen extends StatefulWidget {
 }
 
 class _CatalogData {
-  _CatalogData(
-      this.products, this.categoryNames, this.variantCounts, this.stock);
+  _CatalogData(this.products, this.categoryNames, this.variantCounts, this.stock,
+      this.chipCategories);
   final List<Product> products;
+
+  /// TODAS las categorías, para poder etiquetar cualquier producto (incluso uno
+  /// que quedó en una categoría archivada).
   final Map<int, String> categoryNames;
+
+  /// Las que se ofrecen como filtro: sin archivadas y en el orden del dueño.
+  final List<Category> chipCategories;
   final Map<int, int> variantCounts;
   final Map<int, int> stock; // disponibles por producto
 }
@@ -53,12 +59,15 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
     final categories = {
       for (final c in await _repo.categories()) c.id: c.name,
     };
+    // Los filtros solo ofrecen las vivas: una categoría archivada no tiene por
+    // qué seguir apareciendo como botón.
+    final chips = await _repo.categories(activeOnly: true);
     final counts = <int, int>{};
     for (final p in products) {
       counts[p.id] = (await _repo.variantsOf(p.id)).length;
     }
     final stock = await _repo.stockByProduct();
-    return _CatalogData(products, categories, counts, stock);
+    return _CatalogData(products, categories, counts, stock, chips);
   }
 
   void _reload() {
@@ -137,7 +146,7 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
     _reload();
   }
 
-  Widget _categoryChips(Map<int, String> categories) {
+  Widget _categoryChips(List<Category> categories) {
     return SizedBox(
       height: 44,
       child: ListView(
@@ -152,13 +161,13 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
               onSelected: (_) => setState(() => _categoryFilter = null),
             ),
           ),
-          for (final e in categories.entries)
+          for (final c in categories)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
-                label: Text(e.value),
-                selected: _categoryFilter == e.key,
-                onSelected: (_) => setState(() => _categoryFilter = e.key),
+                label: Text(c.name),
+                selected: _categoryFilter == c.id,
+                onSelected: (_) => setState(() => _categoryFilter = c.id),
               ),
             ),
         ],
@@ -253,7 +262,7 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
                   ),
                 ),
               ),
-              _categoryChips(data.categoryNames),
+              _categoryChips(data.chipCategories),
               const SizedBox(height: 4),
               Expanded(
                 child: products.isEmpty

@@ -51,6 +51,8 @@ class _PrintersScreenState extends State<PrintersScreen> {
   final _subheadingCtrl = TextEditingController();
   final _footerCtrl = TextEditingController();
   final _qrCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -65,6 +67,8 @@ class _PrintersScreenState extends State<PrintersScreen> {
     _subheadingCtrl.dispose();
     _footerCtrl.dispose();
     _qrCtrl.dispose();
+    _phoneCtrl.dispose();
+    _addressCtrl.dispose();
     super.dispose();
   }
 
@@ -97,6 +101,8 @@ class _PrintersScreenState extends State<PrintersScreen> {
       _subheadingCtrl.text = ticket.subheading;
       _footerCtrl.text = ticket.footerLegend;
       _qrCtrl.text = ticket.qrData;
+      _phoneCtrl.text = ticket.businessPhone;
+      _addressCtrl.text = ticket.businessAddress;
       _loaded = true;
     });
   }
@@ -371,6 +377,33 @@ class _PrintersScreenState extends State<PrintersScreen> {
                                 'https://instagram.com/tu_boutique — vacío = sin QR',
                           ),
                           onChanged: (v) => _set(TicketConfig.kQr, v.trim()),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'WhatsApp del negocio',
+                            hintText: '899 703 4922',
+                            helperText:
+                                'Se imprime en la nota de servicio, para que el '
+                                'cliente sepa a dónde escribir',
+                          ),
+                          onChanged: (v) =>
+                              _set(TicketConfig.kBusinessPhone, v.trim()),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _addressCtrl,
+                          maxLines: 2,
+                          minLines: 1,
+                          decoration: const InputDecoration(
+                            labelText: 'Ubicación del negocio',
+                            hintText: 'Calle Monterrey 455 Col. Rdz',
+                            helperText: 'También se imprime en la nota de servicio',
+                          ),
+                          onChanged: (v) =>
+                              _set(TicketConfig.kBusinessAddress, v.trim()),
                         ),
                         const SizedBox(height: 8),
                         const Text(

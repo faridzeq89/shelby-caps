@@ -308,10 +308,10 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         builder: (_) => AlertDialog(
           title: const Text('No se puede borrar'),
           content: const Text(
-              'Este producto ya tiene ventas, movimientos de inventario o '
-              'cotizaciones, y el historial es inmutable. Puedes ARCHIVARLO: '
-              'desaparece de la venta y la búsqueda pero conserva su historial. '
-              '¿Archivar?'),
+              'Este producto ya se vendió (o está en una cotización que ya se '
+              'entregó). Borrarlo dejaría tickets, cortes de caja o notas '
+              'apuntando a algo que no existe. Puedes ARCHIVARLO: desaparece de '
+              'la venta y la búsqueda pero conserva su historial. ¿Archivar?'),
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
@@ -325,14 +325,19 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
       if (archive == true) await _toggleArchiveTo(data, false);
       return;
     }
+    // Nunca se vendió, pero pudo recibir mercancía o ajustes: eso también se va,
+    // y hay que decirlo con esas palabras antes de que toque Eliminar.
+    final tuvoMovimientos = await _repo.productHasMovements(data.product.id);
+    if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Eliminar producto'),
         content: Text(
-            '¿Borrar "${data.product.name}" de forma permanente? No tiene ventas '
-            'ni movimientos, así que se puede eliminar por completo. Esta acción '
-            'no se puede deshacer.'),
+            '¿Borrar "${data.product.name}" de forma permanente? Nunca se ha '
+            'vendido, así que se puede eliminar por completo.'
+            '${tuvoMovimientos ? ' Se van también sus entradas y ajustes de inventario.' : ''}'
+            ' Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(context).pop(false),

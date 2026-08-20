@@ -934,6 +934,90 @@ genérica de corregir el precio de un renglón, no exclusiva de servicios).
   — `test/servicio_test.dart` sigue viva porque prueba comportamiento de repositorio que
   SÍ se conservó (columna + `updateLinePrice`), sin tocar UI removida.
 
+## Borrado real, orden de categorías y la nota completa (2026-08-20, tarde)
+Tres cosas más que reportó el dueño el mismo día.
+
+**1. Eliminar un producto de verdad.** Borrar exigía cero movimientos de inventario, y un
+producto **nace** con una entrada (su existencia inicial): nacía imborrable y solo se podía
+archivar. La regla nueva: **se borra lo que nunca se vendió** (la cotización sigue
+bloqueando: es un papel que ya se entregó). El borrado se lleva también sus movimientos, y
+para eso `AppDatabase.withLedgerDeleteAllowed()` **abre el candado del ledger solo ahí** y
+lo vuelve a poner al salir (dentro de la transacción: si falla, el rollback lo repone).
+
+Sí, es la única grieta en "`inventory_movements` no se borra". Se abre a conciencia: lo que
+el ledger protege es el **dinero** —lo vendido, devuelto y cobrado—, y una entrada de algo
+que nunca se vendió no cuadra ninguna caja ni sale en ningún corte. Quien llama verifica
+cero ventas ANTES de abrirla. `test/borrar_producto_test.dart` (13 pruebas) cuida esa
+línea, incluidas tres que comprueban que el candado queda puesto después de un borrado,
+después de uno fallido, y que el UPDATE nunca se permite. **Probado al revés**: quitando el
+`finally` que repone el trigger, la prueba falla.
+
+**2. Categorías: orden a mano, renombrar, y que las archivadas dejen de aparecer.**
+- `Catálogo → Categorías` ahora también **crea**, **renombra** y **ordena arrastrando**
+  (`reorderCategories` reescribe `sort_order` 0,1,2…). Ese es el orden en el mostrador **y
+  en la tienda**. `createCategory` usa `MAX(sort_order)+1` (con el conteo de filas, borrar
+  una y crear otra empataba el orden) y el `id` desempata en la consulta.
+- Los **chips del catálogo** del POS pasan a `categories(activeOnly: true)`: una archivada
+  ya no aparece como filtro. El mapa de nombres sigue trayendo todas, porque un producto
+  puede seguir colgando de una archivada y necesita su etiqueta.
+- **La tienda web ya recibe las categorías**: `catalog_categories` (SQL **0007**) con
+  `position` y `active`, y `publish_catalog` gana un séptimo argumento. Antes la tienda las
+  deducía de los productos y las ordenaba alfabéticamente — de ahí que "NEW ERA" saliera
+  después de "LIMPIEZA" y que una archivada siguiera de botón.
+  - Se publican **todas, con su bandera**, no solo las activas: la tienda necesita
+    distinguir "archivada" de "categoría de un POS más viejo" (esas van al final,
+    alfabéticas, en vez de esconder mercancía).
+  - **Compatibilidad en las dos direcciones:** si `0007` no se ha corrido, PostgREST
+    responde PGRST202 y el POS **republica con la firma de 6** en vez de dejar la tienda sin
+    actualizar (`categoriesUnsupported` queda en `true`); y la firma de 6 pasa `NULL`, que
+    la función lee como "no traigo categorías, no me las toques" (distinto de `[]`), para
+    que un equipo con el APK viejo no le borre el orden al del mostrador.
+  - En la tienda (`web-catalogo/app.js`) el botón sale si la categoría está **activa y
+    tiene productos**. Sin tabla (404) cae al comportamiento anterior.
+- **El retraso de publicación en web baja a 3 s** (20 s en nativo). En Safari los `Timer`
+  se congelan al cambiar de pestaña: con 20 s, archivar algo y salirse dejaba la tienda con
+  el catálogo viejo. Además `_publishQuiet` ahora apunta `_dirty` si llega un cambio
+  mientras publica, y republica al terminar (antes ese cambio se tiraba).
+
+**3. La nota de servicio, con la forma que dictó el cliente.** Nació sin los campos que el
+mostrador llena con el cliente enfrente. **Esquema v17** agrega a `service_notes`:
+`price_cents`, `notes`, `customer_phone`, `size` y `qty`. El papel quedó en este orden, que
+es el que pidió:
+
+```
+Datos del negocio         WhatsApp + Ubicación  (de fábrica, NO se capturan)
+Datos del cliente         Nombre, WhatsApp
+Información del artículo  Artículo (Tenis/Gorra/Bolsos), Marca, Talla, Color, Cantidad
+Costo del servicio
+Notas adicionales
+```
+
+- **Los datos del negocio no se capturan por nota**: viven en `TicketConfig`
+  (`business_phone`, `business_address`) con los del cliente **de fábrica**, para que pueda
+  imprimir su primera nota sin configurar nada, y editables en Ajustes → Impresoras y
+  tickets si algún día se mueve.
+- **El costo es lo cotizado, no un cobro.** Nulo = **por definir**, que no es cero (cero
+  sería gratis) y se imprime así de claro. El cobro sigue siendo aparte: al **Cobrar**, el
+  monto llega ya escrito con lo cotizado y ahí se confirma — volver a teclearlo es donde se
+  cobra de más o de menos.
+- **Un solo formulario para crear y corregir** (`_ServiceNoteForm` con `note` nulo = alta).
+  Dos pantallas gemelas se desincronizan: un día una se queda sin el campo nuevo. Corregir
+  funciona incluso ya cobrada (el folio es el papel del cliente; recapturar lo perdería) y
+  al guardar **reimprime sola**, porque la nota que él trae en la mano quedó vieja.
+- `updateDetails` escribe **todos** los campos con lo que se le manda: nulo es "déjalo
+  vacío", no "no lo toques". La pantalla manda siempre el formulario completo.
+- Texto vacío se guarda como nulo (con `""` la nota imprimía bloques en blanco). Un costo
+  ilegible **no se traga como cero** — avisa. La cantidad nunca queda en cero.
+- `test/vista_nota_test.dart` **genera el PDF de la nota** para revisarlo con los ojos
+  (`NOTA_PDF=<ruta> flutter test test/vista_nota_test.dart`; sin esa variable se salta). El
+  formato del papel no se puede verificar compilando.
+
+36 pruebas nuevas (`borrar_producto_test`, `categorias_test`, `nota_precio_notas_test`).
+
+**Nota de método:** este trabajo se hizo con la copia local atrasada dos commits (`3f8e671`
+y `60cb3cf`, de otra sesión del mismo día) y hubo que reconciliarlo: la pantalla de
+Categorías y `productHasQuotes` ya existían. Antes de programar, `git fetch`.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.
@@ -949,8 +1033,13 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
 ## Estado operativo (2026-08-20)
-Esquema local **v16**. Migraciones de Supabase **0001–0006** (sin cambio: la nota de
-servicio es 100% local, no se publica). Suite **241 pruebas**, `flutter analyze` limpio.
+Esquema local **v17**. Migraciones de Supabase **0001–0007**. Suite **274 pruebas**,
+`flutter analyze` limpio.
+
+`0007_catalog_categories.sql` **ya está aplicada** en el proyecto `shelbys` (20 ago 2026,
+por la Management API). Verificado desde fuera con la llave anon: `catalog_categories`
+responde 200 y `publish_catalog` con 7 argumentos rechaza el secreto malo (existe) en vez
+de dar PGRST202.
 
 **Tres superficies en vivo:** APK Android (mostrador), **POS web** `shelby-pos.pages.dev`
 (provisional para el iPhone del cliente mientras sale la licencia de Apple — él paga los

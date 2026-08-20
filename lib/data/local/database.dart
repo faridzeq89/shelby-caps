@@ -64,7 +64,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -147,6 +147,12 @@ class AppDatabase extends _$AppDatabase {
             // v15 → v16: nota de servicio (limpieza de tenis/gorra/bolsa).
             await _createTableIfMissing('service_notes', serviceNotes);
           }
+          if (from < 17) {
+            // v16 → v17: la nota de servicio con la forma que pidió el cliente
+            // el 20 ago 2026 — costo del servicio, notas adicionales, WhatsApp
+            // del cliente, talla y cantidad.
+            await _addServiceNoteFieldsIfMissing(m);
+          }
           await _createExtras();
         },
         beforeOpen: (details) async {
@@ -187,6 +193,30 @@ class AppDatabase extends _$AppDatabase {
         info.any((r) => r.read<String>('name') == 'es_servicio');
     if (!hasColumn) {
       await m.addColumn(products, products.esServicio);
+    }
+  }
+
+  /// Agrega a `service_notes` las columnas de la nota nueva (precio, notas,
+  /// WhatsApp del cliente, talla y cantidad) solo si faltan. Idempotente: la
+  /// tabla pudo nacer ya con ellas (base nueva) o sin ellas (base de la v16).
+  Future<void> _addServiceNoteFieldsIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('service_notes')").get();
+    final cols = {for (final r in info) r.read<String>('name')};
+    if (cols.isEmpty) return; // la tabla no existe todavía; la crea el paso v16
+    if (!cols.contains('price_cents')) {
+      await m.addColumn(serviceNotes, serviceNotes.priceCents);
+    }
+    if (!cols.contains('notes')) {
+      await m.addColumn(serviceNotes, serviceNotes.notes);
+    }
+    if (!cols.contains('customer_phone')) {
+      await m.addColumn(serviceNotes, serviceNotes.customerPhone);
+    }
+    if (!cols.contains('size')) {
+      await m.addColumn(serviceNotes, serviceNotes.size);
+    }
+    if (!cols.contains('qty')) {
+      await m.addColumn(serviceNotes, serviceNotes.qty);
     }
   }
 
@@ -262,11 +292,40 @@ class AppDatabase extends _$AppDatabase {
       BEFORE UPDATE ON inventory_movements
       BEGIN SELECT RAISE(ABORT, 'inventory_movements es append-only'); END
     ''');
-    await customStatement('''
+    await _createNoDeleteTrigger();
+  }
+
+  Future<void> _createNoDeleteTrigger() => customStatement('''
       CREATE TRIGGER IF NOT EXISTS trg_movements_no_delete
       BEFORE DELETE ON inventory_movements
       BEGIN SELECT RAISE(ABORT, 'inventory_movements es append-only'); END
     ''');
+
+  /// Corre [body] con el candado de borrado del ledger **abierto**, y lo vuelve
+  /// a poner al terminar (pase lo que pase).
+  ///
+  /// Existe por un solo caso, y ninguno más: **eliminar un producto que nunca
+  /// se vendió**. El dueño da de alta una gorra por error, con su existencia
+  /// inicial, y quiere que desaparezca. Esa existencia inicial ya dejó un
+  /// movimiento en el ledger, así que sin esta puerta el producto sería
+  /// imborrable para siempre y solo se podría archivar — que es justo lo que el
+  /// cliente reportó el 20 ago 2026.
+  ///
+  /// Lo que el ledger protege de verdad es el **dinero**: lo que se vendió, se
+  /// devolvió y se cobró. Eso sigue intocable — quien llama tiene que haber
+  /// verificado que el producto no tiene NI UNA línea de venta (ver
+  /// [CatalogRepository.deleteProduct]). Una entrada o un ajuste de algo que
+  /// nunca se vendió no cuadra ninguna caja ni aparece en ningún corte.
+  ///
+  /// Se llama **dentro de una transacción**: si el borrado falla a medias, el
+  /// rollback deshace también el DROP y el candado vuelve solo.
+  Future<void> withLedgerDeleteAllowed(Future<void> Function() body) async {
+    await customStatement('DROP TRIGGER IF EXISTS trg_movements_no_delete');
+    try {
+      await body();
+    } finally {
+      await _createNoDeleteTrigger();
+    }
   }
 
   // -------------------------------------------------------------------------

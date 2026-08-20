@@ -20,9 +20,27 @@ String _paymentLabel(PaymentMethod m) => switch (m) {
       PaymentMethod.giftCard => 'Tarjeta de regalo',
     };
 
-/// Notas de servicio (limpieza de tenis/gorra/bolsa): crear, ver pendientes y
-/// cobrar. La nota solo describe el trabajo — sin precio ni inventario — y el
-/// cobro es una venta directa (sin productos) que la liga y la marca pagada.
+/// Lee un precio escrito a mano y lo devuelve en centavos. Vacío => `null`, que
+/// aquí significa **por definir** (la pieza se recibe y el precio se acuerda
+/// después). Basura => `null` también, pero quien llama distingue los dos casos
+/// mirando si el texto estaba vacío: un precio mal escrito no se traga en
+/// silencio, porque es lo que el cliente va a pagar.
+int? precioEnCentavos(String texto) {
+  final limpio = texto.trim().replaceAll(',', '');
+  if (limpio.isEmpty) return null;
+  final pesos = double.tryParse(limpio);
+  if (pesos == null || pesos < 0) return null;
+  return (pesos * 100).round();
+}
+
+/// Notas de servicio (limpieza de tenis/gorra/bolsos): crear, ver pendientes y
+/// cobrar.
+///
+/// La nota es el **papel que se lleva el cliente**: datos del negocio (de
+/// fábrica), datos del cliente, información del artículo, costo del servicio y
+/// notas adicionales. El costo impreso es lo cotizado — ahí no se cobra. El
+/// cobro se hace desde aquí cuando el cliente recoge: es una venta directa (sin
+/// productos) que confirma el precio, liga la nota y la marca pagada.
 class ServiceNotesScreen extends StatefulWidget {
   const ServiceNotesScreen({super.key});
 
@@ -78,13 +96,19 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
       _toast('Falta configurar la sucursal');
       return;
     }
-    final defaultDesc =
-        'Servicio ${note.folio}: ${serviceItemTypeLabel(note.itemType)} — '
-        '${note.customerName}';
+    final defaultDesc = 'Servicio ${note.folio}: ${note.qty} '
+        '${serviceItemTypeLabel(note.itemType)} — ${note.customerName}';
     final input = await showModalBottomSheet<_DirectSaleInput>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _DirectSaleForm(defaultDescription: defaultDesc),
+      // El monto llega ya escrito con el precio cotizado en la nota: es lo que
+      // se le prometió al cliente, y volver a teclearlo es donde se cobra de
+      // más o de menos. Se puede cambiar (un servicio salió más caro de lo
+      // acordado y el cliente aceptó).
+      builder: (_) => _DirectSaleForm(
+        defaultDescription: defaultDesc,
+        defaultAmountCents: note.priceCents,
+      ),
     );
     if (input == null) return;
     try {
@@ -133,6 +157,21 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
     }
   }
 
+  /// Corregir la nota: mismo formulario del alta, con los datos ya puestos.
+  Future<void> _editar(ServiceNote note) async {
+    final actualizada = await showModalBottomSheet<ServiceNote>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _ServiceNoteForm(repo: _repo, note: note),
+    );
+    if (actualizada == null) return;
+    _reload();
+    if (!mounted) return;
+    // Se reimprime en el momento: la nota que tiene el cliente en la mano ya
+    // quedó vieja, y es la que va a presentar al recoger su pieza.
+    await _printNote(actualizada);
+  }
+
   Future<void> _openDetail(ServiceNote note) async {
     final theme = Theme.of(context);
     final df = DateFormat('dd/MM/yyyy HH:mm');
@@ -163,11 +202,22 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               const Divider(height: 20),
               _detailRow('Cliente', note.customerName),
-              _detailRow('Tipo', serviceItemTypeLabel(note.itemType)),
+              if (note.customerPhone != null && note.customerPhone!.isNotEmpty)
+                _detailRow('WhatsApp', note.customerPhone!),
+              _detailRow('Artículo', serviceItemTypeLabel(note.itemType)),
               if (note.brand != null && note.brand!.isNotEmpty)
                 _detailRow('Marca', note.brand!),
+              if (note.size != null && note.size!.isNotEmpty)
+                _detailRow('Talla', note.size!),
               if (note.color != null && note.color!.isNotEmpty)
                 _detailRow('Color', note.color!),
+              _detailRow('Cantidad', '${note.qty}'),
+              _detailRow('Costo',
+                  note.priceCents == null
+                      ? 'Por definir'
+                      : money(note.priceCents!)),
+              if (note.notes != null && note.notes!.isNotEmpty)
+                _detailRow('Notas', note.notes!),
               const SizedBox(height: 16),
               if (!pagada)
                 FilledButton.icon(
@@ -179,6 +229,18 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
                   label: const Text('Cobrar'),
                 ),
               if (!pagada) const SizedBox(height: 8),
+              // Se puede corregir incluso ya cobrada: el precio o la nota del
+              // estado de la pieza se capturan con el cliente enfrente y se
+              // equivocan; volver a capturar la nota perdería su folio.
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(sheetCtx).pop();
+                  _editar(note);
+                },
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Corregir la nota'),
+              ),
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.of(sheetCtx).pop();
@@ -241,9 +303,16 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
               final n = notes[i];
               final pagada = n.saleId != null;
               final sub = [
-                serviceItemTypeLabel(n.itemType),
+                n.qty > 1
+                    ? '${n.qty} × ${serviceItemTypeLabel(n.itemType)}'
+                    : serviceItemTypeLabel(n.itemType),
                 if (n.brand != null && n.brand!.isNotEmpty) n.brand!,
+                if (n.size != null && n.size!.isNotEmpty)
+                  'talla ${n.size!}',
                 if (n.color != null && n.color!.isNotEmpty) n.color!,
+                // "Sin precio" a la vista: es lo que hay que acordar antes de
+                // que el cliente vuelva por su pieza.
+                n.priceCents == null ? 'sin precio' : money(n.priceCents!),
               ].join(' · ');
               return SurfaceCard(
                 onTap: () => _openDetail(n),
@@ -303,22 +372,39 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
   }
 }
 
-/// Alta de nota: cliente, tipo (tenis/gorra/bolsa), marca y color.
+/// Captura de la nota, con la forma que pidió el cliente el 20 ago 2026: datos
+/// del cliente, información del artículo, costo del servicio y notas.
+///
+/// Un solo formulario sirve para **crear y para corregir** ([note] nulo = alta):
+/// son los mismos campos, y tener dos pantallas gemelas garantiza que un día una
+/// se queda sin el campo que se agregó en la otra. Devuelve la nota guardada.
 class _ServiceNoteForm extends StatefulWidget {
-  const _ServiceNoteForm({required this.repo});
+  const _ServiceNoteForm({required this.repo, this.note});
   final ServiceNoteRepository repo;
+  final ServiceNote? note;
 
   @override
   State<_ServiceNoteForm> createState() => _ServiceNoteFormState();
 }
 
 class _ServiceNoteFormState extends State<_ServiceNoteForm> {
-  final _name = TextEditingController();
-  final _brand = TextEditingController();
-  final _color = TextEditingController();
-  ServiceItemType _type = ServiceItemType.tenis;
+  late final _name = TextEditingController(text: _n?.customerName ?? '');
+  late final _phone = TextEditingController(text: _n?.customerPhone ?? '');
+  late final _brand = TextEditingController(text: _n?.brand ?? '');
+  late final _size = TextEditingController(text: _n?.size ?? '');
+  late final _color = TextEditingController(text: _n?.color ?? '');
+  late final _qty = TextEditingController(text: '${_n?.qty ?? 1}');
+  late final _price = TextEditingController(
+      text: _n?.priceCents == null
+          ? ''
+          : (_n!.priceCents! / 100).toStringAsFixed(2));
+  late final _notes = TextEditingController(text: _n?.notes ?? '');
+  late ServiceItemType _type = _n?.itemType ?? ServiceItemType.tenis;
   bool _saving = false;
   String? _error;
+
+  ServiceNote? get _n => widget.note;
+  bool get _editando => widget.note != null;
 
   static const _types = [
     ServiceItemType.tenis,
@@ -329,8 +415,13 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
   @override
   void dispose() {
     _name.dispose();
+    _phone.dispose();
     _brand.dispose();
+    _size.dispose();
     _color.dispose();
+    _qty.dispose();
+    _price.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -340,18 +431,53 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
       setState(() => _error = 'Ponle el nombre del cliente');
       return;
     }
+    // Vacío = por definir, y así se imprime. Un costo mal escrito sí se reclama:
+    // es lo que el cliente va a pagar.
+    final precio = precioEnCentavos(_price.text);
+    if (precio == null && _price.text.trim().isNotEmpty) {
+      setState(() => _error = 'El costo no se entiende. Déjalo vacío si aún '
+          'no lo acuerdas.');
+      return;
+    }
+    final cantidad = int.tryParse(_qty.text.trim()) ?? 0;
+    if (cantidad < 1) {
+      setState(() => _error = 'La cantidad va de 1 en adelante');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final note = await widget.repo.create(
-        customerName: name,
-        brand: _brand.text.trim().isEmpty ? null : _brand.text.trim(),
-        color: _color.text.trim().isEmpty ? null : _color.text.trim(),
-        itemType: _type,
-      );
-      if (mounted) Navigator.of(context).pop(note);
+      if (_editando) {
+        await widget.repo.updateDetails(
+          _n!.id,
+          customerName: name,
+          customerPhone: _phone.text,
+          brand: _brand.text,
+          size: _size.text,
+          color: _color.text,
+          itemType: _type,
+          qty: cantidad,
+          priceCents: precio,
+          notes: _notes.text,
+        );
+        final v = await widget.repo.byId(_n!.id);
+        if (mounted) Navigator.of(context).pop(v);
+      } else {
+        final nota = await widget.repo.create(
+          customerName: name,
+          customerPhone: _phone.text,
+          brand: _brand.text,
+          size: _size.text,
+          color: _color.text,
+          itemType: _type,
+          qty: cantidad,
+          priceCents: precio,
+          notes: _notes.text,
+        );
+        if (mounted) Navigator.of(context).pop(nota);
+      }
     } catch (e) {
       setState(() {
         _saving = false;
@@ -359,6 +485,16 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
       });
     }
   }
+
+  Widget _titulo(String texto) => Padding(
+        padding: const EdgeInsets.only(top: 14, bottom: 2),
+        child: Text(texto,
+            style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12.5,
+                letterSpacing: 0.4,
+                color: AppColors.accent)),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -374,18 +510,27 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Nueva nota de servicio',
+            Text(_editando ? 'Nota ${_n!.folio}' : 'Nueva nota de servicio',
                 style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
+            // Los datos del negocio (WhatsApp y ubicación) no se piden aquí: van
+            // impresos solos, desde Ajustes → Impresoras y tickets.
+            _titulo('DATOS DEL CLIENTE'),
             TextField(
               controller: _name,
-              autofocus: true,
-              decoration:
-                  const InputDecoration(labelText: 'Nombre del cliente'),
+              autofocus: !_editando,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Nombre'),
             ),
-            const SizedBox(height: 12),
-            const Text('Tipo', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'WhatsApp',
+                helperText: 'Para avisarle cuando esté lista su pieza',
+              ),
+            ),
+            _titulo('INFORMACIÓN DEL ARTÍCULO'),
             Wrap(
               spacing: 8,
               children: [
@@ -400,12 +545,58 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
             const SizedBox(height: 12),
             TextField(
               controller: _brand,
-              decoration: const InputDecoration(labelText: 'Marca (opcional)'),
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Marca'),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _size,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(labelText: 'Talla'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _qty,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Cantidad'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _color,
-              decoration: const InputDecoration(labelText: 'Color (opcional)'),
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Color'),
+            ),
+            _titulo('COSTO DEL SERVICIO'),
+            TextField(
+              controller: _price,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Costo',
+                prefixText: '\$',
+                helperText: 'Déjalo vacío si lo vas a acordar después. Aquí no '
+                    'se cobra: el cobro es aparte.',
+              ),
+            ),
+            _titulo('NOTAS ADICIONALES'),
+            TextField(
+              controller: _notes,
+              minLines: 2,
+              maxLines: 4,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Notas',
+                helperText: 'Cómo llegó la pieza: manchas, suela despegada…',
+                alignLabelWithHint: true,
+              ),
             ),
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -416,7 +607,7 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
             FilledButton.icon(
               onPressed: _saving ? null : _save,
               icon: const Icon(Icons.save_outlined),
-              label: const Text('Crear nota'),
+              label: Text(_editando ? 'Guardar y reimprimir' : 'Crear nota'),
             ),
           ],
         ),
@@ -434,8 +625,12 @@ class _DirectSaleInput {
 
 /// Cobro de una venta directa (sin productos): descripción, monto y método.
 class _DirectSaleForm extends StatefulWidget {
-  const _DirectSaleForm({required this.defaultDescription});
+  const _DirectSaleForm(
+      {required this.defaultDescription, this.defaultAmountCents});
   final String defaultDescription;
+
+  /// Precio cotizado en la nota, si ya se acordó. Nulo => el campo abre vacío.
+  final int? defaultAmountCents;
 
   @override
   State<_DirectSaleForm> createState() => _DirectSaleFormState();
@@ -443,7 +638,10 @@ class _DirectSaleForm extends StatefulWidget {
 
 class _DirectSaleFormState extends State<_DirectSaleForm> {
   late final _desc = TextEditingController(text: widget.defaultDescription);
-  final _amount = TextEditingController();
+  late final _amount = TextEditingController(
+      text: widget.defaultAmountCents == null
+          ? ''
+          : (widget.defaultAmountCents! / 100).toStringAsFixed(2));
   PaymentMethod _method = PaymentMethod.cash;
 
   static const _methods = [

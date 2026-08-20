@@ -462,9 +462,9 @@ class GiftCardTransactions extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-/// Nota de un servicio de limpieza (tenis/gorra/bolsa): SOLO describe el
-/// trabajo que se recibió, no es un producto ni tiene precio — el cobro pasa
-/// aparte por una venta directa (sin líneas) cuando el cliente recoge y paga.
+/// Nota de un servicio de limpieza (tenis/gorra/bolsa): describe el trabajo que
+/// se recibió y lo que se cotizó por él. El cobro pasa aparte, por una venta
+/// directa (sin líneas) cuando el cliente recoge y paga.
 /// `saleId` queda nulo mientras está pendiente; se llena al cobrar, y ahí la
 /// nota se considera pagada (no hay una columna de estado que se pueda
 /// desincronizar del cobro real).
@@ -472,9 +472,33 @@ class ServiceNotes extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get folio => text().unique()();
   TextColumn get customerName => text()();
+
+  /// WhatsApp del cliente: es como se le avisa que su pieza está lista, así que
+  /// en el mostrador se pide junto con el nombre.
+  TextColumn get customerPhone => text().nullable()();
   TextColumn get brand => text().nullable()();
+
+  /// Talla de la pieza (27, M, única…). Texto libre: los tenis, las gorras y los
+  /// bolsos no miden con la misma regla.
+  TextColumn get size => text().nullable()();
   TextColumn get color => text().nullable()();
   TextColumn get itemType => textEnum<ServiceItemType>()();
+
+  /// Cuántas piezas se recibieron en esta nota (tres pares de tenis del mismo
+  /// cliente son una sola nota). El precio es el del servicio completo, no por
+  /// pieza: es lo que se le cotiza y lo que se cobra.
+  IntColumn get qty => integer().withDefault(const Constant(1))();
+
+  /// Precio cotizado del servicio, en centavos. **Nulo = por definir**: a veces
+  /// la pieza se recibe y el precio se acuerda después de verla bien. No es el
+  /// cobro: el cobro es la venta directa que llena [saleId]. Este número es lo
+  /// que se le prometió al cliente, y por eso va impreso en su nota.
+  IntColumn get priceCents => integer().nullable()();
+
+  /// Notas adicionales del mostrador: en qué estado llegó la pieza ("mancha en
+  /// la punta", "suela despegada", "sin agujetas"). Es lo que evita el pleito
+  /// al entregar, así que también va impreso en la nota del cliente.
+  TextColumn get notes => text().nullable()();
   TextColumn get saleId => text().nullable().references(Sales, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

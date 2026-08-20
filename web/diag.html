@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico de conexión — SHELBY CAPS</title>
+<!--
+  Página de diagnóstico del POS web. Vive en el MISMO origen que el POS, así que
+  hereda sus cabeceras COOP/COEP: lo que falle aquí falla igual en el POS.
+
+  Existe porque el 20 ago 2026 la publicación de la tienda fallaba solo en el
+  iPhone (Chrome) con "ClientException: Load failed" —la petición no salía— y
+  desde una PC funcionaba. Sin poder abrir la consola de ese teléfono, esto es
+  la forma de saber QUÉ falla: leer, escribir chico o escribir grande.
+
+  No toca datos: la escritura usa un secreto inválido a propósito, así que la
+  función de Supabase se detiene antes de tocar el catálogo.
+-->
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 16px;
+         background: #121215; color: #f4f4f7; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { color: #a9a9b4; font-size: 13px; margin: 0 0 16px; }
+  .caso { background: #1b1b20; border: 1px solid #2b2b33; border-radius: 14px;
+          padding: 12px; margin-bottom: 10px; }
+  .titulo { font-weight: 800; font-size: 14px; margin-bottom: 4px; }
+  .res { font-size: 13px; font-family: ui-monospace, monospace; word-break: break-word; }
+  .ok { color: #4fbf87; }
+  .mal { color: #ff8a3d; }
+  .esperando { color: #a9a9b4; }
+</style>
+</head>
+<body>
+<h1>Diagnóstico de conexión</h1>
+<p class="sub">Manda una captura de esta pantalla completa.</p>
+
+<div class="caso"><div class="titulo">1. Aislamiento (COOP/COEP)</div><div class="res esperando" id="r1">…</div></div>
+<div class="caso"><div class="titulo">2. Leer de Supabase</div><div class="res esperando" id="r2">…</div></div>
+<div class="caso"><div class="titulo">3. Escribir chico (1 KB)</div><div class="res esperando" id="r3">…</div></div>
+<div class="caso"><div class="titulo">4. Escribir grande (~300 KB)</div><div class="res esperando" id="r4">…</div></div>
+<div class="caso"><div class="titulo">5. Subir archivo (fotos)</div><div class="res esperando" id="r5">…</div></div>
+
+<script>
+(function () {
+  "use strict";
+  var URL_BASE = "https://phyjseekbyitlntmjwwe.supabase.co";
+  var ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoeWpzZWVrYnlpdGxudG1qd3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0MDg4MzMsImV4cCI6MjEwMTk4NDgzM30.0xbMKEAN6cmzua3YPeHwOFx5rAapMcGHOk8LJrooY20";
+
+  function pinta(id, ok, texto) {
+    var el = document.getElementById(id);
+    el.className = "res " + (ok ? "ok" : "mal");
+    el.textContent = (ok ? "OK · " : "FALLA · ") + texto;
+  }
+
+  pinta("r1", crossOriginIsolated, "crossOriginIsolated = " + crossOriginIsolated +
+        (crossOriginIsolated ? "" : " (el guardado NO es durable)"));
+
+  function headers() {
+    return { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json" };
+  }
+
+  // 2. Lectura simple.
+  fetch(URL_BASE + "/rest/v1/catalog_categories?select=name", { headers: headers() })
+    .then(function (r) { return r.text().then(function (t) {
+      pinta("r2", r.ok, "HTTP " + r.status + " " + t.slice(0, 60)); }); })
+    .catch(function (e) { pinta("r2", false, String(e)); });
+
+  // 3 y 4. Escritura por RPC con secreto INVÁLIDO: la función se detiene antes
+  // de tocar nada, así que la respuesta esperada es el error del secreto.
+  function rpc(id, relleno) {
+    var cuerpo = { p_secret: "diagnostico-secreto-invalido", p_products: relleno,
+                   p_variants: [], p_tiers: [], p_images: [], p_banners: [] };
+    var texto = JSON.stringify(cuerpo);
+    var kb = Math.round(texto.length / 1024);
+    fetch(URL_BASE + "/rest/v1/rpc/publish_catalog",
+          { method: "POST", headers: headers(), body: texto })
+      .then(function (r) { return r.text().then(function (t) {
+        var esperado = t.indexOf("secreto") >= 0;
+        pinta(id, esperado, kb + " KB · HTTP " + r.status + " · " + t.slice(0, 70));
+      }); })
+      .catch(function (e) { pinta(id, false, kb + " KB · " + String(e)); });
+  }
+
+  rpc("r3", []);
+
+  var gordo = [];
+  for (var i = 0; i < 900; i++) {
+    gordo.push({ id: i, name: "Gorra de prueba numero " + i, brand: "MARCA",
+                 category: "ORIGINALES", description: "Descripcion larga para " +
+                 "que el cuerpo de la peticion se parezca al catalogo real.",
+                 base_price_cents: 70000, tax_rate_bps: 1600, active: true });
+  }
+  rpc("r4", gordo);
+
+  // 5. Subida al bucket de fotos: es el otro camino que usa publicar.
+  var bytes = new Uint8Array(2048);
+  fetch(URL_BASE + "/storage/v1/object/catalog/diagnostico/prueba.bin",
+        { method: "POST", headers: { apikey: ANON, Authorization: "Bearer " + ANON,
+          "Content-Type": "application/octet-stream", "x-upsert": "true" },
+          body: bytes })
+    .then(function (r) { return r.text().then(function (t) {
+      pinta("r5", r.ok, "HTTP " + r.status + " " + t.slice(0, 60)); }); })
+    .catch(function (e) { pinta("r5", false, String(e)); });
+})();
+</script>
+</body>
+</html>

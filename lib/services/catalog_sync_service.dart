@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart' show sha1;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -80,10 +82,22 @@ class CatalogSyncService {
   DateTime? lastPublishedAt;
   String? lastError;
 
+  /// En qué paso va (o murió) la publicación. Sin esto, un fallo se veía como
+  /// "Load failed" pelón y no se sabía si tronó leyendo el catálogo, subiendo
+  /// fotos o mandando el snapshot — que es exactamente lo que costó una tarde
+  /// el 20 ago 2026.
+  String? lastStep;
+
   /// Diagnóstico de la última publicación de banners (para depurar en web).
   int dbgBannersFound = 0;
   int dbgBannersUploaded = 0;
   String? dbgBannerNote;
+
+  /// Fotos subidas y saltadas en la última publicación. Con el catálogo
+  /// cargado, lo normal es 0 subidas: si aquí sale un número grande cada vez,
+  /// algo está invalidando las huellas y la publicación volvió a ser de megas.
+  int dbgImagesUploaded = 0;
+  int dbgImagesSkipped = 0;
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -149,7 +163,7 @@ class CatalogSyncService {
       lastPublishedAt = DateTime.now();
       lastError = null;
     } catch (e) {
-      lastError = '$e';
+      lastError = '[${lastStep ?? 'inicio'}] $e';
     } finally {
       _publishing = false;
     }
@@ -278,8 +292,39 @@ class CatalogSyncService {
     );
   }
 
+  /// Huella de lo ya subido: `"p12/0"` → sha1 de los bytes. Vive en una sola
+  /// fila de `app_settings` (no una por foto) para no llenar la tabla.
+  static const uploadedImagesKey = 'catalog_images_uploaded';
+
+  Future<Map<String, String>> _uploadedFingerprints() async {
+    final row = await (_db.select(_db.appSettings)
+          ..where((t) => t.key.equals(uploadedImagesKey)))
+        .getSingleOrNull();
+    if (row == null || row.value.trim().isEmpty) return {};
+    try {
+      final m = jsonDecode(row.value) as Map<String, dynamic>;
+      return {for (final e in m.entries) e.key: '${e.value}'};
+    } catch (_) {
+      // Fila corrupta: se trata como si no hubiera nada subido. Publicar de más
+      // es lento; publicar de menos deja la tienda sin fotos.
+      return {};
+    }
+  }
+
+  Future<void> _saveFingerprints(Map<String, String> huellas) =>
+      _db.into(_db.appSettings).insertOnConflictUpdate(
+          AppSettingsCompanion.insert(
+              key: uploadedImagesKey, value: jsonEncode(huellas)));
+
   /// Sube las fotos de los productos al bucket público `catalog` y devuelve la
   /// lista lista para publicar (`product_id`, `url`, `position`).
+  ///
+  /// **Solo sube las que cambiaron.** Antes re-subía TODAS en cada publicación
+  /// (`upsert` a ciegas): con 74 fotos son ~8 MB por cada cambio de precio, y
+  /// desde un teléfono eso hacía que la publicación muriera antes de llegar al
+  /// último paso —el RPC— con "Load failed" (reportado el 20 ago 2026). La
+  /// huella es el sha1 de los bytes: si es la misma, el archivo remoto ya está
+  /// y solo se manda su URL.
   ///
   /// Por qué hay que subirlas: el POS guarda las fotos como **archivos locales**
   /// de la tablet, y la tienda web no puede leer esas rutas. La posición 0 es la
@@ -305,6 +350,11 @@ class CatalogSyncService {
       }
     }
 
+    final huellas = await _uploadedFingerprints();
+    final vigentes = <String, String>{};
+    dbgImagesUploaded = 0;
+    dbgImagesSkipped = 0;
+
     var done = 0;
     for (final item in work) {
       try {
@@ -313,12 +363,23 @@ class CatalogSyncService {
         final bytes = await ImageService.bytesOf(item.path);
         if (bytes != null) {
           final remote = 'p${item.productId}/${item.position}.jpg';
-          await storage.uploadBinary(
-            remote,
-            bytes,
-            fileOptions:
-                const FileOptions(upsert: true, contentType: 'image/jpeg'),
-          );
+          final huella = sha1.convert(bytes).toString();
+          if (huellas[remote] == huella) {
+            // Ya está allá arriba, idéntica: no se vuelve a mandar.
+            dbgImagesSkipped++;
+          } else {
+            await storage.uploadBinary(
+              remote,
+              bytes,
+              fileOptions:
+                  const FileOptions(upsert: true, contentType: 'image/jpeg'),
+            );
+            dbgImagesUploaded++;
+          }
+          // La huella se guarda SOLO si la foto quedó arriba (subida ahora o
+          // desde antes). Si la subida truena, no se apunta y se reintenta a la
+          // próxima.
+          vigentes[remote] = huella;
           out.add({
             'product_id': item.productId,
             'url': storage.getPublicUrl(remote),
@@ -330,6 +391,7 @@ class CatalogSyncService {
       }
       onProgress?.call(++done, work.length);
     }
+    await _saveFingerprints(vigentes);
     return out;
   }
 
@@ -388,12 +450,16 @@ class CatalogSyncService {
     // —automática, botón Compartir, anuncios— pasa por aquí, así ninguna nueva
     // se lo salta por olvido.
     if (!await publishEnabled()) throw const PublishDisabledException();
+    lastStep = 'leyendo el catálogo';
     final snap = await currentSnapshot();
     final products = await (_db.select(_db.products)
           ..where((t) => t.active.equals(true)))
         .get();
+    lastStep = 'fotos';
     final images = await _uploadImages(products, onProgress);
+    lastStep = 'fotos: $dbgImagesUploaded subidas, $dbgImagesSkipped ya estaban';
     final banners = await _uploadBanners();
+    lastStep = 'anuncios listos, mandando ${snap.productCount} productos';
     final params = {
       'p_secret': secret,
       'p_products': snap.products,
@@ -420,6 +486,7 @@ class CatalogSyncService {
       categoriesUnsupported = true;
       await _client.rpc('publish_catalog', params: params);
     }
+    lastStep = 'listo';
     return snap.productCount;
   }
 }

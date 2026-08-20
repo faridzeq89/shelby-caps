@@ -186,6 +186,48 @@ void main() {
     }
   });
 
+  group('el tema sigue a la paleta, no al revés', () {
+    // El 20 ago 2026 el cliente puso el tema en claro y los menús ⋮ se
+    // volvieron invisibles: el ColorScheme estaba fijo en Brightness.dark, así
+    // que Flutter pintaba de blanco todo icono sin color propio. Estas pruebas
+    // miden ese icono contra la tarjeta donde vive, en las dos paletas.
+    void conPaleta(bool oscuro, void Function() cuerpo) {
+      final antesBrand = AppColors.brand;
+      try {
+        AppColors.apply(
+            Palette.fromSeed(const Color(0xFFA81C22), dark: oscuro));
+        cuerpo();
+      } finally {
+        AppColors.apply(Palette.fromSeed(const Color(0xFFA81C22)));
+        AppColors.brand = antesBrand;
+      }
+    }
+
+    test('el brillo del tema coincide con el fondo elegido', () {
+      conPaleta(false, () {
+        expect(buildAppTheme().colorScheme.brightness, Brightness.light);
+        expect(buildAppTheme().brightness, Brightness.light);
+      });
+      conPaleta(true, () {
+        expect(buildAppTheme().colorScheme.brightness, Brightness.dark);
+      });
+    });
+
+    test('el icono de un menú se lee sobre la tarjeta, en claro y en oscuro',
+        () {
+      for (final oscuro in [true, false]) {
+        conPaleta(oscuro, () {
+          final iconos = buildAppTheme().iconTheme.color!;
+          expect(contraste(iconos, AppColors.surface), greaterThan(3),
+              reason: 'paleta ${oscuro ? 'oscura' : 'clara'}: el ⋮ tiene que '
+                  'verse sobre la tarjeta');
+          expect(contraste(iconos, AppColors.bg), greaterThan(3),
+              reason: 'y también sobre el fondo');
+        });
+      }
+    });
+  });
+
   test('un color inválido no deja la app sin colores', () {
     expect(PaletteSettings.parseHex('no soy color'), isNull);
     expect(PaletteSettings.parseHex('#A81C22'), const Color(0xFFA81C22));

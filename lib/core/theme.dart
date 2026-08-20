@@ -22,13 +22,21 @@ ThemeData buildAppTheme() {
   final border = AppColors.border;
   final ink = AppColors.ink;
   final inkMuted = AppColors.inkMuted;
-  // En oscuro la sombra apenas se percibe; se deja sutil para dar profundidad
-  // a lo que flota (diálogos, hojas) sin ensuciar.
-  final shadow = Colors.black.withValues(alpha: 0.5);
+  // ¿La paleta que eligió el dueño es oscura? Se deduce midiendo el fondo, no
+  // con una bandera aparte que se pueda desincronizar de los colores.
+  final esOscuro = bg.computeLuminance() < 0.5;
 
+  // En oscuro la sombra apenas se percibe; en claro una sombra negra al 50 %
+  // ensucia todo, así que se suaviza.
+  final shadow = Colors.black.withValues(alpha: esOscuro ? 0.5 : 0.16);
+
+  // El brillo TIENE que seguir a la paleta. Estaba fijo en `dark`, y con fondo
+  // claro Flutter seguía pintando de blanco todo icono sin color propio: el ⋮
+  // de los menús y el asa de arrastrar desaparecían sobre las tarjetas (lo
+  // reportó el cliente el 20 ago 2026, con el tema en claro).
   final scheme = ColorScheme.fromSeed(
     seedColor: brand,
-    brightness: Brightness.dark,
+    brightness: esOscuro ? Brightness.dark : Brightness.light,
   ).copyWith(
     primary: brand,
     onPrimary: onAccent,
@@ -60,6 +68,11 @@ ThemeData buildAppTheme() {
     // apagados, ayudas). Se fija al gris claro de la paleta para que la
     // jerarquía sea la misma en toda la app.
     hintColor: inkMuted,
+
+    // Iconos del cuerpo (los que no traen color propio): el tinte de la paleta,
+    // no el blanco/negro que Flutter deduce del brillo. Así un menú ⋮ se lee
+    // igual en claro y en oscuro.
+    iconTheme: IconThemeData(color: ink),
 
     appBarTheme: AppBarTheme(
       centerTitle: false,

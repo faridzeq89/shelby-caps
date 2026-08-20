@@ -13,6 +13,7 @@ import '../catalog/catalog_home_screen.dart';
 import '../motd/daily_motd.dart';
 import '../reports/reports_screen.dart';
 import '../sales/sale_screen.dart';
+import '../sales/service_notes_screen.dart';
 import 'app_drawer.dart';
 import 'inicio_screen.dart';
 import 'quick_destinations.dart';
@@ -199,14 +200,19 @@ class _HomeScreenState extends State<HomeScreen> {
       _goTab(1);
       return;
     }
-    final cotiza = await showModalBottomSheet<bool>(
+    final choice = await showModalBottomSheet<_NuevaVentaChoice>(
       context: context,
       showDragHandle: true,
       builder: (_) => const _NuevaVentaSheet(),
     );
-    if (cotiza == null || !mounted) return;
+    if (choice == null || !mounted) return;
+    if (choice == _NuevaVentaChoice.notas) {
+      await Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const ServiceNotesScreen()));
+      return;
+    }
     _goTab(1);
-    _saleKey.currentState?.setQuoteMode(cotiza);
+    _saleKey.currentState?.setQuoteMode(choice == _NuevaVentaChoice.cotizar);
   }
 
   void _goTab(int i) {
@@ -242,16 +248,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Hoja "Nueva venta": cobrar o cotizar, elegido **antes** de armar el
-/// carrito. El cliente venía de otra app que preguntaba así y no encontraba
-/// dónde cotizar.
+/// Qué elegir en la hoja "Nueva venta". `notas` no es un modo del carrito: es
+/// un atajo a Notas de servicio (ver [_NuevaVentaSheet]).
+enum _NuevaVentaChoice { vender, cotizar, notas }
+
+/// Hoja "Nueva venta": cobrar, cotizar o ir a notas de servicio, elegido
+/// **antes** de armar el carrito. El cliente venía de otra app que preguntaba
+/// así y no encontraba dónde cotizar.
 ///
 /// No lleva "Venta libre" (registrar un ingreso sin tocar productos): aquí el
 /// inventario es un libro mayor y una venta sin líneas dejaría el stock
-/// diciendo una cosa y la caja otra.
+/// diciendo una cosa y la caja otra. Notas de servicio sí califica porque no
+/// es una venta — es la nota que describe el trabajo; el cobro real pasa por
+/// esa pantalla, no por el carrito.
 ///
-/// Devuelve `true` para cotización, `false` para venta, `null` si se cerró sin
-/// elegir — en ese caso quien la abrió no se mueve de donde está.
+/// Devuelve `null` si se cerró sin elegir — en ese caso quien la abrió no se
+/// mueve de donde está.
 class _NuevaVentaSheet extends StatelessWidget {
   const _NuevaVentaSheet();
 
@@ -282,7 +294,7 @@ class _NuevaVentaSheet extends StatelessWidget {
               icon: Icons.shopping_basket_outlined,
               title: 'Venta de productos',
               hint: 'Arma el carrito con los productos y cóbralo.',
-              onTap: () => Navigator.of(context).pop(false),
+              onTap: () => Navigator.of(context).pop(_NuevaVentaChoice.vender),
             ),
             const SizedBox(height: 10),
             _opcion(
@@ -291,7 +303,17 @@ class _NuevaVentaSheet extends StatelessWidget {
               title: 'Cotización',
               hint: 'Arma el carrito y guárdalo para compartirlo con el '
                   'cliente, sin cobrar ni mover inventario.',
-              onTap: () => Navigator.of(context).pop(true),
+              onTap: () =>
+                  Navigator.of(context).pop(_NuevaVentaChoice.cotizar),
+            ),
+            const SizedBox(height: 10),
+            _opcion(
+              context,
+              icon: Icons.design_services_outlined,
+              title: 'Notas',
+              hint: 'Nota de servicio (limpieza de tenis, gorra o bolsa): '
+                  'sin cobrar, sin productos.',
+              onTap: () => Navigator.of(context).pop(_NuevaVentaChoice.notas),
             ),
           ],
         ),

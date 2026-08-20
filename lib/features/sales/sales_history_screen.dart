@@ -19,8 +19,38 @@ import 'ticket_service.dart';
 /// Las **canceladas se muestran**, tachadas y marcadas: el dueño necesita ver
 /// que esa venta existió y que se canceló, no que desapareció. Ninguna suma del
 /// periodo las cuenta, igual que en los reportes.
+/// Convierte un rango de **días inclusivos** (lo que devuelve el calendario) en
+/// el corte `[desde, hasta)` que usan el repositorio y los reportes.
+///
+/// Los dos sentidos viven aquí porque el error de un día se cometió en ambos: la
+/// lista terminaba un día antes, o mostraba uno de más. `test/rango_fechas_test`
+/// los cuida.
+({DateTime desde, DateTime hasta}) cortePorDias(DateTimeRange rango) {
+  final desde =
+      DateTime(rango.start.year, rango.start.month, rango.start.day);
+  final hasta = DateTime(rango.end.year, rango.end.month, rango.end.day)
+      .add(const Duration(days: 1));
+  return (desde: desde, hasta: hasta);
+}
+
+/// El inverso: de un corte `[desde, hasta)` a los días inclusivos del
+/// calendario. Se resta 1 ms y NO un día, porque los periodos del Balance
+/// terminan en "ahora" y no a medianoche: restar un día se comía el día actual.
+DateTimeRange diasInclusivos(DateTime desde, DateTime hasta) => DateTimeRange(
+      start: desde,
+      end: hasta.subtract(const Duration(milliseconds: 1)),
+    );
+
 class SalesHistoryScreen extends StatefulWidget {
-  const SalesHistoryScreen({super.key});
+  const SalesHistoryScreen({super.key, this.rangoInicial, this.etiquetaInicial});
+
+  /// Periodo con el que abre. Lo usa el Balance para entrar con el MISMO rango
+  /// que el dueño está viendo: si mira el mes, quiere los tickets del mes.
+  final DateTimeRange? rangoInicial;
+
+  /// Cómo se llama ese periodo en el Balance ('Este mes', '90 días'…), para que
+  /// la pastilla diga lo mismo en las dos pantallas.
+  final String? etiquetaInicial;
 
   @override
   State<SalesHistoryScreen> createState() => _SalesHistoryScreenState();
@@ -43,7 +73,13 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   late final AppDatabase _db = context.read<AppDatabase>();
   late final SalesRepository _repo = SalesRepository(_db);
 
-  String _preset = 'hoy';
+  late String _preset = widget.rangoInicial == null ? 'hoy' : 'custom';
+  late DateTimeRange? _rango = widget.rangoInicial;
+
+  /// Nombre heredado del Balance ('Este mes'). Se borra en cuanto el dueño
+  /// elige otras fechas: si no, la pastilla seguiría diciendo 'Este mes' con un
+  /// rango distinto.
+  late String? _etiquetaHeredada = widget.etiquetaInicial;
   late Future<_Datos> _future = _cargar();
   String _busqueda = '';
 
@@ -55,11 +91,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     ('ayer', 'Ayer'),
     ('7d', '7 días'),
     ('30d', '30 días'),
+    ('mes', 'Este mes'),
+    ('mespasado', 'Mes pasado'),
+    ('custom', 'Fechas…'),
   ];
 
   _Periodo get _periodo {
     final ahora = DateTime.now();
     final hoy = DateTime(ahora.year, ahora.month, ahora.day);
+    final f = DateFormat('dd/MM/yy');
     switch (_preset) {
       case 'ayer':
         final ayer = hoy.subtract(const Duration(days: 1));
@@ -70,9 +110,48 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       case '30d':
         return _Periodo('30 días', hoy.subtract(const Duration(days: 29)),
             hoy.add(const Duration(days: 1)));
+      case 'mes':
+        return _Periodo('Este mes', DateTime(ahora.year, ahora.month, 1),
+            hoy.add(const Duration(days: 1)));
+      case 'mespasado':
+        return _Periodo('Mes pasado', DateTime(ahora.year, ahora.month - 1, 1),
+            DateTime(ahora.year, ahora.month, 1));
+      case 'custom':
+        final r = _rango;
+        if (r == null) return _Periodo('Hoy', hoy, hoy.add(const Duration(days: 1)));
+        final corte = cortePorDias(r);
+        return _Periodo(
+            _etiquetaHeredada ?? '${f.format(r.start)}–${f.format(r.end)}',
+            corte.desde,
+            corte.hasta);
       default:
         return _Periodo('Hoy', hoy, hoy.add(const Duration(days: 1)));
     }
+  }
+
+  /// Elegir el periodo. 'custom' abre el calendario de rango; si el dueño lo
+  /// cierra sin elegir, el filtro se queda como estaba (no se vacía la lista).
+  Future<void> _elegirPeriodo(String slug) async {
+    if (slug == 'custom') {
+      final ahora = DateTime.now();
+      final elegido = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(ahora.year - 3),
+        lastDate: ahora,
+        initialDateRange: _rango,
+        helpText: 'Ventas entre…',
+        saveText: 'Ver',
+      );
+      if (elegido == null) return;
+      setState(() {
+        _rango = elegido;
+        _preset = 'custom';
+        _etiquetaHeredada = null;
+      });
+    } else {
+      setState(() => _preset = slug);
+    }
+    _recargar();
   }
 
   Future<_Datos> _cargar() async {
@@ -359,10 +438,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                 child: FilterChipsRow(
                   labels: [for (final p in _presets) p.$2],
                   selectedIndex: _presets.indexWhere((p) => p.$1 == _preset),
-                  onSelected: (i) {
-                    setState(() => _preset = _presets[i].$1);
-                    _recargar();
-                  },
+                  onSelected: (i) => _elegirPeriodo(_presets[i].$1),
                 ),
               ),
               Padding(

@@ -8,6 +8,7 @@ import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/reports_repository.dart';
+import '../sales/sales_history_screen.dart';
 import 'report_export.dart';
 
 /// Un periodo con nombre para el selector.
@@ -92,6 +93,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  /// Abre el detalle venta por venta **con el mismo periodo** que se está
+  /// viendo: si el dueño mira el mes, quiere los tickets del mes, no los de hoy.
+  void _abrirVentas() {
+    final p = _period;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SalesHistoryScreen(
+        rangoInicial: diasInclusivos(p.from, p.to),
+        etiquetaInicial: p.label,
+      ),
+    ));
+  }
+
   Future<void> _onPreset(String slug) async {
     if (slug == 'custom') {
       final now = DateTime.now();
@@ -150,6 +163,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 onPressed: widget.onMenu,
                 tooltip: 'Menú'),
         title: const Text('Balance'),
+        actions: [
+          IconButton(
+            tooltip: 'Ver las ventas una por una',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: _abrirVentas,
+          ),
+        ],
       ),
       body: FutureBuilder<_HubData>(
         future: _future,

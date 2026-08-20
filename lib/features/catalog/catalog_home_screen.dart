@@ -12,6 +12,7 @@ import '../../services/auth_controller.dart';
 import '../../services/catalog_sync_service.dart';
 import '../../services/image_service.dart';
 import '../inventory/inventory_home_screen.dart';
+import 'categories_screen.dart';
 import 'import_screen.dart';
 import 'product_editor_screen.dart';
 
@@ -202,6 +203,16 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
               _reload();
             },
           ),
+          IconButton(
+            tooltip: 'Categorías',
+            icon: const Icon(Icons.sell_outlined),
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const CategoriesScreen(),
+              ));
+              _reload();
+            },
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -376,14 +387,13 @@ class _NewProductDialogState extends State<_NewProductDialog> {
   List<Category> _categories = [];
   int? _categoryId;
   bool _creatingCategory = false;
-  bool _esServicio = false;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    widget.repo.categories().then((c) {
+    widget.repo.categories(activeOnly: true).then((c) {
       if (!mounted) return;
       setState(() {
         _categories = c;
@@ -406,16 +416,10 @@ class _NewProductDialogState extends State<_NewProductDialog> {
 
   Future<void> _save() async {
     final name = _name.text.trim();
-    // En un servicio el precio es OPCIONAL: si tiene tarifa fija se pone aquí,
-    // y si depende del trabajo se deja vacío y se define en la cotización.
     final typed = _price.text.trim();
-    final priceCents = typed.isEmpty && _esServicio
-        ? 0
-        : ((double.tryParse(typed) ?? -1) * 100).round();
+    final priceCents = ((double.tryParse(typed) ?? -1) * 100).round();
     if (name.isEmpty || priceCents < 0) {
-      setState(() => _error = _esServicio
-          ? 'Ponle nombre al servicio (el precio puede ir vacío)'
-          : 'Nombre y precio válido son obligatorios');
+      setState(() => _error = 'Nombre y precio válido son obligatorios');
       return;
     }
     setState(() {
@@ -441,12 +445,9 @@ class _NewProductDialogState extends State<_NewProductDialog> {
         categoryId: categoryId!,
         basePriceCents: priceCents,
         brand: _brand.text.trim().isEmpty ? null : _brand.text.trim(),
-        costCents: _esServicio
-            ? 0
-            : ((double.tryParse(_cost.text.trim()) ?? 0) * 100).round(),
-        initialStock: _esServicio ? 0 : (int.tryParse(_stock.text.trim()) ?? 0),
+        costCents: ((double.tryParse(_cost.text.trim()) ?? 0) * 100).round(),
+        initialStock: int.tryParse(_stock.text.trim()) ?? 0,
         locationId: widget.locationId,
-        esServicio: _esServicio,
       );
       if (mounted) Navigator.of(context).pop(id);
     } catch (e) {
@@ -474,54 +475,41 @@ class _NewProductDialogState extends State<_NewProductDialog> {
               controller: _brand,
               decoration: const InputDecoration(labelText: 'Marca (opcional)'),
             ),
-            const SizedBox(height: 4),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _esServicio,
-              onChanged: (v) => setState(() => _esServicio = v),
-              title: const Text('Es un servicio'),
-              subtitle: const Text('Sin inventario · el precio puede ir vacío'),
-            ),
             const SizedBox(height: 8),
             TextField(
               controller: _price,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: _esServicio ? 'Precio (opcional)' : 'Precio de venta',
+              decoration: const InputDecoration(
+                labelText: 'Precio de venta',
                 prefixText: '\$',
-                helperText: _esServicio
-                    ? 'Déjalo vacío si depende del trabajo'
-                    : null,
               ),
             ),
-            if (!_esServicio) ...[
-              const SizedBox(height: 12),
-              // Costo y existencias al dar de alta: en gorras casi todo es talla
-              // única, así que obligar a pasar por Inventario solo estorbaba.
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _cost,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                          labelText: 'Costo', prefixText: '\$'),
-                    ),
+            const SizedBox(height: 12),
+            // Costo y existencias al dar de alta: en gorras casi todo es talla
+            // única, así que obligar a pasar por Inventario solo estorbaba.
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cost,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Costo', prefixText: '\$'),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _stock,
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Existencias'),
-                    ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _stock,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        const InputDecoration(labelText: 'Existencias'),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             if (!_creatingCategory)
               Row(

@@ -39,9 +39,15 @@ class CatalogRepository {
   // -------------------------------------------------------------------------
   // Lecturas
   // -------------------------------------------------------------------------
-  Future<List<Category>> categories() =>
-      (_db.select(_db.categories)..orderBy([(t) => OrderingTerm(expression: t.sortOrder)]))
-          .get();
+  /// [activeOnly] excluye categorías archivadas (para selectores de alta/filtro;
+  /// las pantallas que solo MUESTRAN el nombre de un producto ya existente deben
+  /// dejarlo en `false` para poder resolver el nombre de una categoría archivada).
+  Future<List<Category>> categories({bool activeOnly = false}) {
+    final q = _db.select(_db.categories)
+      ..orderBy([(t) => OrderingTerm(expression: t.sortOrder)]);
+    if (activeOnly) q.where((t) => t.active.equals(true));
+    return q.get();
+  }
 
   Future<List<Product>> products() =>
       (_db.select(_db.products)..orderBy([(t) => OrderingTerm(expression: t.name)]))
@@ -195,6 +201,43 @@ class CatalogRepository {
         );
   }
 
+  /// ¿Hay productos (activos o archivados) ligados a esta categoría?
+  Future<bool> categoryHasProducts(int categoryId) async {
+    final row = await _db.customSelect(
+      'SELECT COUNT(*) AS n FROM products WHERE category_id = ?',
+      variables: [Variable.withInt(categoryId)],
+      readsFrom: {_db.products},
+    ).getSingle();
+    return row.read<int>('n') > 0;
+  }
+
+  /// Archiva (o reactiva con [active]=true) una categoría: deja de ofrecerse en
+  /// selectores/filtros nuevos, pero los productos que ya la tienen conservan
+  /// su nombre. Reversible.
+  Future<void> setCategoryActive(
+      Profile actor, int categoryId, bool active) async {
+    _requireCatalog(actor);
+    await (_db.update(_db.categories)..where((t) => t.id.equals(categoryId)))
+        .write(CategoriesCompanion(active: Value(active)));
+    await _audit(actor, active ? 'reactivate' : 'archive', 'category',
+        categoryId.toString(), active ? 'reactivada' : 'archivada');
+  }
+
+  /// Elimina una categoría. Si NO tiene productos ligados, se borra de verdad;
+  /// si tiene, no se puede borrar sin dejar productos huérfanos (`category_id`
+  /// es obligatorio), así que se ARCHIVA en su lugar (ver [setCategoryActive]).
+  Future<void> deleteCategory(Profile actor, int categoryId) async {
+    _requireCatalog(actor);
+    if (await categoryHasProducts(categoryId)) {
+      await setCategoryActive(actor, categoryId, false);
+      return;
+    }
+    await (_db.delete(_db.categories)..where((t) => t.id.equals(categoryId)))
+        .go();
+    await _audit(
+        actor, 'delete', 'category', categoryId.toString(), 'borrada');
+  }
+
   Future<int> createProduct(
     Profile actor, {
     required String name,
@@ -203,7 +246,6 @@ class CatalogRepository {
     String? brand,
     String? description,
     int taxRateBps = 1600,
-    bool esServicio = false,
   }) async {
     _requireCatalog(actor);
     return _db.into(_db.products).insert(
@@ -214,25 +256,8 @@ class CatalogRepository {
             brand: Value(brand),
             description: Value(description),
             taxRateBps: Value(taxRateBps),
-            esServicio: Value(esServicio),
           ),
         );
-  }
-
-  /// Marca/desmarca un producto como **servicio** (precio a definir en la
-  /// cotización, sin inventario).
-  Future<void> updateProductIsService({
-    required Profile actor,
-    required int productId,
-    required bool esServicio,
-  }) async {
-    _requireCatalog(actor);
-    await _db.transaction(() async {
-      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
-          .write(ProductsCompanion(esServicio: Value(esServicio)));
-      await _audit(actor, 'update_service', 'product', productId.toString(),
-          'esServicio=$esServicio');
-    });
   }
 
   /// Da de alta un producto **listo para vender**: el producto, su variante
@@ -255,7 +280,6 @@ class CatalogRepository {
     int costCents = 0,
     int initialStock = 0,
     int? locationId,
-    bool esServicio = false,
   }) async {
     _requireCatalog(actor);
     return _db.transaction(() async {
@@ -266,7 +290,6 @@ class CatalogRepository {
         basePriceCents: basePriceCents,
         brand: brand,
         description: description,
-        esServicio: esServicio,
       );
       final variantId = await _db.into(_db.variants).insert(
             VariantsCompanion.insert(
@@ -698,14 +721,28 @@ class CatalogRepository {
     return row.read<int>('n') > 0;
   }
 
-  /// True si el producto se puede BORRAR de verdad: sin ventas y sin movimientos
-  /// de inventario (p. ej. un alta por error). Si no, archívalo.
-  Future<bool> canDeleteProduct(int productId) async {
-    return !(await productHasSales(productId)) &&
-        !(await productHasMovements(productId));
+  /// ¿El producto aparece en alguna COTIZACIÓN (convertida a venta o no)? Las
+  /// líneas de cotización también referencian la variante con llave foránea, así
+  /// que borrar la variante sin checar esto revienta con foreign_keys=ON.
+  Future<bool> productHasQuotes(int productId) async {
+    final row = await _db.customSelect(
+      'SELECT COUNT(*) AS n FROM quote_lines ql '
+      'JOIN variants v ON v.id = ql.variant_id WHERE v.product_id = ?',
+      variables: [Variable.withInt(productId)],
+      readsFrom: {_db.quoteLines, _db.variants},
+    ).getSingle();
+    return row.read<int>('n') > 0;
   }
 
-  /// Borrado REAL. Solo para productos SIN ventas ni movimientos de inventario.
+  /// True si el producto se puede BORRAR de verdad: sin ventas, sin movimientos
+  /// de inventario y sin cotizaciones (p. ej. un alta por error). Si no, archívalo.
+  Future<bool> canDeleteProduct(int productId) async {
+    return !(await productHasSales(productId)) &&
+        !(await productHasMovements(productId)) &&
+        !(await productHasQuotes(productId));
+  }
+
+  /// Borrado REAL. Solo para productos SIN ventas, movimientos ni cotizaciones.
   /// Si tiene historial lanza [StateError] (el historial es inmutable): en ese
   /// caso usa [setProductActive] para archivar. Borra códigos, variantes y el
   /// producto en una transacción.
@@ -713,8 +750,9 @@ class CatalogRepository {
     _requireCatalog(actor);
     if (!await canDeleteProduct(productId)) {
       throw StateError(
-          'El producto tiene ventas o movimientos de inventario y no se puede '
-          'borrar (el historial es inmutable). Archívalo en su lugar.');
+          'El producto tiene ventas, movimientos de inventario o cotizaciones '
+          'y no se puede borrar (el historial es inmutable). Archívalo en su '
+          'lugar.');
     }
     await _db.transaction(() async {
       final vs = await variantsOf(productId);

@@ -340,6 +340,68 @@ class SalesRepository {
     });
   }
 
+  /// Venta sin líneas de producto ("venta directa"): cobra un monto suelto
+  /// (p. ej. un servicio de limpieza) sin tocar catálogo ni inventario. El
+  /// dinero entra al corte de caja igual que cualquier venta; [description]
+  /// queda en `notes` para poder ver después qué se cobró.
+  Future<({String saleId, String folio, int changeCents})> sellDirect({
+    required Profile cashier,
+    required int locationId,
+    required int amountCents,
+    required List<PaymentInput> payments,
+    String description = 'Venta directa',
+    int? customerId,
+  }) async {
+    if (amountCents <= 0) throw ArgumentError('El monto debe ser mayor a 0');
+    final nonCash = payments
+        .where((p) => p.method != PaymentMethod.cash)
+        .fold(0, (s, p) => s + p.amountCents);
+    if (nonCash > amountCents) {
+      throw ArgumentError('Los pagos distintos a efectivo superan el monto');
+    }
+    final cashApplied = amountCents - nonCash;
+    final cashEntered = payments
+        .where((p) => p.method == PaymentMethod.cash)
+        .fold(0, (s, p) => s + p.amountCents);
+    if (cashApplied > 0 && cashEntered < cashApplied) {
+      throw ArgumentError('Efectivo insuficiente');
+    }
+    final change = (cashEntered - cashApplied).clamp(0, cashEntered);
+    final saleId = _uuid.v4();
+    final prefix = await _devicePrefix();
+
+    return _db.transaction(() async {
+      final folio = await _nextFolio(prefix);
+      await _db.into(_db.sales).insert(SalesCompanion.insert(
+            id: saleId,
+            folio: folio,
+            locationId: locationId,
+            cashierId: cashier.id,
+            customerId: Value(customerId),
+            status: SaleStatus.completed,
+            subtotalCents: amountCents,
+            taxCents: 0,
+            totalCents: amountCents,
+            notes: Value(description),
+          ));
+      for (final p in payments.where((p) => p.method != PaymentMethod.cash)) {
+        await _db.into(_db.payments).insert(PaymentsCompanion.insert(
+            saleId: saleId,
+            method: p.method,
+            amountCents: p.amountCents,
+            cashierId: cashier.id));
+      }
+      if (cashApplied > 0) {
+        await _db.into(_db.payments).insert(PaymentsCompanion.insert(
+            saleId: saleId,
+            method: PaymentMethod.cash,
+            amountCents: cashApplied,
+            cashierId: cashier.id));
+      }
+      return (saleId: saleId, folio: folio, changeCents: change);
+    });
+  }
+
   /// Cancela una venta del día: no borra la fila (queda `cancelled`), devuelve
   /// el stock con movimientos `returned` y lo registra en `audit_log`.
   Future<void> cancelSale({

@@ -44,7 +44,14 @@ Future<Uint8List?> readImageBytes(String path) async {
 }
 
 /// Proveedor para pintarla. `null` si el archivo ya no existe.
+///
+/// Una vez que algo se publica (p. ej. la tarjeta digital), su ruta local se
+/// reemplaza por la URL pública de Supabase — hay que pintarla por red, no
+/// buscarla como archivo.
 ImageProvider? imageProviderFor(String path) {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return NetworkImage(path);
+  }
   final file = File(path);
   if (!file.existsSync()) return null;
   return FileImage(file);

@@ -98,185 +98,68 @@ class _QuotesScreenState extends State<QuotesScreen> {
     _reload();
   }
 
-  /// Renglones con nombre y si son servicio, para el detalle editable.
-  Future<List<_LineView>> _lineViews(int quoteId) async {
-    final lines = await _repo.linesOf(quoteId);
-    final out = <_LineView>[];
-    for (final l in lines) {
-      final v = await _catalog.variantById(l.variantId);
-      final p = v == null ? null : await _catalog.productOfVariant(v);
-      final desc = p == null
-          ? 'SKU ${l.variantId}'
-          : '${p.name} ${v!.size ?? ''} ${v.color ?? ''}'.trim();
-      out.add(_LineView(l, desc, p?.esServicio ?? false));
-    }
-    return out;
-  }
-
-  /// Pide el precio de un renglón (para servicios cuyo precio se define al ver
-  /// la prenda) y lo guarda; recalcula el total de la cotización.
-  Future<void> _editLinePrice(_LineView lv) async {
-    final ctrl = TextEditingController(
-        text: lv.line.unitPriceCents == 0
-            ? ''
-            : (lv.line.unitPriceCents / 100).toStringAsFixed(2));
-    final pesos = await showDialog<double>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Precio — ${lv.desc}'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-              prefixText: '\$', labelText: 'Precio por pieza'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar')),
-          FilledButton(
-              onPressed: () => Navigator.of(context)
-                  .pop(double.tryParse(ctrl.text.trim()) ?? 0),
-              child: const Text('Guardar')),
-        ],
-      ),
-    );
-    if (pesos == null) return;
-    await _repo.updateLinePrice(_actor, lv.line.id, (pesos * 100).round());
-  }
-
-  Future<void> _openDetail(Quote quote) async {
+  Future<void> _openDetail(Quote q) async {
+    final lines = await _repo.linesOf(q.id);
+    final pdfLines = await _pdfLines(lines);
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetCtx) => StatefulBuilder(
-        builder: (sheetCtx, setSheet) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: FutureBuilder<(Quote, List<_LineView>)>(
-                future: () async {
-                  final q = await (_db.select(_db.quotes)
-                        ..where((t) => t.id.equals(quote.id)))
-                      .getSingle();
-                  return (q, await _lineViews(quote.id));
-                }(),
-                builder: (context, snap) {
-                  if (!snap.hasData) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  final (q, views) = snap.data!;
-                  final falta = views.any((v) => v.line.unitPriceCents == 0);
-                  final theme = Theme.of(context);
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('Cotización ${q.folio}',
-                          style: theme.textTheme.titleLarge),
-                      const SizedBox(height: 4),
-                      Text('Toca un renglón para ponerle o cambiar el precio.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant)),
-                      const SizedBox(height: 10),
-                      ...views.map((v) {
-                        final sinPrecio = v.line.unitPriceCents == 0;
-                        return InkWell(
-                          onTap: () async {
-                            await _editLinePrice(v);
-                            setSheet(() {}); // refresca el detalle
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text('${v.line.qty} × ${v.desc}'),
-                                      if (v.esServicio)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 3),
-                                          child: StatusPill('Servicio',
-                                              icon: Icons.design_services),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                sinPrecio
-                                    ? StatusPill('Poner precio',
-                                        color: theme.colorScheme.error,
-                                        icon: Icons.edit)
-                                    : Text(money(v.line.lineTotalCents),
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w800)),
-                                Icon(Icons.chevron_right,
-                                    size: 18, color: theme.hintColor),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                      const Divider(height: 20),
-                      StatBlock(
-                          label: 'Total', value: money(q.totalCents), size: 26),
-                      const SizedBox(height: 12),
-                      if (falta)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            'Ponle precio a todos los renglones antes de pasar a venta.',
-                            style: TextStyle(color: theme.colorScheme.error),
-                          ),
-                        ),
-                      FilledButton.icon(
-                        onPressed: falta
-                            ? null
-                            : () {
-                                Navigator.of(sheetCtx).pop();
-                                // Se entrega por el handoff en vez de por el
-                                // `pop`: así funciona igual venga de Venta, del
-                                // menú lateral o de Inicio.
-                                context.read<SaleHandoff>().send(q);
-                                Navigator.of(context).pop();
-                              },
-                        icon: const Icon(Icons.point_of_sale),
-                        label: const Text('Pasar a venta'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(sheetCtx).pop();
-                          _share(q);
-                        },
-                        icon: const Icon(Icons.ios_share),
-                        label: const Text('Compartir / imprimir PDF'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: () {
-                          Navigator.of(sheetCtx).pop();
-                          _cancel(q);
-                        },
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Cancelar cotización'),
-                      ),
-                    ],
-                  );
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Cotización ${q.folio}',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              ...pdfLines.map((l) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text('${l.qty} × ${l.description}')),
+                        Text(money(l.lineTotalCents)),
+                      ],
+                    ),
+                  )),
+              const Divider(height: 20),
+              StatBlock(label: 'Total', value: money(q.totalCents), size: 26),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(sheetCtx).pop();
+                  // Se entrega por el handoff en vez de por el `pop`: así
+                  // funciona igual venga de Venta, del menú lateral o de Inicio.
+                  context.read<SaleHandoff>().send(q);
+                  Navigator.of(context).pop();
                 },
+                icon: const Icon(Icons.point_of_sale),
+                label: const Text('Pasar a venta'),
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(sheetCtx).pop();
+                  _share(q);
+                },
+                icon: const Icon(Icons.ios_share),
+                label: const Text('Compartir / imprimir PDF'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(sheetCtx).pop();
+                  _cancel(q);
+                },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Cancelar cotización'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
     _reload();
@@ -358,12 +241,4 @@ class _QuotesScreenState extends State<QuotesScreen> {
       ),
     );
   }
-}
-
-/// Renglón de cotización con nombre legible y si es un servicio.
-class _LineView {
-  const _LineView(this.line, this.desc, this.esServicio);
-  final QuoteLine line;
-  final String desc;
-  final bool esServicio;
 }

@@ -862,6 +862,78 @@ vacío (el respaldo por archivo está apagado en web). El puente lo resuelve:
 - **Ojo**: migrar ANTES de "Empezar de cero" (borrar la web se lleva lo que
   habría para migrar).
 
+## Correcciones de catálogo + tarjeta digital + ticket (2026-08-20, en `main`)
+Sin cambio de esquema. `flutter analyze` limpio.
+
+- **Eliminar categorías** (`catalog_repository.dart`): no existía. `deleteCategory`/
+  `setCategoryActive` — borra de verdad si la categoría no tiene productos; si ya tiene,
+  la **archiva** (deja de ofrecerse en selectores/filtros nuevos, los productos que ya la
+  tienen conservan el nombre). Pantalla nueva **Catálogo → Categorías** (ícono en la
+  barra), con "Reactivar" para las archivadas. `categories()` ahora acepta
+  `activeOnly` (selectores de alta/filtro lo usan; las pantallas que solo MUESTRAN el
+  nombre de un producto ya existente lo dejan en `false`, para resolver el nombre de una
+  categoría archivada).
+- **Borrar producto con cotizaciones tronaba** (`canDeleteProduct`): faltaba checar
+  `quote_lines` — un producto usado en una cotización tiene su variante referenciada ahí
+  también, y con `foreign_keys=ON` borrarla reventaba con un error de SQLite en vez de
+  ofrecer archivar. Ahora `productHasQuotes` se suma al checador; si hay ventas,
+  movimientos **o cotizaciones**, se archiva (se oculta, no se toca la base).
+- **Tarjeta digital dejaba de cargar tras el primer "Guardar y publicar"**: al publicar,
+  la portada/foto de lealtad pasan de ruta local a URL pública de Supabase, pero
+  `imageProviderFor` (`image_store_web.dart`/`image_store_native.dart`) no sabía leer
+  `http(s)://` — solo archivo local o `data:` URL. Devolvía `null`, y como
+  `business_card_screen.dart` lo usa con `!`, la pantalla truena al reconstruirse. Ya
+  reconoce URLs `http(s)` y las pinta con `NetworkImage` en ambas plataformas.
+- **Ticket con el total repetido 3-4 veces** (`ticket_service.dart`): se quitó el
+  renglón "Subtotal" (redundante con TOTAL cuando no hay descuento) y el método de pago
+  ya no imprime el monto (el monto ya está en TOTAL) — solo el nombre ("Tarjeta",
+  "Efectivo"...). Descuento y cambio se conservan (son valores distintos al total).
+
+## Servicios: nota + venta directa, se quita el flujo viejo (2026-08-20, en `main`)
+El dueño probó el servicio-como-producto-cotizado (fase anterior) y no le convenció:
+confuso para el cajero, y varios bugs de arrastre (precio/stock que desaparecían, el
+selector de venta exigía existencia > 0, "Pasar a venta" no hacía nada). Se reemplaza
+por dos piezas independientes y más simples.
+
+**Se quita** (a petición del dueño, no solo deprecado): el switch "Es un servicio" al
+dar de alta un producto (`catalog_home_screen.dart`), el parámetro `esServicio` de
+`createProduct`/`createSimpleProduct` y `updateProductIsService` (nunca se llamaba desde
+la UI) en `catalog_repository.dart`, y en `quotes_screen.dart` el detalle editable
+(tocar renglón para poner precio, distintivo "Servicio", bloqueo de "Pasar a venta"
+hasta que todos los renglones tuvieran precio) — el detalle de cotización vuelve a ser
+el original (solo lectura + Pasar a venta + Compartir + Cancelar). **Lo que NO se
+quitó** (queda inerte, sin forma de activarse, por no arriesgar una migración de baja
+ni romper compatibilidad con datos viejos): la columna `products.es_servicio` (schema
+v15), los `if (!producto.esServicio)` defensivos en `product_editor_screen.dart`/
+`product_form_screen.dart`/`variant_picker.dart`/`sale_screen.dart`/
+`sales_repository.dart` (checkout), y `QuoteRepository.updateLinePrice` (capacidad
+genérica de corregir el precio de un renglón, no exclusiva de servicios).
+
+- **Esquema v16** (migración v15→v16 idempotente): tabla `service_notes` — folio propio
+  (`SV-000001`, vía `AppDatabase.nextFolio`), `customerName`, `brand`/`color`
+  (opcionales), `itemType` (`ServiceItemType`: tenis/gorra/bolsa), `saleId` nullable
+  (referencia informativa a `Sales`: nula = pendiente, llena = cobrada — sin columna de
+  estado aparte que se pueda desincronizar del cobro real). **Sin precio**: la nota
+  solo describe, nunca se publica al catálogo ni a la tienda web (no es un producto).
+- **`ServiceNoteRepository`**: `create`/`all`/`byId`/`markPaid`.
+- **`SalesRepository.sellDirect`** ("venta directa"): venta **sin líneas de producto**
+  (mismo patrón que `sellGiftCard` — no toca inventario ni catálogo), con `notes` =
+  la descripción del servicio, para que quede registrado qué se cobró. Acepta un pago
+  (efectivo/tarjeta/transferencia); el dinero entra al corte de caja igual que cualquier
+  venta.
+- **UI** (`features/sales/service_notes_screen.dart`, enlazada en el menú → Vender →
+  **Notas de servicio**): lista de notas (pendiente/cobrada) + **Nueva nota** (cliente,
+  tipo con chips, marca/color opcionales) que al guardar ofrece imprimir/compartir la
+  nota (`service_note_ticket.dart`, PDF rollo 80mm, "Conserva esta nota para recoger tu
+  pieza"). Detalle de una nota pendiente tiene **Cobrar**: pide descripción (prefabricada
+  con folio/tipo/cliente, editable), monto y método; llama `sellDirect` + `markPaid` y
+  ofrece imprimir el ticket de la venta (reusa `TicketService.buildPdf` con una sola
+  línea sintética — mismo formato ya corregido arriba, sin total repetido).
+- `test/service_note_test.dart` (folio, venta sin inventario, nota→venta). Se limpiaron
+  `test/servicio_venta_test.dart` (quedó solo el grupo de `SaleHandoff`, no relacionado)
+  — `test/servicio_test.dart` sigue viva porque prueba comportamiento de repositorio que
+  SÍ se conservó (columna + `updateLinePrice`), sin tocar UI removida.
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.
@@ -876,9 +948,9 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
 - `docs/manual.html` — **manual completo con capturas** (puesta en marcha + uso de todo).
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
-## Estado operativo (2026-08-18)
-Esquema local **v15**. Migraciones de Supabase **0001–0006**. Suite **222 pruebas**,
-`flutter analyze` limpio.
+## Estado operativo (2026-08-20)
+Esquema local **v16**. Migraciones de Supabase **0001–0006** (sin cambio: la nota de
+servicio es 100% local, no se publica). Suite **241 pruebas**, `flutter analyze` limpio.
 
 **Tres superficies en vivo:** APK Android (mostrador), **POS web** `shelby-pos.pages.dev`
 (provisional para el iPhone del cliente mientras sale la licencia de Apple — él paga los
@@ -889,8 +961,10 @@ prod; sube y restaura). App fluida en release. El catálogo **arranca vacío** (
 productos demo).
 
 Pendientes del dueño:
-- **Capturar y publicar la tarjeta digital** (Admin → Tarjeta digital): hoy
-  `shelby-caps.pages.dev/tarjeta/` está publicada pero vacía a propósito.
+- **Terminar de capturar y publicar la tarjeta digital** (Admin → Tarjeta digital): el
+  dueño ya empezó a llenarla y publicó, pero el bug de portada/foto (ver arriba,
+  2026-08-20) le impedía volver a entrar a editarla — ya está corregido, falta que
+  confirme que ahora sí carga y siga capturando el resto (redes, pagos, promociones).
 - **Cargar inventario y fotos reales** (o importar CSV/Excel).
 - **Credenciales de Mercado Pago** + desplegar las Edge Functions y prender `MP_ENABLED`;
   el andamiaje ya está. Cobro con **Mercado Pago Point** sigue sin arrancar.

@@ -166,7 +166,6 @@ class TicketService {
                     ),
             pw.Divider(),
             if (!t.gift) ...[
-              row('Subtotal', _money(t.subtotalCents)),
               if (t.discountCents > 0)
                 row('Descuento', '-${_money(t.discountCents)}'),
               row('TOTAL', _money(t.totalCents), bold: true),
@@ -174,7 +173,10 @@ class TicketService {
               // impuesto en el ticket confunde al cliente.
               if (t.taxCents > 0) row('IVA incluido', _money(t.taxCents)),
               pw.SizedBox(height: 4),
-              for (final p in t.payments) row(p.$1, _money(p.$2)),
+              // Solo el nombre del método de pago: el monto ya se ve en TOTAL
+              // (y si se repite en cada método, confunde en vez de aclarar).
+              for (final p in t.payments)
+                pw.Text(p.$1, style: const pw.TextStyle(fontSize: 9)),
               if (t.changeCents > 0) row('Cambio', _money(t.changeCents)),
             ],
             if (config.footerLegend.isNotEmpty) ...[

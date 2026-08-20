@@ -26,7 +26,14 @@ Future<Uint8List?> readImageBytes(String path) async {
   }
 }
 
+/// `null` si [path] no es ni data URL ni una URL ya publicada.
+///
+/// Una vez que algo se publica (p. ej. la tarjeta digital), su data URL local
+/// se reemplaza por la URL pública de Supabase — hay que pintarla por red.
 ImageProvider? imageProviderFor(String path) {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return NetworkImage(path);
+  }
   if (!path.startsWith('data:')) return null;
   final comma = path.indexOf(',');
   if (comma < 0) return null;

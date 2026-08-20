@@ -55,6 +55,7 @@ class VariantStockData {
     GiftCards,
     GiftCardTransactions,
     Expenses,
+    ServiceNotes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -63,7 +64,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -138,8 +139,13 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 15) {
             // v14 → v15: productos tipo "servicio" (precio a definir en la
-            // cotización, sin inventario).
+            // cotización, sin inventario). Reemplazado en v16 por la nota de
+            // servicio; la columna se queda (dato histórico), sin usarse.
             await _addEsServicioIfMissing(m);
+          }
+          if (from < 16) {
+            // v15 → v16: nota de servicio (limpieza de tenis/gorra/bolsa).
+            await _createTableIfMissing('service_notes', serviceNotes);
           }
           await _createExtras();
         },

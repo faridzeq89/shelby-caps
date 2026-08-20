@@ -49,7 +49,7 @@ class _InventoryVariantSheetState extends State<_InventoryVariantSheet> {
   }
 
   Future<void> _init() async {
-    final cats = await widget.catalog.categories();
+    final cats = await widget.catalog.categories(activeOnly: true);
     if (mounted) setState(() => _categories = cats);
     await _load();
   }

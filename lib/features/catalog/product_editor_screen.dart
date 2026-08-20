@@ -308,9 +308,10 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         builder: (_) => AlertDialog(
           title: const Text('No se puede borrar'),
           content: const Text(
-              'Este producto ya tiene ventas o movimientos de inventario, y el '
-              'historial es inmutable. Puedes ARCHIVARLO: desaparece de la venta '
-              'y la búsqueda pero conserva su historial. ¿Archivar?'),
+              'Este producto ya tiene ventas, movimientos de inventario o '
+              'cotizaciones, y el historial es inmutable. Puedes ARCHIVARLO: '
+              'desaparece de la venta y la búsqueda pero conserva su historial. '
+              '¿Archivar?'),
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(context).pop(false),

@@ -26,6 +26,7 @@ import '../sales/gift_cards_screen.dart';
 import '../sales/layaways_screen.dart';
 import '../sales/quotes_screen.dart';
 import '../sales/returns_screen.dart';
+import '../sales/service_notes_screen.dart';
 import '../suppliers/suppliers_screen.dart';
 
 /// Menú lateral (hamburguesa) con TODAS las funciones agrupadas. Las 4 más usadas
@@ -109,6 +110,8 @@ class AppDrawer extends StatelessWidget {
               onTap: () => push(const ReturnsScreen())),
           _item(context, Icons.card_giftcard, 'Tarjetas de regalo',
               onTap: () => push(const GiftCardsScreen())),
+          _item(context, Icons.design_services_outlined, 'Notas de servicio',
+              onTap: () => push(const ServiceNotesScreen())),
 
           _group('Catálogo y stock'),
           _item(context, Icons.inventory_2_outlined, 'Inventario',

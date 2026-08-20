@@ -137,7 +137,7 @@ class SaleScreenState extends State<SaleScreen> {
   }
 
   Future<void> _loadCatalog() async {
-    final cats = await _catalog.categories();
+    final cats = await _catalog.categories(activeOnly: true);
     final prods = await _catalog.productsByCategory(_categoryFilter);
     if (mounted) {
       setState(() {

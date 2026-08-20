@@ -40,6 +40,9 @@ enum LoyaltyType { earn, redeem, adjust }
 /// `redeem` = canje en una venta (−), `adjust` = corrección manual.
 enum GiftCardTxType { issue, redeem, adjust }
 
+/// Qué se recibe para un servicio de limpieza (nota de servicio).
+enum ServiceItemType { tenis, gorra, bolsa }
+
 // ===========================================================================
 // Operación / seguridad
 // ===========================================================================
@@ -456,5 +459,22 @@ class GiftCardTransactions extends Table {
   TextColumn get saleId => text().nullable().references(Sales, #id)();
   IntColumn get amountCents => integer()(); // + carga, − canje
   TextColumn get type => textEnum<GiftCardTxType>()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Nota de un servicio de limpieza (tenis/gorra/bolsa): SOLO describe el
+/// trabajo que se recibió, no es un producto ni tiene precio — el cobro pasa
+/// aparte por una venta directa (sin líneas) cuando el cliente recoge y paga.
+/// `saleId` queda nulo mientras está pendiente; se llena al cobrar, y ahí la
+/// nota se considera pagada (no hay una columna de estado que se pueda
+/// desincronizar del cobro real).
+class ServiceNotes extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get folio => text().unique()();
+  TextColumn get customerName => text()();
+  TextColumn get brand => text().nullable()();
+  TextColumn get color => text().nullable()();
+  TextColumn get itemType => textEnum<ServiceItemType>()();
+  TextColumn get saleId => text().nullable().references(Sales, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

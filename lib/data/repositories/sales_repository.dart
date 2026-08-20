@@ -68,6 +68,35 @@ class CheckoutResult {
 
 /// Registra ventas. El cobro es **una sola transacción**: venta + líneas + pago
 /// + movimientos de inventario. Si algo falla, no queda nada a medias.
+/// Un renglón de venta ya legible para el historial: el nombre del producto y
+/// su talla/color resueltos, no ids.
+class SaleLineView {
+  const SaleLineView({
+    required this.productName,
+    required this.sku,
+    required this.size,
+    required this.color,
+    required this.qty,
+    required this.unitPriceCents,
+    required this.discountCents,
+    required this.lineTotalCents,
+  });
+
+  final String productName;
+  final String? sku;
+  final String? size;
+  final String? color;
+  final int qty;
+  final int unitPriceCents;
+  final int discountCents;
+  final int lineTotalCents;
+
+  /// "Gorra negra · M / Rojo" — lo que se lee en el renglón.
+  String get titulo {
+    final detalle = [size, color].where((v) => v != null && v.isNotEmpty).join(" / ");
+    return detalle.isEmpty ? productName : "$productName · $detalle";
+  }
+}
 class SalesRepository {
   SalesRepository(this._db);
   final AppDatabase _db;
@@ -402,8 +431,21 @@ class SalesRepository {
     });
   }
 
-  /// Cancela una venta del día: no borra la fila (queda `cancelled`), devuelve
-  /// el stock con movimientos `returned` y lo registra en `audit_log`.
+  /// Cancela una venta: **no borra la fila** (queda `cancelled`), devuelve el
+  /// stock con movimientos `returned` y lo registra en `audit_log`. El folio se
+  /// conserva porque hay un ticket impreso en la calle con ese número, y el
+  /// corte de caja de ese día tiene que seguir cuadrando.
+  ///
+  /// Una venta cancelada **deja de contar** en todos los reportes (filtran por
+  /// `completed/returned/partialReturn`), así que cancelar es lo que se necesita
+  /// para deshacer una venta de prueba o un cobro equivocado.
+  ///
+  /// **Solo se cancela lo que está `completed`.** Lo demás tiene su propio
+  /// camino y cancelarlo aquí ROMPERÍA el inventario:
+  /// - `returned`/`partialReturn`: ya se devolvió stock por esas piezas;
+  ///   regresarlo otra vez lo infla. Va por Devoluciones.
+  /// - `layaway`: el apartado **reserva**, no descuenta; devolver piezas que
+  ///   nunca salieron inventa mercancía. Va por Apartados.
   Future<void> cancelSale({
     required Profile actor,
     required String saleId,
@@ -418,6 +460,17 @@ class SalesRepository {
             ..where((t) => t.id.equals(saleId)))
           .getSingle();
       if (sale.status == SaleStatus.cancelled) return;
+      if (sale.status != SaleStatus.completed) {
+        throw StateError(switch (sale.status) {
+          SaleStatus.layaway =>
+            'Esta venta es un apartado: cancélalo desde Apartados, para que las '
+                'piezas reservadas se liberen bien.',
+          SaleStatus.returned || SaleStatus.partialReturn =>
+            'Esta venta ya tiene devolución. Cancelarla regresaría el inventario '
+                'dos veces. Revísala en Devoluciones.',
+          _ => 'Esta venta no se puede cancelar (estado ${sale.status.name}).',
+        });
+      }
 
       final saleLines = await (_db.select(_db.saleLines)
             ..where((t) => t.saleId.equals(saleId)))
@@ -448,6 +501,78 @@ class SalesRepository {
             detail: Value(reason ?? ''),
           ));
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Historial de ventas
+  // ---------------------------------------------------------------------------
+
+  /// Ventas de un periodo, la más reciente primero. Incluye las **canceladas**
+  /// a propósito: el dueño necesita ver que esa venta existió y que se canceló,
+  /// no que desapareció sin dejar rastro.
+  ///
+  /// [desde] inclusivo, [hasta] exclusivo, como el resto de los reportes.
+  Future<List<Sale>> history({
+    required DateTime desde,
+    required DateTime hasta,
+    int limit = 500,
+  }) =>
+      (_db.select(_db.sales)
+            ..where((t) =>
+                t.createdAt.isBiggerOrEqualValue(desde) &
+                t.createdAt.isSmallerThanValue(hasta))
+            // El folio desempata: dos cobros en el mismo segundo tienen la
+            // misma hora y el orden quedaba a la suerte (se movían de lugar
+            // entre recargas). El folio es consecutivo por equipo.
+            ..orderBy([
+              (t) => OrderingTerm(
+                  expression: t.createdAt, mode: OrderingMode.desc),
+              (t) =>
+                  OrderingTerm(expression: t.folio, mode: OrderingMode.desc),
+            ])
+            ..limit(limit))
+          .get();
+
+  Future<Sale?> saleById(String saleId) =>
+      (_db.select(_db.sales)..where((t) => t.id.equals(saleId)))
+          .getSingleOrNull();
+
+  Future<List<Payment>> paymentsOf(String saleId) =>
+      (_db.select(_db.payments)..where((t) => t.saleId.equals(saleId))).get();
+
+  /// Los renglones de una venta ya legibles: qué producto, qué talla/color y a
+  /// cuánto. La pantalla no debería andar resolviendo nombres a mano.
+  Future<List<SaleLineView>> linesOf(String saleId) async {
+    final rows = await _db.customSelect(
+      'SELECT sl.qty, sl.unit_price_cents, sl.discount_cents, '
+      '       sl.line_total_cents, v.sku, v.size, v.color, p.name '
+      '  FROM sale_lines sl '
+      '  JOIN variants v ON v.id = sl.variant_id '
+      '  JOIN products p ON p.id = v.product_id '
+      ' WHERE sl.sale_id = ? '
+      ' ORDER BY sl.id',
+      variables: [Variable.withString(saleId)],
+      readsFrom: {_db.saleLines, _db.variants, _db.products},
+    ).get();
+    return [
+      for (final r in rows)
+        SaleLineView(
+          productName: r.read<String>('name'),
+          sku: r.read<String?>('sku'),
+          size: r.read<String?>('size'),
+          color: r.read<String?>('color'),
+          qty: r.read<int>('qty'),
+          unitPriceCents: r.read<int>('unit_price_cents'),
+          discountCents: r.read<int>('discount_cents'),
+          lineTotalCents: r.read<int>('line_total_cents'),
+        )
+    ];
+  }
+
+  /// Nombre del cajero y del vendedor de una venta, para el historial.
+  Future<Map<int, String>> profileNames() async {
+    final rows = await _db.select(_db.profiles).get();
+    return {for (final p in rows) p.id: p.name};
   }
 
   Future<String> _devicePrefix() async {

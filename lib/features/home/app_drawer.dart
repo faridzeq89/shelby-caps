@@ -22,10 +22,12 @@ import '../admin/users_screen.dart';
 import '../catalog/catalog_home_screen.dart';
 import '../customers/customers_screen.dart';
 import '../expenses/expenses_screen.dart';
+import '../sales/cash_session_screen.dart';
 import '../sales/gift_cards_screen.dart';
 import '../sales/layaways_screen.dart';
 import '../sales/quotes_screen.dart';
 import '../sales/returns_screen.dart';
+import '../sales/sales_history_screen.dart';
 import '../sales/service_notes_screen.dart';
 import '../suppliers/suppliers_screen.dart';
 
@@ -102,6 +104,14 @@ class AppDrawer extends StatelessWidget {
           _group('Vender'),
           _item(context, Icons.point_of_sale, 'Punto de venta',
               onTap: () => goTab(1)),
+          // Qué se vendió y cuándo, venta por venta. No existía: el Balance da
+          // totales y Devoluciones pide el folio de memoria.
+          _item(context, Icons.receipt_long_outlined, 'Ventas',
+              onTap: () => push(const SalesHistoryScreen())),
+          // La pantalla de corte estaba programada y COMPLETA, pero sin entrada
+          // en ningún menú: no se podía abrir (encontrado el 20 ago 2026).
+          _item(context, Icons.savings_outlined, 'Corte de caja',
+              onTap: () => push(const CashSessionScreen())),
           _item(context, Icons.request_quote_outlined, 'Cotizaciones',
               onTap: () => push(const QuotesScreen())),
           _item(context, Icons.bookmark_border, 'Apartados',

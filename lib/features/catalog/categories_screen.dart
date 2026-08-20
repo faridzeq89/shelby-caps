@@ -32,10 +32,18 @@ class CategoriesScreen extends StatefulWidget {
 class _CategoriesScreenState extends State<CategoriesScreen> {
   late final CatalogRepository _repo =
       CatalogRepository(context.read<AppDatabase>());
+  late final CatalogSyncService _sync = context.read<CatalogSyncService>();
 
   List<Category> _cats = [];
   Map<int, int> _counts = {};
   bool _cargando = true;
+
+  /// Estado de la publicación, a la vista. Sin esto el dueño acomodaba las
+  /// categorías, no llegaba nada a la tienda y no había ninguna señal de por
+  /// qué (pasó el 20 ago 2026: archivó una categoría con la versión anterior,
+  /// que no publicaba, y la tienda siguió mostrándola).
+  bool _publica = true;
+  bool _publicando = false;
 
   Profile get _actor => context.read<AuthController>().currentUser!;
 
@@ -48,18 +56,25 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Future<void> _cargar() async {
     final cats = await _repo.categories();
     final counts = await _repo.categoryProductCounts();
+    final publica = await _sync.publishEnabled();
     if (!mounted) return;
     setState(() {
       _cats = cats;
       _counts = counts;
+      _publica = publica;
       _cargando = false;
     });
   }
 
   /// Publica ya, sin esperar el retraso: el orden y los nombres son lo que ve el
   /// cliente en la tienda, y el dueño acaba de acomodarlos mirando la pantalla.
-  void _publicar() {
-    unawaited(context.read<CatalogSyncService>().publishNow());
+  ///
+  /// Se **espera** el resultado (no se dispara y se olvida) para poder decir en
+  /// pantalla si llegó o no. `publishNow` nunca lanza: guarda el error adentro.
+  Future<void> _publicar() async {
+    setState(() => _publicando = true);
+    await _sync.publishNow();
+    if (mounted) setState(() => _publicando = false);
   }
 
   void _toast(String msg) {
@@ -69,8 +84,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Future<void> _recargarYPublicar(String msg) async {
     await _cargar();
-    _publicar();
     _toast(msg);
+    await _publicar();
   }
 
   // --------------------------------------------------------------------------
@@ -159,7 +174,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     setState(() => _cats = lista);
     try {
       await _repo.reorderCategories(_actor, [for (final c in lista) c.id]);
-      _publicar();
+      await _publicar();
     } catch (e) {
       _toast('$e');
       await _cargar();
@@ -227,20 +242,26 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: SurfaceCard(
-                        child: Row(
-                          children: [
-                            Icon(Icons.swap_vert, color: AppColors.accent),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                              child: Text(
-                                'Arrastra para acomodarlas. Este es el orden con '
-                                'el que salen en la tienda en línea: lo que más '
-                                'vendes, primero.',
-                              ),
+                      child: Column(
+                        children: [
+                          SurfaceCard(
+                            child: Row(
+                              children: [
+                                Icon(Icons.swap_vert, color: AppColors.accent),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Text(
+                                    'Arrastra para acomodarlas. Este es el orden '
+                                    'con el que salen en la tienda en línea: lo '
+                                    'que más vendes, primero.',
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 8),
+                          _estadoTienda(),
+                        ],
                       ),
                     ),
                     Expanded(
@@ -253,6 +274,56 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  /// Si la tienda ya tiene esto o no, y el botón para mandarlo de nuevo.
+  Widget _estadoTienda() {
+    final err = _sync.lastError;
+    final cuando = _sync.lastPublishedAt;
+
+    late final IconData icono;
+    late final Color color;
+    late final String texto;
+    if (!_publica) {
+      icono = Icons.cloud_off;
+      color = AppColors.danger;
+      texto = 'Este equipo NO publica la tienda, así que el orden no va a '
+          'llegar. Se prende en Ajustes → Publicación de la tienda.';
+    } else if (_publicando) {
+      icono = Icons.cloud_upload_outlined;
+      color = AppColors.accent;
+      texto = 'Mandando el orden a la tienda…';
+    } else if (err != null) {
+      icono = Icons.error_outline;
+      color = AppColors.danger;
+      texto = 'No se pudo actualizar la tienda: $err';
+    } else if (cuando != null) {
+      icono = Icons.cloud_done_outlined;
+      color = AppColors.success;
+      texto = 'Tienda actualizada a las '
+          '${cuando.hour.toString().padLeft(2, '0')}:'
+          '${cuando.minute.toString().padLeft(2, '0')}.';
+    } else {
+      icono = Icons.cloud_queue;
+      color = AppColors.inkMuted;
+      texto = 'La tienda se actualiza cuando cambias algo aquí. Si no ves el '
+          'orden en línea, toca Publicar ahora.';
+    }
+
+    return SurfaceCard(
+      child: Row(
+        children: [
+          Icon(icono, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(texto, style: const TextStyle(fontSize: 12.5))),
+          if (_publica && !_publicando)
+            TextButton(
+              onPressed: _publicar,
+              child: const Text('Publicar ahora'),
+            ),
+        ],
+      ),
     );
   }
 

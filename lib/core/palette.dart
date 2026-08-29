@@ -125,11 +125,15 @@ class Palette {
     final hsl = HSLColor.fromColor(seed);
 
     if (dark) {
-      // Fondo casi negro con un punto del tono elegido: se siente de la marca
-      // sin dejar de ser gris oscuro.
-      final bg = HSLColor.fromAHSL(1, hsl.hue, 0.08, 0.075).toColor();
-      final surface = HSLColor.fromAHSL(1, hsl.hue, 0.07, 0.12).toColor();
-      final bar = HSLColor.fromAHSL(1, hsl.hue, 0.10, 0.045).toColor();
+      // Fondo NEGRO puro (lo pidió el dueño): el tono de la marca vive en el
+      // acento y los botones, no en el fondo. La barra también va negra para un
+      // look sin costuras.
+      const bg = Color(0xFF000000);
+      // Las tarjetas quedan un gris muy oscuro con un punto del tono elegido:
+      // tienen que despegarse del negro (una tarjeta negra sobre negro
+      // desaparece), pero sin volver a "agrisar" toda la pantalla.
+      final surface = HSLColor.fromAHSL(1, hsl.hue, 0.07, 0.105).toColor();
+      const bar = Color(0xFF000000);
       final border = HSLColor.fromAHSL(1, hsl.hue, 0.06, 0.20).toColor();
       const ink = Color(0xFFF4F4F7);
       const inkMuted = Color(0xFFA9A9B4);

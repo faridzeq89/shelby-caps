@@ -359,20 +359,48 @@
         (soldOut
           ? '<p class="out">Producto agotado</p>'
           : '<p class="price">' + money(price) + "</p>") +
-        "</div>" +
-        (soldOut ? "" : '<button class="addmini" type="button">Agregar al carrito</button>');
+        "</div>";
       card.querySelector(".thumb").onclick = () => openDetail(p);
       card.querySelector("h3").onclick = () => openDetail(p);
-      const add = card.querySelector(".addmini");
-      if (add) {
-        add.onclick = (e) => {
-          e.stopPropagation();
+      if (!soldOut) {
+        // Control de agregar: "Agregar" que se vuelve un stepper − N + una vez en
+        // el carrito, para poder subir/bajar la cantidad sin abrir la ficha. Si el
+        // producto tiene talla/color que elegir, se abre la ficha (no se adivina).
+        let ctrl;
+        const build = () => {
           const vs = variantsOf(p.id).filter((v) => v.stock > 0);
-          // Con una sola variante disponible se agrega directo; si hay talla o
-          // color que elegir, se abre la ficha para no adivinar por el cliente.
-          if (vs.length === 1) { addToCart(p, vs[0], 1); toast("Agregado al carrito"); }
-          else openDetail(p);
+          if (!vs.length) return document.createElement("span");
+          const needsChoice = vs.length > 1 || !!(vs[0].size || vs[0].color);
+          if (needsChoice) {
+            const b = document.createElement("button");
+            b.className = "addmini"; b.type = "button";
+            b.textContent = "Agregar al carrito";
+            b.onclick = (e) => { e.stopPropagation(); openDetail(p); };
+            return b;
+          }
+          const v = vs[0];
+          const qty = (cart.get(v.id) || {}).qty || 0;
+          if (qty <= 0) {
+            const b = document.createElement("button");
+            b.className = "addmini"; b.type = "button"; b.textContent = "Agregar";
+            b.onclick = (e) => { e.stopPropagation(); addToCart(p, v, 1); swap(); };
+            return b;
+          }
+          const wrap = document.createElement("div");
+          wrap.className = "qstep";
+          wrap.innerHTML =
+            '<button type="button" aria-label="Quitar uno">−</button>' +
+            '<span class="n">' + qty + "</span>" +
+            '<button type="button" aria-label="Agregar uno"' +
+            (qty >= v.stock ? " disabled" : "") + ">+</button>";
+          const btns = wrap.querySelectorAll("button");
+          btns[0].onclick = (e) => { e.stopPropagation(); addToCart(p, v, -1); swap(); };
+          btns[1].onclick = (e) => { e.stopPropagation(); addToCart(p, v, 1); swap(); };
+          return wrap;
         };
+        const swap = () => { const nu = build(); ctrl.replaceWith(nu); ctrl = nu; };
+        ctrl = build();
+        card.appendChild(ctrl);
       }
       grid.appendChild(card);
     }
@@ -487,16 +515,36 @@
           (img ? '<img src="' + esc(img) + '" alt="" />' : '<img alt="" />') +
           '<div class="cinfo">' +
           '<p class="cname">' + esc(l.product.name) + "</p>" +
-          '<p class="cmeta">' + (meta ? esc(meta) + " · " : "") + l.qty + " × " + money(l.unit) +
+          '<p class="cmeta">' + (meta ? esc(meta) + " · " : "") + money(l.unit) + " c/u" +
           (l.wholesale ? " · mayoreo" : "") + "</p>" +
+          '<div class="qstep sm" data-v="' + l.variant.id + '">' +
+          '<button type="button" data-dec aria-label="Quitar uno">−</button>' +
+          '<span class="n">' + l.qty + "</span>" +
+          '<button type="button" data-inc aria-label="Agregar uno"' +
+          (l.qty >= l.variant.stock ? " disabled" : "") + ">+</button>" +
           "</div>" +
+          "</div>" +
+          '<div class="cright">' +
           '<span class="cprice">' + money(l.lineTotal) + "</span>" +
           '<button class="icon" data-del="' + l.variant.id + '" aria-label="Quitar">' +
           '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>' +
-          "</button></div>";
+          "</button></div></div>";
       }).join("");
+      const entryOf = (b) => cart.get(Number(b.closest("[data-v]").dataset.v));
       body.querySelectorAll("[data-del]").forEach((b) => {
         b.onclick = () => { cart.delete(Number(b.dataset.del)); renderCartCount(); openCart(); };
+      });
+      body.querySelectorAll("[data-dec]").forEach((b) => {
+        b.onclick = () => {
+          const e = entryOf(b);
+          if (e) { addToCart(e.product, e.variant, -1); renderCartCount(); openCart(); }
+        };
+      });
+      body.querySelectorAll("[data-inc]").forEach((b) => {
+        b.onclick = () => {
+          const e = entryOf(b);
+          if (e) { addToCart(e.product, e.variant, 1); renderCartCount(); openCart(); }
+        };
       });
       const n = cartCount();
       $("cartTotals").innerHTML =

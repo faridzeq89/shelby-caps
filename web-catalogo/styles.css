@@ -171,12 +171,29 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 .card .addmini:active { background: var(--accent); border-color: var(--accent); }
 .card.soldout .thumb img { filter: grayscale(1); opacity: .55; }
 
+/* Stepper − N + para subir/bajar cantidad (vitrina y carrito) */
+.qstep {
+  display: flex; align-items: center; height: 34px; overflow: hidden;
+  border: 1px solid var(--ink); border-radius: var(--radius); background: #fff;
+}
+.qstep button {
+  width: 40px; height: 100%; border: 0; background: #fff; cursor: pointer;
+  font-size: 20px; font-weight: 800; line-height: 1; color: var(--ink);
+}
+.qstep button:active { background: var(--accent); color: var(--on-accent); }
+.qstep button:disabled { opacity: .3; cursor: default; background: #fff; color: var(--ink); }
+.qstep .n { flex: 1 1 auto; text-align: center; font-weight: 800; font-size: 14px; min-width: 30px; }
+.card .qstep { margin-top: auto; }        /* alinea abajo como el botón */
+.qstep.sm { width: 116px; height: 30px; margin-top: 7px; }
+.qstep.sm button { width: 36px; font-size: 17px; }
+
 /* Vista en lista */
 .grid.list { grid-template-columns: 1fr; gap: 12px; }
 .grid.list .card { flex-direction: row; align-items: center; gap: 12px; }
 .grid.list .thumb { width: 86px; flex: 0 0 86px; }
 .grid.list .card > div { flex: 1 1 auto; min-width: 0; }
 .grid.list .addmini { margin: 0; flex: 0 0 auto; padding: 0 12px; }
+.grid.list .qstep { margin: 0; flex: 0 0 auto; width: 120px; }
 
 /* ---------- Hojas (ficha y carrito) ---------- */
 .sheet { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.35); display: grid; }
@@ -231,6 +248,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 .cline .cname { font-size: 14px; font-weight: 700; margin: 0; }
 .cline .cmeta { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
 .cline .cprice { font-weight: 800; }
+.cline .cright { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: 0 0 auto; }
 .totals { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .totals div { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
 .totals div.grand { font-size: 20px; font-weight: 800; color: var(--ink); }

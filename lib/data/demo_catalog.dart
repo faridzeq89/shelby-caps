@@ -144,10 +144,13 @@ class DemoCatalogService {
       }
 
       if (cap.wholesale) {
-        await repo.setPriceTiers(actor: actor, productId: productId, tiers: [
-          (minQty: 6, priceCents: (cap.priceCents * 0.85).round()),
-          (minQty: 12, priceCents: (cap.priceCents * 0.75).round()),
-        ]);
+        // Un solo precio de mayoreo (75% del menudeo), activado por el total del
+        // carrito contra el umbral global. Ya no son escalones por producto.
+        await repo.setWholesalePrice(
+          actor: actor,
+          productId: productId,
+          priceCents: (cap.priceCents * 0.75).round(),
+        );
       }
 
       // Varias vistas por gorra: es justo lo que el cliente pidió poder subir.
@@ -218,12 +221,11 @@ class DemoCatalogService {
       await (_db.update(_db.products)..where((t) => t.id.equals(p.id)))
           .write(const ProductsCompanion(imagePath: Value(null)));
 
-      // 3) Mayoreo y archivado.
-      await (_db.delete(_db.priceTiers)
-            ..where((t) => t.productId.equals(p.id)))
-          .go();
+      // 3) Mayoreo y archivado. El mayoreo es una columna del producto: se quita
+      // y se archiva en la misma escritura.
       await (_db.update(_db.products)..where((t) => t.id.equals(p.id)))
-          .write(const ProductsCompanion(active: Value(false)));
+          .write(const ProductsCompanion(
+              wholesalePriceCents: Value(null), active: Value(false)));
     }
     return all.length;
   }

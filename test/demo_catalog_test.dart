@@ -76,10 +76,14 @@ void main() {
     }
     expect(sinStock, greaterThan(0));
 
-    // Mayoreo solo en los modelos de línea.
-    final tiers = await db.select(db.priceTiers).get();
-    expect(tiers, isNotEmpty);
-    expect(tiers.every((t) => t.minQty >= 6), isTrue);
+    // Mayoreo solo en algunos modelos: precio único por producto, menor al
+    // menudeo.
+    final conMayoreo = await (db.select(db.products)
+          ..where((t) => t.wholesalePriceCents.isNotNull()))
+        .get();
+    expect(conMayoreo, isNotEmpty);
+    expect(conMayoreo.every((p) => p.wholesalePriceCents! < p.basePriceCents),
+        isTrue);
   });
 
   test('cada gorra queda con portada y galería de varias vistas', () async {
@@ -145,7 +149,11 @@ void main() {
         reason: 'el retiro se registra como ajuste, no borrando historial');
 
     expect(await db.select(db.productImages).get(), isEmpty);
-    expect(await db.select(db.priceTiers).get(), isEmpty);
+    // Al retirar, el mayoreo se limpia (columna del producto).
+    final conMayoreo = await (db.select(db.products)
+          ..where((t) => t.wholesalePriceCents.isNotNull()))
+        .get();
+    expect(conMayoreo, isEmpty);
     expect((await db.select(db.locations).get()).length, 1,
         reason: 'la sucursal no es catálogo');
   });

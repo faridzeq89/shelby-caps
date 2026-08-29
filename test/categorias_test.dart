@@ -198,7 +198,6 @@ void main() {
         products: const [],
         categoryNames: {for (final c in cats) c.id: c.name},
         variants: const [],
-        tiers: const [],
         categories: cats,
       );
 
@@ -225,7 +224,6 @@ void main() {
         products: [p],
         categoryNames: {for (final c in cats) c.id: c.name},
         variants: const [],
-        tiers: const [],
         categories: cats,
       );
       expect(snap.products.single['category'], 'TEMPORADA VIEJA');

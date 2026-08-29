@@ -1,8 +1,8 @@
 /* Tienda web de SHELBY CAPS (solo lectura del catálogo publicado por el POS).
  *
- * El carrito replica la lógica de mayoreo del POS: el precio baja al alcanzar
- * el escalón contando la cantidad **surtida entre variantes del mismo
- * producto**, no por variante suelta.
+ * El carrito replica la lógica de mayoreo del POS: es UN precio de mayoreo por
+ * producto (`wholesale_price_cents`) que se activa por el **total de piezas del
+ * carrito** (todos los modelos suman) al llegar al umbral global.
  *
  * El cobro (Mercado Pago) se enchufa en la fase #8: "Continuar al pago" es
  * todavía un marcador. */
@@ -17,7 +17,7 @@
   // ---- Estado ----
   let PRODUCTS = [];
   let VARIANTS = new Map(); // productId -> [variant]
-  let TIERS = new Map(); // productId -> [tier]
+  let WHOLESALE_THRESHOLD = 10; // piezas en el carrito para activar el mayoreo
   let IMAGES = new Map(); // productId -> [url] (posición 0 = principal)
   let CATEGORIES = []; // [{name, position, active}] tal como las publicó el POS
   let categoryFilter = null; // null = todas
@@ -50,12 +50,9 @@
   }
 
   // ---- Reglas de precio (espejo del POS) ----
-  function wholesalePriceFor(tiers, qty) {
-    let best = null, bestMin = -1;
-    for (const t of tiers || []) {
-      if (qty >= t.min_qty && t.min_qty > bestMin) { bestMin = t.min_qty; best = t.price_cents; }
-    }
-    return best;
+  /** El mayoreo se activa por el TOTAL de piezas del carrito contra el umbral. */
+  function wholesaleActive() {
+    return WHOLESALE_THRESHOLD > 0 && cartCount() >= WHOLESALE_THRESHOLD;
   }
 
   function variantsOf(id) { return VARIANTS.get(id) || []; }
@@ -68,21 +65,14 @@
     return vs.length ? Math.min(...vs.map((v) => v.price_cents)) : null;
   }
 
-  function aggregateByProduct() {
-    const m = new Map();
-    for (const { qty, product } of cart.values()) {
-      m.set(product.id, (m.get(product.id) || 0) + qty);
-    }
-    return m;
-  }
-
   function pricedCart() {
-    const agg = aggregateByProduct();
+    const active = wholesaleActive();
     const lines = [];
     for (const entry of cart.values()) {
-      const w = wholesalePriceFor(TIERS.get(entry.product.id), agg.get(entry.product.id) || 0);
-      const unit = w != null ? w : entry.variant.price_cents;
-      lines.push({ ...entry, unit, wholesale: w != null, lineTotal: unit * entry.qty });
+      const w = entry.product.wholesale_price_cents;
+      const useW = active && w != null;
+      const unit = useW ? w : entry.variant.price_cents;
+      lines.push({ ...entry, unit, wholesale: useW, lineTotal: unit * entry.qty });
     }
     return lines;
   }
@@ -419,13 +409,15 @@
       dots.querySelectorAll(".dot").forEach((d, k) => d.classList.toggle("on", k === i));
     };
 
-    // Escalones de mayoreo, si el producto los tiene.
-    const tiers = (TIERS.get(p.id) || []).slice().sort((a, b) => a.min_qty - b.min_qty);
+    // Precio de mayoreo, si el producto lo tiene. Se activa por el total del
+    // carrito, así que se anuncia con el umbral global.
     const tEl = $("dTiers");
-    tEl.hidden = !tiers.length;
-    if (tiers.length) {
-      tEl.textContent = "Mayoreo: " +
-        tiers.map((t) => "desde " + t.min_qty + " a " + money(t.price_cents) + " c/u").join("  ·  ");
+    const w = p.wholesale_price_cents;
+    tEl.hidden = w == null;
+    if (w != null) {
+      tEl.textContent =
+        "Mayoreo " + money(w) + " c/u (desde " + WHOLESALE_THRESHOLD +
+        " piezas en el carrito)";
     }
 
     drawVariants();
@@ -815,24 +807,30 @@
     renderBanners();
 
     try {
-      const [products, variants, tiers, images, categories] = await Promise.all([
+      const [products, variants, images, categories, settings] =
+          await Promise.all([
         rest("catalog_products?select=*&active=eq.true&order=name.asc"),
         rest("catalog_variants?select=*&active=eq.true"),
-        rest("catalog_price_tiers?select=*"),
         rest("catalog_images?select=*&order=position.asc").catch(() => []),
         // Sin el SQL 0007 esta tabla no existe: se sigue sin ella (categorías
         // deducidas de los productos, alfabéticas).
         rest("catalog_categories?select=*&order=position.asc").catch(() => []),
+        // Sin el SQL 0009 no existe: el umbral queda en su valor por defecto (10)
+        // y `wholesale_price_cents` simplemente no viene en los productos.
+        rest("catalog_settings?select=*&limit=1").catch(() => []),
       ]);
       PRODUCTS = products;
       CATEGORIES = Array.isArray(categories) ? categories : [];
-      VARIANTS = new Map(); TIERS = new Map(); IMAGES = new Map();
+      if (Array.isArray(settings) && settings.length &&
+          settings[0].wholesale_threshold != null) {
+        WHOLESALE_THRESHOLD = settings[0].wholesale_threshold;
+      }
+      VARIANTS = new Map(); IMAGES = new Map();
       const push = (map, key, val) => {
         if (!map.has(key)) map.set(key, []);
         map.get(key).push(val);
       };
       for (const v of variants) push(VARIANTS, v.product_id, v);
-      for (const t of tiers) push(TIERS, t.product_id, t);
       for (const im of images) push(IMAGES, im.product_id, im.url);
 
       if (!PRODUCTS.length) {

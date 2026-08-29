@@ -124,6 +124,11 @@ class Products extends Table {
   TextColumn get brand => text().nullable()();
   TextColumn get description => text().nullable()();
   IntColumn get basePriceCents => integer()();
+  // Precio de **mayoreo** del producto (un único precio, no escalones). Nulo =>
+  // el producto no tiene mayoreo. Se activa por el TOTAL de piezas del carrito
+  // (no por producto) al alcanzar el umbral global `wholesale_threshold` en
+  // AppSettings. Siempre menor al menudeo; la captura lo valida.
+  IntColumn get wholesalePriceCents => integer().nullable()();
   // Servicio (limpieza, personalización): el precio se define DESPUÉS, en la
   // cotización (depende del estado de la prenda), y NO maneja inventario. Se
   // vende agregándolo → guardar cotización → poner precio → pasar a venta.
@@ -182,19 +187,10 @@ class StoreBanners extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-/// Precios por cantidad (**mayoreo**). Un producto puede tener 0..n escalones:
-/// cuando la cantidad del producto en el carrito alcanza `minQty`, el precio
-/// unitario baja a `priceCents`. Con un solo escalón (p. ej. `minQty=10`) se
-/// cubre el mayoreo típico; con varios se logra precio escalonado (≥10, ≥50…).
-/// Aplica a TODAS las variantes del producto y la cantidad se cuenta **surtida**
-/// entre variantes (10 gorras aunque sean tallas/colores distintos).
-class PriceTiers extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get productId => integer().references(Products, #id)();
-  IntColumn get minQty => integer()();
-  IntColumn get priceCents => integer()();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-}
+// El mayoreo ya no es una tabla de escalones por producto. Desde el esquema v18
+// es UN precio por producto (`products.wholesale_price_cents`) que se activa por
+// el TOTAL del carrito contra un umbral global (`app_settings.wholesale_threshold`).
+// La antigua tabla `price_tiers` se eliminó en la migración v17→v18.
 
 /// El SKU real: lo que se vende y se cuenta.
 class Variants extends Table {

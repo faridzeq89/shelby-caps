@@ -1072,6 +1072,36 @@ Verificado al cierre: el dueño publicó desde su teléfono (19:31 UTC) y la tie
 sus 5 categorías **en su orden** y 75 productos. Una categoría activa **sin producto
 publicado no saca botón** (LIMPIEZA): un botón que abre una vitrina vacía es peor que nada.
 
+## Mayoreo por total de carrito (2026-08-29, en `main`)
+El mayoreo se rediseñó de raíz a pedido del dueño. **Antes:** escalones por producto
+(`price_tiers`, `minQty→precio`) que se activaban por la cantidad **surtida de ese
+producto**. **Ahora:** un **precio único por producto** (`products.wholesale_price_cents`)
+que se activa por el **TOTAL de piezas del carrito** (todos los modelos suman) al alcanzar
+un **umbral global** (`app_settings.wholesale_threshold`, default **10**), editable por
+quien puede precios en **Catálogo → botón del rayo (Umbral de mayoreo)**.
+
+- Esquema **v18**: se agrega `products.wholesale_price_cents` (nulo = sin mayoreo) y se
+  **elimina la tabla `price_tiers`**. La migración v17→v18 convierte los escalones al
+  **menor** precio y descarta cualquiera que no sea **menor al menudeo** (era un error de
+  captura viejo). El paso histórico `from<9` recrea `price_tiers` con SQL crudo (ya no hay
+  clase Dart) para que una base muy vieja suba y luego el paso v18 la borre.
+- **Validación (lo que pidió el dueño):** un mayoreo **debe ser menor al menudeo**. El
+  diálogo del editor lo bloquea con mensaje, y `CatalogRepository.setWholesalePrice` lo
+  rechaza con `ArgumentError` (red de seguridad).
+- **UI de venta:** el "Precio mayoreo" se ve **desde el inicio** en la vitrina y en el
+  carrito, **opaco/gris** mientras el carrito no llega al umbral y **verde con rayo** cuando
+  aplica (widget `_WholesaleLabel`). El recálculo (`_reprice`) usa el total del carrito.
+- **Tienda web:** el mayoreo viaja como `wholesale_price_cents` dentro de cada producto y el
+  umbral en el snapshot; la tienda lo activa por total de carrito igual que el POS.
+  `SQL 0009_wholesale.sql` agrega la columna, la tabla `catalog_settings` (umbral, leíble por
+  anon) y `publish_catalog` de 8 argumentos (cadena 6→7→8). `publish()` cae con gracia si
+  `0009` aún no está aplicado (`wholesaleUnsupported`), publicando sin mayoreo web. `catalog_price_tiers`
+  se **conserva** en la nube por compatibilidad con un APK viejo, pero la tienda ya no la lee.
+- **PENDIENTE del dueño:** correr `supabase/migrations/0009_wholesale.sql` en el proyecto
+  `shelbys` y **redeployar `web-catalogo/`** a Cloudflare Pages para que la tienda muestre el
+  mayoreo nuevo. Sin eso, el POS ya funciona; la tienda solo ignora el mayoreo.
+- 298 pruebas verdes, `flutter analyze` limpio. **Sin APK** (a pedido del dueño).
+
 ## Orden mínimo para operar
 Fases 1 → 2 → 3 → 4 → 5 dan una tienda vendiendo con corte de caja. La 6 y 7 se piden la
 primera semana. La 8 (respaldo robusto) es la red de seguridad.
@@ -1086,8 +1116,9 @@ primera semana. La 8 (respaldo robusto) es la red de seguridad.
 - `docs/manual.html` — **manual completo con capturas** (puesta en marcha + uso de todo).
   Generado con capturas reales; publicado como Artifact para ver/compartir/imprimir.
 
-## Estado operativo (2026-08-20)
-Esquema local **v17**. Migraciones de Supabase **0001–0008**. Suite **277 pruebas**,
+## Estado operativo (2026-08-29)
+Esquema local **v18**. Migraciones de Supabase **0001–0009** (la `0009` **pendiente de
+aplicar** en `shelbys`, ver la sección de mayoreo arriba). Suite **298 pruebas**,
 `flutter analyze` limpio.
 
 `0007` y `0008` **ya están aplicadas** en el proyecto `shelbys` (20 ago 2026, por la

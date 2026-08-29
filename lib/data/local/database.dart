@@ -34,7 +34,6 @@ class VariantStockData {
     Products,
     ProductImages,
     StoreBanners,
-    PriceTiers,
     Variants,
     Barcodes,
     InventoryMovements,
@@ -64,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -110,9 +109,18 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(giftCardTransactions);
           }
           if (from < 9) {
-            // v8 → v9: precios por cantidad (mayoreo). Idempotente: crea la tabla
-            // solo si no existe (una base fabricada en pruebas puede ya traerla).
-            await _createTableIfMissing('price_tiers', priceTiers);
+            // v8 → v9: precios por cantidad (mayoreo). La tabla `price_tiers` se
+            // eliminó en v18; para bases que suben desde antes de v9 se recrea con
+            // SQL crudo (ya no hay clase Dart) y el paso v18 más abajo la convierte
+            // al precio único y la borra. Idempotente (IF NOT EXISTS).
+            await customStatement('''
+              CREATE TABLE IF NOT EXISTS price_tiers (
+                id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL,
+                min_qty INTEGER NOT NULL,
+                price_cents INTEGER NOT NULL,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+              )''');
           }
           if (from < 10) {
             // v9 → v10: gastos del negocio.
@@ -152,6 +160,15 @@ class AppDatabase extends _$AppDatabase {
             // el 20 ago 2026 — costo del servicio, notas adicionales, WhatsApp
             // del cliente, talla y cantidad.
             await _addServiceNoteFieldsIfMissing(m);
+          }
+          if (from < 18) {
+            // v17 → v18: el mayoreo deja de ser escalones por producto y pasa a
+            // UN precio por producto activado por el TOTAL del carrito. Agrega la
+            // columna, convierte los escalones existentes al MENOR precio (el
+            // mejor para el cliente) y elimina la tabla `price_tiers`.
+            await _addWholesalePriceIfMissing(m);
+            await _convertTiersToWholesale();
+            await customStatement('DROP TABLE IF EXISTS price_tiers');
           }
           await _createExtras();
         },
@@ -220,6 +237,44 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Agrega `products.wholesale_price_cents` solo si aún no existe. Idempotente:
+  /// una base fabricada en pruebas puede ya traer la columna (nace en v18).
+  Future<void> _addWholesalePriceIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('products')").get();
+    final hasColumn =
+        info.any((r) => r.read<String>('name') == 'wholesale_price_cents');
+    if (!hasColumn) {
+      await m.addColumn(products, products.wholesalePriceCents);
+    }
+  }
+
+  /// Convierte los escalones de mayoreo (`price_tiers`) al precio único por
+  /// producto. Toma el MENOR precio de escalón (el mejor para el cliente) y lo
+  /// escribe en `products.wholesale_price_cents`. Descarta lo que quede igual o
+  /// mayor al menudeo (un "mayoreo" así es error de captura). Idempotente y
+  /// tolerante: si `price_tiers` no existe, no hace nada.
+  Future<void> _convertTiersToWholesale() async {
+    final exists = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='price_tiers'",
+    ).getSingleOrNull();
+    if (exists == null) return;
+    await customStatement('''
+      UPDATE products SET wholesale_price_cents = (
+        SELECT MIN(pt.price_cents) FROM price_tiers pt
+        WHERE pt.product_id = products.id
+      )
+      WHERE EXISTS (
+        SELECT 1 FROM price_tiers pt WHERE pt.product_id = products.id
+      )
+    ''');
+    // Un mayoreo que no es menor al menudeo no debe sobrevivir la migración.
+    await customStatement('''
+      UPDATE products SET wholesale_price_cents = NULL
+      WHERE wholesale_price_cents IS NOT NULL
+        AND wholesale_price_cents >= base_price_cents
+    ''');
+  }
+
   /// Agrega `products.supplier_id` solo si aún no existe. Idempotente.
   Future<void> _addSupplierIdIfMissing(Migrator m) async {
     final info = await customSelect("PRAGMA table_info('products')").get();
@@ -244,9 +299,6 @@ class AppDatabase extends _$AppDatabase {
   /// Índices, la vista `variant_stock` y los triggers de inmutabilidad del
   /// ledger. Idempotente (IF NOT EXISTS) para servir en creación y upgrade.
   Future<void> _createExtras() async {
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_price_tiers_product '
-        'ON price_tiers (product_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_expenses_created '
         'ON expenses (created_at)');

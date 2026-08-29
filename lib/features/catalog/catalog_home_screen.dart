@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_dropdown.dart';
+import '../../core/permissions.dart';
 import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
@@ -126,6 +127,67 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
     );
   }
 
+  /// Edita el **umbral global de mayoreo**: cuántas piezas debe tener el carrito
+  /// (todos los modelos suman) para que el precio de mayoreo se active. Es una
+  /// sola cifra para toda la tienda.
+  Future<void> _editWholesaleThreshold() async {
+    final current = await _repo.wholesaleThreshold();
+    if (!mounted) return;
+    final ctrl = TextEditingController(text: current.toString());
+    final saved = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Umbral de mayoreo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'Piezas en el carrito (sumando todos los modelos) para que el '
+                'precio de mayoreo se active.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                  labelText: 'Piezas', suffixText: 'pzas', isDense: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              final n = int.tryParse(ctrl.text.trim()) ?? 0;
+              if (n < 1) return;
+              Navigator.of(context).pop(n);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (saved == null || !mounted) return;
+    try {
+      await _repo.setWholesaleThreshold(_actor, saved);
+      if (mounted) {
+        context.read<CatalogSyncService>().publishSoon();
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Mayoreo se activa desde $saved piezas')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
   Future<void> _newProduct() async {
     final productId = await showDialog<int>(
       context: context,
@@ -192,6 +254,12 @@ class _CatalogHomeScreenState extends State<CatalogHomeScreen> {
             icon: const Icon(Icons.share_outlined),
             onPressed: _share,
           ),
+          if (Permissions.canEditPrices(_actor.role))
+            IconButton(
+              tooltip: 'Umbral de mayoreo',
+              icon: const Icon(Icons.bolt),
+              onPressed: _editWholesaleThreshold,
+            ),
           IconButton(
             tooltip: 'Operaciones (recepción, ajustes, conteo)',
             icon: const Icon(Icons.tune),

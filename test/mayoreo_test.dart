@@ -7,31 +7,19 @@ import 'package:pos_boutique/data/repositories/catalog_repository.dart';
 import 'package:pos_boutique/data/repositories/sales_repository.dart';
 
 void main() {
-  group('wholesalePriceFor (resolución de mayoreo)', () {
-    PriceTier tier(int minQty, int priceCents) => PriceTier(
-        id: minQty, productId: 1, minQty: minQty, priceCents: priceCents,
-        createdAt: DateTime(2026));
-
-    test('sin escalones o por debajo del umbral: precio normal (null)', () {
-      expect(wholesalePriceFor(const [], 100), isNull);
-      expect(wholesalePriceFor([tier(10, 15000)], 9), isNull);
+  group('wholesaleActive (mayoreo por total de carrito)', () {
+    test('se activa al alcanzar el umbral, no antes', () {
+      expect(wholesaleActive(9, 10), isFalse);
+      expect(wholesaleActive(10, 10), isTrue);
+      expect(wholesaleActive(25, 10), isTrue);
     });
 
-    test('al alcanzar el umbral aplica el escalón', () {
-      expect(wholesalePriceFor([tier(10, 15000)], 10), 15000);
-      expect(wholesalePriceFor([tier(10, 15000)], 25), 15000);
-    });
-
-    test('escalonado: toma el mayor umbral alcanzado (orden indistinto)', () {
-      final tiers = [tier(50, 12000), tier(10, 15000)];
-      expect(wholesalePriceFor(tiers, 9), isNull);
-      expect(wholesalePriceFor(tiers, 10), 15000);
-      expect(wholesalePriceFor(tiers, 49), 15000);
-      expect(wholesalePriceFor(tiers, 50), 12000);
+    test('umbral <= 0 apaga el mayoreo', () {
+      expect(wholesaleActive(100, 0), isFalse);
     });
   });
 
-  group('CatalogRepository.setPriceTiers', () {
+  group('CatalogRepository.setWholesalePrice', () {
     late AppDatabase db;
     late CatalogRepository repo;
 
@@ -55,38 +43,92 @@ void main() {
           name: 'Shelby', categoryId: catId, basePriceCents: 20000));
     }
 
-    test('guarda, ordena, deduplica y quita escalones', () async {
+    Future<Product> productRow(int pid) =>
+        (db.select(db.products)..where((t) => t.id.equals(pid))).getSingle();
+
+    test('guarda el precio de mayoreo y luego lo quita con null', () async {
       final actor = await admin();
       final pid = await product();
 
-      await repo.setPriceTiers(actor: actor, productId: pid, tiers: [
-        (minQty: 50, priceCents: 12000),
-        (minQty: 10, priceCents: 15000),
-        (minQty: 10, priceCents: 14000), // duplicado: gana el último
-        (minQty: 1, priceCents: 9999), // inválido: minQty<=1
-      ]);
+      await repo.setWholesalePrice(
+          actor: actor, productId: pid, priceCents: 15000);
+      expect((await productRow(pid)).wholesalePriceCents, 15000);
 
-      var tiers = await repo.priceTiersOf(pid);
-      expect(tiers.map((t) => t.minQty).toList(), [10, 50]); // ordenado
-      expect(tiers.firstWhere((t) => t.minQty == 10).priceCents, 14000);
-
-      // Reemplazo total: lista vacía quita el mayoreo.
-      await repo.setPriceTiers(actor: actor, productId: pid, tiers: []);
-      tiers = await repo.priceTiersOf(pid);
-      expect(tiers, isEmpty);
+      await repo.setWholesalePrice(
+          actor: actor, productId: pid, priceCents: null);
+      expect((await productRow(pid)).wholesalePriceCents, isNull);
     });
 
-    test('el cajero no puede editar escalones', () async {
+    test('rechaza un mayoreo que no sea menor al menudeo', () async {
+      final actor = await admin();
+      final pid = await product();
+      // Igual al menudeo: inválido.
+      expect(
+        () => repo.setWholesalePrice(
+            actor: actor, productId: pid, priceCents: 20000),
+        throwsA(isA<ArgumentError>()),
+      );
+      // Mayor al menudeo: inválido.
+      expect(
+        () => repo.setWholesalePrice(
+            actor: actor, productId: pid, priceCents: 25000),
+        throwsA(isA<ArgumentError>()),
+      );
+      // No debió guardar nada.
+      expect((await productRow(pid)).wholesalePriceCents, isNull);
+    });
+
+    test('el cajero no puede editar el mayoreo', () async {
       final pid = await product();
       final cid = await db.insertProfile(ProfilesCompanion.insert(
           name: 'Caja', role: UserRole.cashier, pinSalt: 's', pinHash: 'h'));
-      final caja =
-          await (db.select(db.profiles)..where((t) => t.id.equals(cid))).getSingle();
+      final caja = await (db.select(db.profiles)..where((t) => t.id.equals(cid)))
+          .getSingle();
       expect(
-        () => repo.setPriceTiers(
-            actor: caja, productId: pid, tiers: [(minQty: 10, priceCents: 15000)]),
+        () => repo.setWholesalePrice(
+            actor: caja, productId: pid, priceCents: 15000),
         throwsA(isA<PermissionException>()),
       );
+    });
+  });
+
+  group('CatalogRepository umbral global', () {
+    late AppDatabase db;
+    late CatalogRepository repo;
+
+    setUp(() {
+      db = AppDatabase(NativeDatabase.memory());
+      repo = CatalogRepository(db);
+    });
+    tearDown(() => db.close());
+
+    Future<Profile> admin() async {
+      final id = await db.insertProfile(ProfilesCompanion.insert(
+          name: 'Jefe', role: UserRole.admin, pinSalt: 's', pinHash: 'h'));
+      return (db.select(db.profiles)..where((t) => t.id.equals(id))).getSingle();
+    }
+
+    test('sin configurar cae al default (10) y luego persiste el cambio',
+        () async {
+      expect(await repo.wholesaleThreshold(), wholesaleThresholdFallback);
+      final actor = await admin();
+      await repo.setWholesaleThreshold(actor, 6);
+      expect(await repo.wholesaleThreshold(), 6);
+    });
+
+    test('un umbral menor a 1 se rechaza', () async {
+      final actor = await admin();
+      expect(() => repo.setWholesaleThreshold(actor, 0),
+          throwsA(isA<ArgumentError>()));
+    });
+
+    test('el cajero no puede cambiar el umbral', () async {
+      final cid = await db.insertProfile(ProfilesCompanion.insert(
+          name: 'Caja', role: UserRole.cashier, pinSalt: 's', pinHash: 'h'));
+      final caja = await (db.select(db.profiles)..where((t) => t.id.equals(cid)))
+          .getSingle();
+      expect(() => repo.setWholesaleThreshold(caja, 5),
+          throwsA(isA<PermissionException>()));
     });
   });
 
@@ -102,26 +144,34 @@ void main() {
     });
     tearDown(() => db.close());
 
-    test('cantidad surtida cruza el umbral y el precio de venta es el mayoreo',
+    test('el total del carrito (varios modelos) cruza el umbral y aplica mayoreo',
         () async {
       final adminId = await db.insertProfile(ProfilesCompanion.insert(
           name: 'Jefe', role: UserRole.admin, pinSalt: 's', pinHash: 'h'));
-      final actor =
-          await (db.select(db.profiles)..where((t) => t.id.equals(adminId))).getSingle();
+      final actor = await (db.select(db.profiles)
+            ..where((t) => t.id.equals(adminId)))
+          .getSingle();
       final locId =
           await db.into(db.locations).insert(LocationsCompanion.insert(name: 'P'));
       final catId = await db
           .into(db.categories)
           .insert(CategoriesCompanion.insert(name: 'Gorras'));
-      final pid = await db.into(db.products).insert(ProductsCompanion.insert(
-          name: 'Shelby', categoryId: catId, basePriceCents: 20000));
 
-      // Dos variantes (negra/blanca) del mismo modelo.
-      final vNegra = await db.into(db.variants).insert(
-          VariantsCompanion.insert(productId: pid, sku: 'SHELBY-NEG'));
-      final vBlanca = await db.into(db.variants).insert(
-          VariantsCompanion.insert(productId: pid, sku: 'SHELBY-BLA'));
-      for (final vid in [vNegra, vBlanca]) {
+      // Dos modelos DISTINTOS, cada uno con su propio precio de mayoreo.
+      final pidA = await db.into(db.products).insert(ProductsCompanion.insert(
+          name: 'Modelo A', categoryId: catId, basePriceCents: 20000));
+      final pidB = await db.into(db.products).insert(ProductsCompanion.insert(
+          name: 'Modelo B', categoryId: catId, basePriceCents: 30000));
+      await catalog.setWholesalePrice(
+          actor: actor, productId: pidA, priceCents: 15000);
+      await catalog.setWholesalePrice(
+          actor: actor, productId: pidB, priceCents: 24000);
+
+      final vA = await db.into(db.variants).insert(
+          VariantsCompanion.insert(productId: pidA, sku: 'A-1'));
+      final vB = await db.into(db.variants).insert(
+          VariantsCompanion.insert(productId: pidB, sku: 'B-1'));
+      for (final vid in [vA, vB]) {
         await db.into(db.inventoryMovements).insert(
             InventoryMovementsCompanion.insert(
                 variantId: vid,
@@ -129,39 +179,42 @@ void main() {
                 qty: 100,
                 type: MovementType.receipt));
       }
-      final pNegra =
-          await (db.select(db.products)..where((t) => t.id.equals(pid))).getSingle();
-      final varNegra = await (db.select(db.variants)
-            ..where((t) => t.id.equals(vNegra)))
-          .getSingle();
-      final varBlanca = await (db.select(db.variants)
-            ..where((t) => t.id.equals(vBlanca)))
-          .getSingle();
+      final prodA =
+          await (db.select(db.products)..where((t) => t.id.equals(pidA))).getSingle();
+      final prodB =
+          await (db.select(db.products)..where((t) => t.id.equals(pidB))).getSingle();
+      final varA =
+          await (db.select(db.variants)..where((t) => t.id.equals(vA))).getSingle();
+      final varB =
+          await (db.select(db.variants)..where((t) => t.id.equals(vB))).getSingle();
 
-      await catalog.setPriceTiers(
-          actor: actor, productId: pid, tiers: [(minQty: 10, priceCents: 15000)]);
-
-      // Carrito surtido: 6 negras + 6 blancas = 12 ≥ 10 → mayoreo para ambas.
-      final tiers = await catalog.priceTiersOf(pid);
+      // 6 del modelo A + 6 del modelo B = 12 ≥ 10 → mayoreo para AMBOS aunque
+      // ninguno por sí solo llegue a 10 (antes no habría aplicado).
+      final threshold = await catalog.wholesaleThreshold();
       final totalQty = 6 + 6;
-      final unit = wholesalePriceFor(tiers, totalQty);
-      expect(unit, 15000);
+      expect(wholesaleActive(totalQty, threshold), isTrue);
 
       final r = await sales.checkout(
         cashier: actor,
         locationId: locId,
         lines: [
           CheckoutLine(
-              product: pNegra, variant: varNegra, qty: 6, unitPriceCents: unit!),
+              product: prodA,
+              variant: varA,
+              qty: 6,
+              unitPriceCents: prodA.wholesalePriceCents!),
           CheckoutLine(
-              product: pNegra, variant: varBlanca, qty: 6, unitPriceCents: unit),
+              product: prodB,
+              variant: varB,
+              qty: 6,
+              unitPriceCents: prodB.wholesalePriceCents!),
         ],
-        payments: const [PaymentInput(PaymentMethod.cash, 180000)],
+        payments: const [PaymentInput(PaymentMethod.cash, 234000)],
       );
 
-      // 12 × 15000 = 180000 (no 12 × 20000 = 240000).
-      expect(r.grossCents, 180000);
-      expect(r.totalCents, 180000);
+      // 6×15000 + 6×24000 = 90000 + 144000 = 234000 (no el menudeo 300000).
+      expect(r.grossCents, 234000);
+      expect(r.totalCents, 234000);
     });
   });
 }

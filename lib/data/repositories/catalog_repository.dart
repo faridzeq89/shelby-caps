@@ -7,21 +7,15 @@ import '../local/database.dart';
 int effectivePrice(Product product, Variant variant) =>
     variant.priceCentsOverride ?? product.basePriceCents;
 
-/// Precio de **mayoreo** aplicable para [qty] unidades de un producto, dados
-/// sus escalones [tiers]. Devuelve el precio del mayor escalón cuyo `minQty` ya
-/// se alcanzó, o `null` si ninguno aplica (se usa el precio normal). El orden de
-/// [tiers] no importa.
-int? wholesalePriceFor(List<PriceTier> tiers, int qty) {
-  int? best;
-  var bestMin = -1;
-  for (final t in tiers) {
-    if (qty >= t.minQty && t.minQty > bestMin) {
-      bestMin = t.minQty;
-      best = t.priceCents;
-    }
-  }
-  return best;
-}
+/// Umbral global de mayoreo por defecto: al llegar a 10 piezas en el carrito
+/// (sin importar el modelo) el mayoreo se activa. El dueño lo puede cambiar.
+const int wholesaleThresholdFallback = 10;
+
+/// ¿El mayoreo está activo? Se activa por el **total de piezas del carrito**
+/// (todos los productos suman), no por producto: cuando [cartTotalQty] alcanza
+/// el umbral global [threshold]. Un umbral <= 0 apaga el mayoreo.
+bool wholesaleActive(int cartTotalQty, int threshold) =>
+    threshold > 0 && cartTotalQty >= threshold;
 
 /// Operaciones de catálogo (lado administrador). Los cambios sensibles exigen
 /// rol y quedan en `audit_log`.
@@ -78,12 +72,16 @@ class CatalogRepository {
       (_db.select(_db.variants)..where((t) => t.productId.equals(productId)))
           .get();
 
-  /// Escalones de mayoreo de un producto, ordenados por cantidad mínima.
-  Future<List<PriceTier>> priceTiersOf(int productId) =>
-      (_db.select(_db.priceTiers)
-            ..where((t) => t.productId.equals(productId))
-            ..orderBy([(t) => OrderingTerm(expression: t.minQty)]))
-          .get();
+  static const _wholesaleThresholdKey = 'wholesale_threshold';
+
+  /// Umbral global de mayoreo (piezas en el carrito para activarlo). Si no está
+  /// configurado, cae a [wholesaleThresholdFallback] (10).
+  Future<int> wholesaleThreshold() async {
+    final row = await (_db.select(_db.appSettings)
+          ..where((t) => t.key.equals(_wholesaleThresholdKey)))
+        .getSingleOrNull();
+    return int.tryParse(row?.value ?? '') ?? wholesaleThresholdFallback;
+  }
 
   /// Existencia disponible (on_hand − reserved) sumada por producto, en una sola
   /// consulta sobre la vista `variant_stock`. Para la lista de inventario.
@@ -498,40 +496,53 @@ class CatalogRepository {
     });
   }
 
-  /// Reemplaza TODOS los escalones de mayoreo de un producto por [tiers] (lista
-  /// vacía = quitar el mayoreo). Cada escalón es `(minQty, priceCents)`. Exige
-  /// permiso de precios y queda en auditoría. Ignora escalones con `minQty<=1` o
-  /// `priceCents<0`, y deduplica por `minQty` (gana el último).
-  Future<void> setPriceTiers({
+  /// Fija (o quita) el **precio de mayoreo** de un producto. [priceCents] nulo
+  /// quita el mayoreo. Exige permiso de precios y queda en auditoría. El precio
+  /// debe ser **menor al menudeo** del producto: un mayoreo igual o mayor es
+  /// siempre error de captura, así que se rechaza con [ArgumentError] en vez de
+  /// guardarse silenciosamente al revés.
+  Future<void> setWholesalePrice({
     required Profile actor,
     required int productId,
-    required List<({int minQty, int priceCents})> tiers,
+    required int? priceCents,
   }) async {
     if (!Permissions.canEditPrices(actor.role)) {
       throw PermissionException(
           'El rol ${actor.role.name} no puede editar precios');
     }
-    final clean = <int, int>{}; // minQty -> priceCents
-    for (final t in tiers) {
-      if (t.minQty <= 1 || t.priceCents < 0) continue;
-      clean[t.minQty] = t.priceCents;
+    if (priceCents != null) {
+      if (priceCents < 0) {
+        throw ArgumentError('El precio de mayoreo no puede ser negativo');
+      }
+      final product = await (_db.select(_db.products)
+            ..where((t) => t.id.equals(productId)))
+          .getSingleOrNull();
+      if (product != null && priceCents >= product.basePriceCents) {
+        final menudeo = (product.basePriceCents / 100).toStringAsFixed(2);
+        throw ArgumentError('El mayoreo debe ser menor al menudeo (\$$menudeo)');
+      }
     }
     await _db.transaction(() async {
-      await (_db.delete(_db.priceTiers)
-            ..where((t) => t.productId.equals(productId)))
-          .go();
-      for (final entry in clean.entries) {
-        await _db.into(_db.priceTiers).insert(
-              PriceTiersCompanion.insert(
-                productId: productId,
-                minQty: entry.key,
-                priceCents: entry.value,
-              ),
-            );
-      }
-      await _audit(actor, 'set_price_tiers', 'product', productId.toString(),
-          '${clean.length} escalones');
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(wholesalePriceCents: Value(priceCents)));
+      await _audit(actor, 'set_wholesale_price', 'product', productId.toString(),
+          priceCents == null ? 'quitado' : 'price=$priceCents');
     });
+  }
+
+  /// Cambia el **umbral global** de mayoreo (piezas en el carrito para activar
+  /// el mayoreo de todo el carrito). Exige permiso de precios y audita.
+  Future<void> setWholesaleThreshold(Profile actor, int qty) async {
+    if (!Permissions.canEditPrices(actor.role)) {
+      throw PermissionException(
+          'El rol ${actor.role.name} no puede editar precios');
+    }
+    if (qty < 1) throw ArgumentError('El umbral debe ser al menos 1');
+    await _db.into(_db.appSettings).insertOnConflictUpdate(
+        AppSettingsCompanion.insert(
+            key: _wholesaleThresholdKey, value: qty.toString()));
+    await _audit(actor, 'set_wholesale_threshold', 'app_settings',
+        _wholesaleThresholdKey, 'qty=$qty');
   }
 
   /// Cambia el nombre del producto. Es el que ve el cliente en el ticket y en
@@ -816,8 +827,9 @@ class CatalogRepository {
   /// archivarlo.
   ///
   /// Se lleva todo lo que cuelga del producto en una sola transacción: códigos,
-  /// líneas de conteo, fotos, escalones de mayoreo, **sus movimientos de
-  /// inventario**, sus variantes y el producto. Los movimientos exigen abrir el
+  /// líneas de conteo, fotos, **sus movimientos de inventario**, sus variantes y
+  /// el producto (el precio de mayoreo es una columna del producto, se va con él).
+  /// Los movimientos exigen abrir el
   /// candado del ledger ([AppDatabase.withLedgerDeleteAllowed]) — se abre aquí,
   /// después de verificar que no hay ventas, y se vuelve a cerrar al salir.
   Future<void> deleteProduct(Profile actor, int productId) async {
@@ -849,9 +861,6 @@ class CatalogRepository {
             .go();
         await (_db.delete(_db.variants)..where((t) => t.id.equals(v.id))).go();
       }
-      await (_db.delete(_db.priceTiers)
-            ..where((t) => t.productId.equals(productId)))
-          .go();
       // Las fotos: se borran las filas. El archivo en disco lo limpia
       // `ImageService` aparte; una foto huérfana no rompe nada, una fila sí
       // (queda apuntando a un producto que ya no existe).

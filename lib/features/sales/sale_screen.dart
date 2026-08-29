@@ -81,8 +81,9 @@ class SaleScreenState extends State<SaleScreen> {
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _lines = <_CartLine>[];
-  // Escalones de mayoreo por producto, cacheados al entrar al carrito.
-  final Map<int, List<PriceTier>> _tiersByProduct = {};
+  // Umbral global de mayoreo: piezas en el carrito (todos los modelos suman)
+  // para que el mayoreo se active. Se carga al entrar a la pantalla.
+  int _wholesaleThreshold = wholesaleThresholdFallback;
   int? _locationId;
   int _lowStock = 0;
   Customer? _customer; // cliente opcional asignado a la venta
@@ -132,9 +133,17 @@ class SaleScreenState extends State<SaleScreen> {
     _db.select(_db.locations).getSingleOrNull().then((loc) {
       if (mounted) setState(() => _locationId = loc?.id);
     });
+    _catalog.wholesaleThreshold().then((t) {
+      if (mounted) setState(() => _wholesaleThreshold = t);
+    });
     _refreshLowStock();
     _loadCatalog();
   }
+
+  /// ¿El mayoreo está activo ahora mismo? Depende del total de piezas del
+  /// carrito contra el umbral global. Lo usan la vitrina y el carrito para
+  /// mostrar el "Precio mayoreo" apagado o encendido.
+  bool get _wholesaleOn => wholesaleActive(_itemCount, _wholesaleThreshold);
 
   Future<void> _loadCatalog() async {
     final cats = await _catalog.categories(activeOnly: true);
@@ -198,36 +207,19 @@ class SaleScreenState extends State<SaleScreen> {
       }
       _reprice();
     });
-    _ensureTiers(product.id);
   }
 
-  /// Carga (una vez) los escalones de mayoreo de un producto y recalcula. Si el
-  /// producto no tiene escalones, guarda una lista vacía para no reconsultar.
-  Future<void> _ensureTiers(int productId) async {
-    if (_tiersByProduct.containsKey(productId)) return;
-    final tiers = await _catalog.priceTiersOf(productId);
-    if (!mounted) return;
-    setState(() {
-      _tiersByProduct[productId] = tiers;
-      _reprice();
-    });
-  }
-
-  /// Recalcula el precio unitario de cada línea según el mayoreo. La cantidad
-  /// se cuenta **surtida** por producto (todas las variantes del mismo modelo
-  /// suman hacia el umbral), así 6 negras + 6 blancas activan el mayoreo de 10.
+  /// Recalcula el precio unitario de cada línea según el mayoreo. El mayoreo se
+  /// activa por el **total de piezas del carrito** (todos los modelos suman): al
+  /// alcanzar el umbral global, cada producto que tenga precio de mayoreo cae a
+  /// ese precio; los que no lo tengan siguen en menudeo.
   void _reprice() {
-    final qtyByProduct = <int, int>{};
+    final active = wholesaleActive(_itemCount, _wholesaleThreshold);
     for (final l in _lines) {
-      qtyByProduct[l.product.id] = (qtyByProduct[l.product.id] ?? 0) + l.qty;
-    }
-    for (final l in _lines) {
-      final tiers = _tiersByProduct[l.product.id];
-      final wholesale = (tiers == null || tiers.isEmpty)
-          ? null
-          : wholesalePriceFor(tiers, qtyByProduct[l.product.id]!);
-      l.unitPriceCents = wholesale ?? l.retailUnitPriceCents;
-      l.wholesaleApplied = wholesale != null;
+      final wholesale = l.product.wholesalePriceCents;
+      final applies = active && wholesale != null;
+      l.unitPriceCents = applies ? wholesale : l.retailUnitPriceCents;
+      l.wholesaleApplied = applies;
     }
   }
 
@@ -824,13 +816,14 @@ class SaleScreenState extends State<SaleScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 160,
-        mainAxisExtent: 190,
+        mainAxisExtent: 208,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
       itemCount: _products.length,
       itemBuilder: (_, i) => _ProductTile(
         product: _products[i],
+        wholesaleOn: _wholesaleOn,
         onTap: () => _onTapProduct(_products[i]),
       ),
     );
@@ -927,6 +920,17 @@ class SaleScreenState extends State<SaleScreen> {
                             fontSize: 15, fontWeight: FontWeight.w900)),
                   ],
                 ),
+                // Precio de mayoreo visible desde el inicio (opaco): solo como
+                // anticipo mientras aún no aplica; cuando aplica, el sello de
+                // arriba y el precio unitario ya en mayoreo lo dicen.
+                if (line.product.wholesalePriceCents != null &&
+                    !line.wholesaleApplied) ...[
+                  const SizedBox(height: 3),
+                  _WholesaleLabel(
+                    priceCents: line.product.wholesalePriceCents!,
+                    active: false,
+                  ),
+                ],
               ],
             ),
           ),
@@ -1271,10 +1275,64 @@ class SaleScreenState extends State<SaleScreen> {
   }
 }
 
+/// Etiqueta de "Precio mayoreo" visible **desde el inicio**: apagada (gris y
+/// semitransparente) mientras el carrito no llega al umbral, y encendida (verde,
+/// con rayo) cuando el mayoreo ya aplica. Así el cliente ve el precio de mayoreo
+/// antes de juntar las piezas y entiende que aún no está activo.
+class _WholesaleLabel extends StatelessWidget {
+  const _WholesaleLabel({
+    required this.priceCents,
+    required this.active,
+    this.compact = false,
+  });
+  final int priceCents;
+  final bool active;
+  // En la vitrina (mosaico angosto) va "Mayoreo $X"; en el carrito, el texto
+  // completo "Precio mayoreo $X".
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color =
+        active ? AppColors.success : theme.colorScheme.onSurfaceVariant;
+    final label = compact ? 'Mayoreo' : 'Precio mayoreo';
+    return Opacity(
+      opacity: active ? 1 : 0.45,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bolt, size: 13, color: color),
+          const SizedBox(width: 2),
+          Flexible(
+            child: Text(
+              '$label ${money(priceCents)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+                decoration: active ? null : TextDecoration.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Mosaico de producto de la vitrina: foto (o marcador), nombre y precio.
 class _ProductTile extends StatelessWidget {
-  const _ProductTile({required this.product, required this.onTap});
+  const _ProductTile({
+    required this.product,
+    required this.wholesaleOn,
+    required this.onTap,
+  });
   final Product product;
+  // ¿El mayoreo del carrito está activo? Prende el "Precio mayoreo" del mosaico.
+  final bool wholesaleOn;
   final VoidCallback onTap;
 
   @override
@@ -1316,6 +1374,14 @@ class _ProductTile extends StatelessWidget {
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                         color: AppColors.accent)),
+                if (product.wholesalePriceCents != null) ...[
+                  const SizedBox(height: 2),
+                  _WholesaleLabel(
+                    priceCents: product.wholesalePriceCents!,
+                    active: wholesaleOn,
+                    compact: true,
+                  ),
+                ],
               ],
             ),
           ),

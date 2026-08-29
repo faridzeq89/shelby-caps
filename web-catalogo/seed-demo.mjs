@@ -91,11 +91,15 @@ const DESCRIPCIONES = {
 
 const products = [];
 const variants = [];
-const tiers = [];
 const images = [];
+let conMayoreo = 0;
 
 CAPS.forEach(([name, category, price, stock, base, accent, label], i) => {
   const id = i + 1;
+  // Mayoreo en los modelos de línea: un solo precio (75% del menudeo), que la
+  // tienda activa por total de carrito contra el umbral global.
+  const esLinea = category === "New Era G5" || category === "Réplica Premium";
+  if (esLinea) conMayoreo++;
   products.push({
     id,
     name,
@@ -103,6 +107,7 @@ CAPS.forEach(([name, category, price, stock, base, accent, label], i) => {
     category,
     description: DESCRIPCIONES[name] || null,
     base_price_cents: price,
+    wholesale_price_cents: esLinea ? Math.round(price * 0.75) : null,
     tax_rate_bps: 1600,
     active: true,
   });
@@ -118,12 +123,6 @@ CAPS.forEach(([name, category, price, stock, base, accent, label], i) => {
     stock,
     active: true,
   });
-
-  // Mayoreo en los modelos de línea, como el POS lo publica.
-  if (category === "New Era G5" || category === "Réplica Premium") {
-    tiers.push({ product_id: id, min_qty: 6, price_cents: Math.round(price * 0.85) });
-    tiers.push({ product_id: id, min_qty: 12, price_cents: Math.round(price * 0.75) });
-  }
 
   // Varias vistas por gorra: eso es justo lo que el cliente pidió poder subir.
   const vistas = category === "Accesorios"
@@ -150,11 +149,15 @@ const base = {
   p_secret: secret,
   p_products: products,
   p_variants: variants,
-  p_tiers: tiers,
+  p_tiers: [], // el mayoreo viaja en cada producto (wholesale_price_cents)
 };
 
 let withImages = true;
-let res = await publish({ ...base, p_images: images });
+let res = await publish({
+  ...base,
+  p_images: images,
+  p_wholesale_threshold: 10,
+});
 
 // Si todavía no se corrió 0003_catalog_images.sql, la función de 5 argumentos
 // no existe (PostgREST responde PGRST202). Publicamos sin fotos en vez de fallar.
@@ -170,7 +173,7 @@ if (!res.ok) {
 
 console.log(
   `Catálogo de prueba publicado: ${products.length} gorras, ` +
-  `${tiers.length} escalones de mayoreo, ` +
+  `${conMayoreo} con precio de mayoreo, ` +
   `${CAPS.filter((c) => c[3] === 0).length} agotadas.`
 );
 console.log(

@@ -94,7 +94,7 @@ void main() {
           reason: 'los movimientos del producto se van con él');
     });
 
-    test('se lleva códigos, fotos y escalones de mayoreo', () async {
+    test('se lleva códigos, fotos y el precio de mayoreo', () async {
       final admin = await user(UserRole.admin);
       final locId = await location();
       final (p, v) = await gorra(locId);
@@ -102,14 +102,15 @@ void main() {
           variantId: v.id, code: 'MB0000000001', source: BarcodeSource.internal));
       await db.into(db.productImages).insert(
           ProductImagesCompanion.insert(productId: p.id, path: '/tmp/foto.jpg'));
-      await db.into(db.priceTiers).insert(PriceTiersCompanion.insert(
-          productId: p.id, minQty: 10, priceCents: 40000));
+      // El mayoreo es una columna del producto: se va con él al borrarlo.
+      await catalogo.setWholesalePrice(
+          actor: admin, productId: p.id, priceCents: 40000);
 
       await catalogo.deleteProduct(admin, p.id);
 
       expect(await db.select(db.barcodes).get(), isEmpty);
       expect(await db.select(db.productImages).get(), isEmpty);
-      expect(await db.select(db.priceTiers).get(), isEmpty);
+      expect(await db.select(db.products).get(), isEmpty);
     });
 
     test('en una cotización entregada NO se borra', () async {

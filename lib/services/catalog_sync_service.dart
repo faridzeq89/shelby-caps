@@ -13,16 +13,24 @@ import 'image_service.dart';
 /// El catálogo listo para publicar, ya como JSON (listas de mapas) que la
 /// función `publish_catalog` de Supabase espera.
 class CatalogSnapshot {
-  const CatalogSnapshot(this.products, this.variants, this.tiers,
-      [this.categories = const []]);
+  const CatalogSnapshot(
+    this.products,
+    this.variants, {
+    this.categories = const [],
+    this.wholesaleThreshold = wholesaleThresholdFallback,
+  });
   final List<Map<String, dynamic>> products;
   final List<Map<String, dynamic>> variants;
-  final List<Map<String, dynamic>> tiers;
 
   /// Las categorías con **el orden que eligió el dueño** (`position`) y si están
   /// archivadas. Sin esto la tienda solo podía acomodarlas alfabéticamente,
   /// porque las deducía de los productos publicados.
   final List<Map<String, dynamic>> categories;
+
+  /// Umbral global de mayoreo (piezas en el carrito). La tienda lo usa para
+  /// activar el precio de mayoreo por el total del carrito, igual que el POS.
+  final int wholesaleThreshold;
+
   int get productCount => products.length;
   int get variantCount => variants.length;
 }
@@ -30,8 +38,9 @@ class CatalogSnapshot {
 /// Publica el catálogo local a Supabase para la tienda web. Reusa el cliente
 /// global (`Supabase.instance`) y la función segura `publish_catalog` (que valida
 /// un secreto). El precio publicado de cada variante es su precio de menudeo
-/// efectivo; el mayoreo va aparte en [CatalogSnapshot.tiers] para que la web lo
-/// aplique igual que el POS.
+/// efectivo; el **mayoreo** viaja como `wholesale_price_cents` por producto más
+/// el umbral global, para que la web lo aplique por total de carrito igual que
+/// el POS.
 class CatalogSyncService {
   CatalogSyncService(this._db);
   final AppDatabase _db;
@@ -77,6 +86,11 @@ class CatalogSyncService {
   /// (falta correr `0007_catalog_categories.sql`). Lo muestra la pantalla de
   /// categorías para que el dueño sepa por qué el orden no llega a la tienda.
   bool categoriesUnsupported = false;
+
+  /// La función `publish_catalog` de este proyecto todavía no acepta el precio
+  /// de mayoreo por producto ni el umbral global (falta correr
+  /// `0009_wholesale.sql`). Mientras tanto se publica sin mayoreo en la tienda.
+  bool wholesaleUnsupported = false;
 
   /// Último resultado, para que la pantalla de catálogo pueda mostrarlo.
   DateTime? lastPublishedAt;
@@ -200,8 +214,8 @@ class CatalogSyncService {
     required List<Product> products,
     required Map<int, String> categoryNames,
     required List<({Variant variant, int stock})> variants,
-    required List<PriceTier> tiers,
     List<Category> categories = const [],
+    int wholesaleThreshold = wholesaleThresholdFallback,
   }) {
     final byId = {for (final p in products) p.id: p};
     final productIds = byId.keys.toSet();
@@ -217,6 +231,9 @@ class CatalogSyncService {
           // malla con visera curva"), igual que el catálogo que ya usa el cliente.
           'description': p.description,
           'base_price_cents': p.basePriceCents,
+          // Precio de mayoreo del producto (nulo => sin mayoreo). La tienda lo
+          // activa por total de carrito contra `wholesaleThreshold`.
+          'wholesale_price_cents': p.wholesalePriceCents,
           'tax_rate_bps': p.taxRateBps,
           'active': p.active,
         }
@@ -237,16 +254,6 @@ class CatalogSyncService {
           }
     ];
 
-    final tiersJson = [
-      for (final t in tiers)
-        if (productIds.contains(t.productId))
-          {
-            'product_id': t.productId,
-            'min_qty': t.minQty,
-            'price_cents': t.priceCents,
-          }
-    ];
-
     // Se publican TODAS, archivadas incluidas, con su bandera: la tienda necesita
     // saber que una categoría existe pero está archivada para NO ponerle botón,
     // aunque algún producto siga apuntando a ella. Si solo se mandaran las
@@ -262,17 +269,22 @@ class CatalogSyncService {
     ];
 
     return CatalogSnapshot(
-        productsJson, variantsJson, tiersJson, categoriesJson);
+      productsJson,
+      variantsJson,
+      categories: categoriesJson,
+      wholesaleThreshold: wholesaleThreshold,
+    );
   }
 
   /// Lee el catálogo local (productos activos, variantes activas con existencia
-  /// y escalones de mayoreo) y arma el snapshot.
+  /// y el precio de mayoreo por producto) y arma el snapshot.
   Future<CatalogSnapshot> currentSnapshot() async {
     final products = await (_db.select(_db.products)
           ..where((t) => t.active.equals(true)))
         .get();
+    final repo = CatalogRepository(_db);
     // En el orden del dueño: es el orden con el que salen en la tienda.
-    final catRows = await CatalogRepository(_db).categories();
+    final catRows = await repo.categories();
     final cats = {for (final c in catRows) c.id: c.name};
     final variantsRaw = await (_db.select(_db.variants)
           ..where((t) => t.active.equals(true)))
@@ -282,13 +294,12 @@ class CatalogSyncService {
       final stock = (await _db.stockFor(v.id)).available;
       variants.add((variant: v, stock: stock));
     }
-    final tiers = await _db.select(_db.priceTiers).get();
     return buildSnapshot(
       products: products,
       categoryNames: cats,
       variants: variants,
-      tiers: tiers,
       categories: catRows,
+      wholesaleThreshold: await repo.wholesaleThreshold(),
     );
   }
 
@@ -460,31 +471,46 @@ class CatalogSyncService {
     lastStep = 'fotos: $dbgImagesUploaded subidas, $dbgImagesSkipped ya estaban';
     final banners = await _uploadBanners();
     lastStep = 'anuncios listos, mandando ${snap.productCount} productos';
+    // El mayoreo ya no es una lista de escalones: viaja como `wholesale_price_cents`
+    // dentro de cada producto (`p_products`), así que `p_tiers` va vacío. Se
+    // conserva el parámetro por compatibilidad con la firma del RPC.
     final params = {
       'p_secret': secret,
       'p_products': snap.products,
       'p_variants': snap.variants,
-      'p_tiers': snap.tiers,
+      'p_tiers': const <Map<String, dynamic>>[],
       'p_images': images,
       'p_banners': banners,
     };
+    bool isMissingFn(PostgrestException e) =>
+        e.code == 'PGRST202' || e.message.contains('does not exist');
     try {
+      // Firma nueva (`0009_wholesale.sql`): categorías + umbral de mayoreo.
       await _client.rpc('publish_catalog', params: {
         ...params,
         'p_categories': snap.categories,
+        'p_wholesale_threshold': snap.wholesaleThreshold,
       });
       categoriesUnsupported = false;
+      wholesaleUnsupported = false;
     } on PostgrestException catch (e) {
-      // La firma con categorías la agrega `0007_catalog_categories.sql`. Si ese
-      // script todavía no se corrió en Supabase, PostgREST responde "no existe
-      // esa función" (PGRST202): se publica con la firma anterior en vez de
-      // dejar la tienda sin actualizar. Lo único que se pierde es el orden
-      // manual de las categorías.
-      if (e.code != 'PGRST202' && !e.message.contains('does not exist')) {
-        rethrow;
+      if (!isMissingFn(e)) rethrow;
+      // Sin `0009`: la tienda todavía no sabe de mayoreo global. Se publica con
+      // la firma de categorías (`0007`); el mayoreo web se pierde hasta correrlo.
+      wholesaleUnsupported = true;
+      try {
+        await _client.rpc('publish_catalog', params: {
+          ...params,
+          'p_categories': snap.categories,
+        });
+        categoriesUnsupported = false;
+      } on PostgrestException catch (e2) {
+        // Sin `0007` tampoco: se publica con la firma vieja. Se pierde además el
+        // orden manual de las categorías.
+        if (!isMissingFn(e2)) rethrow;
+        categoriesUnsupported = true;
+        await _client.rpc('publish_catalog', params: params);
       }
-      categoriesUnsupported = true;
-      await _client.rpc('publish_catalog', params: params);
     }
     lastStep = 'listo';
     return snap.productCount;

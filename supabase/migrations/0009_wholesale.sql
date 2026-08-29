@@ -104,7 +104,10 @@ begin
   from jsonb_array_elements(coalesce(p_banners, '[]'::jsonb)) e;
 
   if p_categories is not null then
-    delete from public.catalog_categories;
+    -- TRUNCATE, no DELETE: Supabase aborta cualquier `delete` sin WHERE
+    -- ("DELETE requires a WHERE clause", 21000). Es el mismo bug que arregló el
+    -- 0008 y que no hay que reintroducir al copiar el cuerpo.
+    truncate table public.catalog_categories;
     insert into public.catalog_categories (name, position, active)
     select e->>'name',
            coalesce((e->>'position')::integer, 0),

@@ -166,11 +166,14 @@ class Palette {
 
     final bg = HSLColor.fromAHSL(1, hsl.hue, 0.14, 0.96).toColor();
     final surface = Colors.white;
-    final bar = HSLColor.fromAHSL(1, hsl.hue, 0.30, 0.18).toColor();
+    // Header y botones NEGROS (lo pidió el dueño): antes salían gris-azulado
+    // oscuro, derivados de la semilla. El color de la marca sigue vivo en el
+    // acento (iconos y textos), solo el relleno grande va negro.
+    const bar = Color(0xFF000000);
     final border = HSLColor.fromAHSL(1, hsl.hue, 0.12, 0.85).toColor();
     const ink = Color(0xFF1A1A1E);
     const inkMuted = Color(0xFF5C5C68);
-    final brand = readableOn(seed, bg, target: 2.2);
+    const brand = Color(0xFF000000);
     final accent = _accentFor(seed, bg, surface);
     return Palette(
       seed: seed,

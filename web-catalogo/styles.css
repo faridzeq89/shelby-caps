@@ -52,13 +52,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   max-width: 1180px; margin: 0 auto; padding: 0 14px;
 }
 .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; color: inherit; flex: 0 0 auto; }
-.brand-logo {
-  width: 34px; height: 34px; border-radius: 50%;
-  background: var(--ink) center/70% no-repeat;
-  display: grid; place-items: center;
-  /* Silueta de gorra como logo por defecto (sin archivos externos). */
-  -webkit-mask: var(--cap-mask) center/74% no-repeat; mask: var(--cap-mask) center/74% no-repeat;
-}
+.brand-img { height: 40px; width: auto; display: block; }
 .brand-name { font-weight: 800; letter-spacing: .3px; font-size: 15px; white-space: nowrap; }
 
 .search { flex: 1 1 auto; position: relative; display: flex; align-items: center; min-width: 0; }

@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
       customer_phone: c.phone ?? null,
       customer_email: email,
       delivery: !!c.delivery,
-      address: c.address ?? null,
+      address: c.addr ?? c.address ?? null,
       notes: c.notes ?? null,
       items,
     };
@@ -175,11 +175,27 @@ Deno.serve(async (req) => {
     const phone = phoneDigits.length >= 10
       ? { area_code: phoneDigits.slice(0, 3), number: phoneDigits.slice(3) }
       : undefined;
+    // Dirección estructurada del comprador: otra señal fuerte para el antifraude.
+    const zip = String(c.zip ?? "").replace(/\D/g, "");
+    const street = String(c.street ?? "").trim();
+    const colonia = String(c.colonia ?? "").trim();
+    const city = String(c.city ?? "").trim();
+    const state = String(c.state ?? "").trim();
+    const address = zip || street
+      ? {
+          ...(zip ? { zip_code: zip } : {}),
+          ...(street ? { street_name: street } : {}),
+          ...(colonia ? { neighborhood: colonia } : {}),
+          ...(city ? { city } : {}),
+          ...(state ? { federal_unit: state } : {}),
+        }
+      : undefined;
     const payerBlock: Record<string, unknown> = {
       email,
       ...(firstName ? { first_name: firstName } : {}),
       ...(lastName ? { last_name: lastName } : {}),
       ...(phone ? { phone } : {}),
+      ...(address ? { address } : {}),
       ...(identification && identification.number ? { identification } : {}),
     };
     const payBody: Record<string, unknown> = {
@@ -203,7 +219,22 @@ Deno.serve(async (req) => {
           ...(firstName ? { first_name: firstName } : {}),
           ...(lastName ? { last_name: lastName } : {}),
           ...(phone ? { phone } : {}),
+          ...(address
+            ? { address: { zip_code: zip, street_name: street } }
+            : {}),
         },
+        ...(c.delivery && address
+          ? {
+              shipments: {
+                receiver_address: {
+                  zip_code: zip,
+                  street_name: street,
+                  city_name: city,
+                  state_name: state,
+                },
+              },
+            }
+          : {}),
       },
     };
     if (form.issuer_id) payBody.issuer_id = form.issuer_id;

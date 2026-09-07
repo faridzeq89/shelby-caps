@@ -174,18 +174,54 @@
           <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
         </button>
 
-        <label class="flabel" for="coName">Nombre <b>*</b></label>
-        <input id="coName" autocomplete="name" />
-        <p class="ferr" id="errName" hidden>Este campo es requerido</p>
+        <label class="flabel" for="coFirst">Nombres <b>*</b></label>
+        <input id="coFirst" autocomplete="given-name" />
+        <p class="ferr" id="errFirst" hidden>Este campo es requerido</p>
 
-        <label class="flabel" for="coPhone">Celular <b>*</b></label>
+        <label class="flabel" for="coLast">Apellidos <b>*</b></label>
+        <input id="coLast" autocomplete="family-name" />
+        <p class="ferr" id="errLast" hidden>Este campo es requerido</p>
+
+        <label class="flabel" for="coPhone">Teléfono <b>*</b></label>
         <input id="coPhone" inputmode="tel" autocomplete="tel" placeholder="10 dígitos" />
         <p class="ferr" id="errPhone" hidden>El número de celular no es válido</p>
 
+        <label class="flabel" for="coZip">Código postal <b>*</b></label>
+        <input id="coZip" inputmode="numeric" autocomplete="postal-code" placeholder="5 dígitos" maxlength="5" />
+        <p class="ferr" id="errZip" hidden>El código postal debe tener 5 dígitos</p>
+
         <div id="addrBox" hidden>
-          <label class="flabel" for="coAddr">Dirección <b>*</b></label>
-          <input id="coAddr" autocomplete="street-address" placeholder="Escribe tu dirección" />
-          <p class="ferr" id="errAddr" hidden>Este campo es requerido</p>
+          <label class="flabel" for="coStreet">Calle y número exterior e interior <b>*</b></label>
+          <input id="coStreet" autocomplete="street-address" placeholder="Ej. Av. Hidalgo 123, int. 2" />
+          <p class="ferr" id="errStreet" hidden>Este campo es requerido</p>
+
+          <label class="flabel" for="coColonia">Colonia <b>*</b></label>
+          <input id="coColonia" placeholder="Escribe tu colonia" />
+          <p class="ferr" id="errColonia" hidden>Este campo es requerido</p>
+
+          <label class="flabel" for="coCity">Ciudad / Delegación / Municipio <b>*</b></label>
+          <input id="coCity" autocomplete="address-level2" placeholder="Ej. Reynosa" />
+          <p class="ferr" id="errCity" hidden>Este campo es requerido</p>
+
+          <label class="flabel" for="coState">Estado</label>
+          <select id="coState" class="fselect">
+            <option>Aguascalientes</option><option>Baja California</option>
+            <option>Baja California Sur</option><option>Campeche</option>
+            <option>Chiapas</option><option>Chihuahua</option>
+            <option>Ciudad de México</option><option>Coahuila</option>
+            <option>Colima</option><option>Durango</option>
+            <option>Estado de México</option><option>Guanajuato</option>
+            <option>Guerrero</option><option>Hidalgo</option>
+            <option>Jalisco</option><option>Michoacán</option>
+            <option>Morelos</option><option>Nayarit</option>
+            <option>Nuevo León</option><option>Oaxaca</option>
+            <option>Puebla</option><option>Querétaro</option>
+            <option>Quintana Roo</option><option>San Luis Potosí</option>
+            <option>Sinaloa</option><option>Sonora</option>
+            <option>Tabasco</option><option selected>Tamaulipas</option>
+            <option>Tlaxcala</option><option>Veracruz</option>
+            <option>Yucatán</option><option>Zacatecas</option>
+          </select>
         </div>
 
         <label class="flabel" for="coNotes">Comentarios de la orden</label>

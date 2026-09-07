@@ -579,12 +579,16 @@
     openCart();
   }
 
-  /// La dirección solo aplica a domicilio: si el pedido es para recoger, ni se
-  /// pide ni se valida.
+  /// La dirección de calle solo aplica a domicilio: si es para recoger, ni se
+  /// pide ni se valida. El CP sí se pide siempre (ayuda al antifraude de MP).
   function syncDelivery() {
     const dom = isDelivery();
     $("addrBox").hidden = !dom;
-    if (!dom) clearError("coAddr", "errAddr");
+    if (!dom) {
+      clearError("coStreet", "errStreet");
+      clearError("coColonia", "errColonia");
+      clearError("coCity", "errCity");
+    }
   }
 
   function drawCheckoutTotal() {
@@ -601,27 +605,58 @@
 
   /** Valida y devuelve los datos, o `null` si algo falta. */
   function readContact() {
-    const name = $("coName").value.trim();
+    const first = $("coFirst").value.trim();
+    const last = $("coLast").value.trim();
     // Se compara por dígitos: el cliente puede escribir 899-703-49-22.
     const phoneDigits = $("coPhone").value.replace(/\D/g, "");
-    const addr = $("coAddr").value.trim();
+    const zip = $("coZip").value.replace(/\D/g, "");
+    const street = $("coStreet").value.trim();
+    const colonia = $("coColonia").value.trim();
+    const city = $("coCity").value.trim();
+    const state = $("coState").value;
     const dom = isDelivery();
 
-    const badName = name.length < 2;
+    const badFirst = first.length < 2;
+    const badLast = last.length < 2;
     const badPhone = phoneDigits.length < 10;
-    const badAddr = dom && addr.length < 5;
-    markError("coName", "errName", badName);
+    const badZip = zip.length !== 5;
+    const badStreet = dom && street.length < 5;
+    const badColonia = dom && colonia.length < 2;
+    const badCity = dom && city.length < 2;
+    markError("coFirst", "errFirst", badFirst);
+    markError("coLast", "errLast", badLast);
     markError("coPhone", "errPhone", badPhone);
-    if (dom) markError("coAddr", "errAddr", badAddr);
+    markError("coZip", "errZip", badZip);
+    if (dom) {
+      markError("coStreet", "errStreet", badStreet);
+      markError("coColonia", "errColonia", badColonia);
+      markError("coCity", "errCity", badCity);
+    }
 
-    if (badName || badPhone || badAddr) {
-      const first = badName ? "coName" : badPhone ? "coPhone" : "coAddr";
-      $(first).focus();
+    if (badFirst || badLast || badPhone || badZip || badStreet || badColonia || badCity) {
+      const firstBad = badFirst ? "coFirst" : badLast ? "coLast"
+        : badPhone ? "coPhone" : badZip ? "coZip"
+        : badStreet ? "coStreet" : badColonia ? "coColonia" : "coCity";
+      $(firstBad).focus();
       return null;
     }
+
+    // Dirección legible para el ticket/WhatsApp y el pedido guardado.
+    const addr = dom
+      ? [street, colonia ? "Col. " + colonia : "", "CP " + zip, city, state]
+          .filter(Boolean).join(", ")
+      : "";
+
     return {
-      name,
+      name: (first + " " + last).trim(),
+      first,
+      last,
       phone: phoneDigits,
+      zip,
+      street,
+      colonia,
+      city,
+      state,
       addr,
       delivery: dom,
       notes: $("coNotes").value.trim(),

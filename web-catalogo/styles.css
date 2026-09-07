@@ -258,12 +258,13 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 .form { padding: 14px; display: flex; flex-direction: column; gap: 6px; }
 .flabel { margin: 10px 0 2px; font-size: 13.5px; font-weight: 700; }
 .flabel b { color: #c0111f; }
-.form input, .form textarea {
+.form input, .form textarea, .form .fselect {
   width: 100%; padding: 12px; font: inherit; color: inherit;
   border: 1px solid var(--line); border-radius: var(--radius); background: #fff;
   outline: none; resize: vertical;
 }
-.form input:focus, .form textarea:focus { border-color: var(--ink); }
+.form .fselect { appearance: none; -webkit-appearance: none; }
+.form input:focus, .form textarea:focus, .form .fselect:focus { border-color: var(--ink); }
 .form input.bad, .form textarea.bad { border-color: #c0111f; }
 .ferr { margin: 2px 0 0; font-size: 12.5px; color: #c0111f; }
 

@@ -31,6 +31,94 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+const peso = (n: number) =>
+  "$" + n.toLocaleString("es-MX", { maximumFractionDigits: 2 });
+const esc = (s: string) =>
+  s.replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]!));
+
+/// Envía los correos de confirmación por Resend. **No-op** si no está
+/// configurado `RESEND_API_KEY`, así que es seguro desplegar sin la llave.
+/// Best-effort: cualquier fallo aquí NO debe afectar el cobro.
+async function sendConfirmationEmails(opts: {
+  toCustomer: string;
+  orderId: string;
+  items: Array<Record<string, unknown>>;
+  totalCents: number;
+  customer: { name: string; phone: string; email: string; addr: string; delivery: boolean };
+  approved: boolean;
+}): Promise<void> {
+  const KEY = Deno.env.get("RESEND_API_KEY");
+  if (!KEY) return; // sin configurar => no se manda nada
+  const FROM = Deno.env.get("MAIL_FROM") || "Shelby Caps <onboarding@resend.dev>";
+  const STORE = Deno.env.get("STORE_EMAIL");
+  const ref = opts.orderId.slice(0, 8).toUpperCase();
+
+  const rows = opts.items
+    .map((it) => {
+      const line = Number(it.unit_price) * Number(it.quantity);
+      return `<tr><td style="padding:6px 0;border-bottom:1px solid #eee">${
+        it.quantity
+      } × ${esc(String(it.title))}</td><td style="padding:6px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${
+        peso(line)
+      }</td></tr>`;
+    })
+    .join("");
+  const entrega = opts.customer.delivery
+    ? "Envío a domicilio: " + esc(opts.customer.addr)
+    : "Recoger en tienda";
+  const total = peso(opts.totalCents / 100);
+
+  const wrap = (title: string, bodyHtml: string) => `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#171717">
+  <div style="background:#a81c22;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0">
+    <div style="font-size:20px;font-weight:800;letter-spacing:1px">SHELBY CAPS</div>
+  </div>
+  <div style="border:1px solid #e7e7e7;border-top:0;border-radius:0 0 10px 10px;padding:20px">
+    <h2 style="margin:0 0 6px">${title}</h2>
+    ${bodyHtml}
+    <table style="width:100%;border-collapse:collapse;margin:14px 0">${rows}
+      <tr><td style="padding:10px 0 0;font-weight:800">Total</td>
+      <td style="padding:10px 0 0;text-align:right;font-weight:800">${total}</td></tr>
+    </table>
+    <p style="margin:6px 0;color:#6b6b6b;font-size:14px">${entrega}</p>
+    <p style="margin:14px 0 0;color:#6b6b6b;font-size:12px">N.º de pedido: <b>${ref}</b></p>
+  </div>
+</div>`;
+
+  const customerHtml = wrap(
+    opts.approved ? "¡Gracias por tu compra!" : "Recibimos tu pedido",
+    `<p style="margin:0 0 4px;font-size:15px">${
+      opts.approved
+        ? "Tu pago fue aprobado. Nos pondremos en contacto contigo para coordinar la entrega."
+        : "Tu pago está en revisión. En cuanto se confirme te avisamos."
+    }</p>`,
+  );
+  const storeHtml = wrap(
+    "Nuevo pedido" + (opts.approved ? "" : " (en revisión)"),
+    `<p style="margin:0;font-size:15px">
+       <b>Cliente:</b> ${esc(opts.customer.name)}<br>
+       <b>Tel:</b> ${esc(opts.customer.phone)}<br>
+       <b>Correo:</b> ${esc(opts.customer.email)}
+     </p>`,
+  );
+
+  const send = (to: string, subject: string, html: string) =>
+    fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: FROM, to, subject, html }),
+    });
+
+  const jobs: Promise<unknown>[] = [];
+  if (opts.approved && opts.toCustomer) {
+    jobs.push(send(opts.toCustomer, `Tu compra en Shelby Caps — Pedido ${ref}`, customerHtml));
+  }
+  if (STORE) {
+    jobs.push(send(STORE, `Nuevo pedido ${ref}${opts.approved ? "" : " (en revisión)"}`, storeHtml));
+  }
+  await Promise.allSettled(jobs);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "método no permitido" }, 405);
@@ -289,6 +377,26 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       })
       .eq("id", order!.id);
+
+    // Correos de confirmación (best-effort: nunca afectan la respuesta del pago).
+    if (dbStatus === "paid" || dbStatus === "pending") {
+      try {
+        await sendConfirmationEmails({
+          toCustomer: email,
+          orderId: order!.id,
+          items,
+          totalCents,
+          customer: {
+            name: String(c.name ?? ""),
+            phone: phoneDigits,
+            email,
+            addr: String(c.addr ?? c.address ?? ""),
+            delivery: !!c.delivery,
+          },
+          approved: dbStatus === "paid",
+        });
+      } catch (_) { /* el correo nunca debe tumbar el cobro */ }
+    }
 
     return json({
       status: pay.status, // approved | in_process | rejected | ...

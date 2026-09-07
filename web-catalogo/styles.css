@@ -87,12 +87,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 /* ---------- Tira de anuncios (ticker) ---------- */
 .ticker {
   display: flex; align-items: center; gap: 4px;
-  border-bottom: 1px solid var(--line); background: var(--bg);
+  border-bottom: 0; background: #000;
 }
 .tk-view { flex: 1 1 auto; overflow: hidden; text-align: center; padding: 9px 4px; }
 .tk-item {
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 13px; font-weight: 700; color: var(--ink);
+  font-size: 13px; font-weight: 700; color: #fff;
   transition: opacity .22s ease; max-width: 100%;
 }
 .tk-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -100,7 +100,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .tk-item img { height: 20px; width: auto; max-width: 90px; object-fit: contain; vertical-align: middle; }
 .tk-arrow {
   flex: 0 0 auto; width: 34px; height: 34px; border: 0; background: none;
-  color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .tk-arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 

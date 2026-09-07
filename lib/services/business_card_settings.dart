@@ -131,6 +131,34 @@ class CardBanner {
       CardBanner(image: image ?? this.image, caption: caption ?? this.caption);
 }
 
+/// Un anuncio de la **tira** de la tienda (debajo del horario): un texto corto
+/// que rota, con una imagen pequeña opcional (logo/ícono) y un enlace opcional.
+/// Viaja en el mismo JSON de la tarjeta porque es contenido de presentación que
+/// la tienda ya lee; así no hace falta otra tabla ni migración.
+class CardTicker {
+  const CardTicker({required this.text, this.image = '', this.link = ''});
+  final String text;
+  final String image; // ruta local (tablet) o URL ya publicada
+  final String link;
+
+  factory CardTicker.fromJson(Map<String, dynamic> j) => CardTicker(
+        text: j['text'] as String? ?? '',
+        image: j['image'] as String? ?? '',
+        link: j['link'] as String? ?? '',
+      );
+  Map<String, dynamic> toJson() => {
+        'text': text,
+        if (image.isNotEmpty) 'image': image,
+        if (link.isNotEmpty) 'link': link,
+      };
+
+  CardTicker copyWith({String? text, String? image, String? link}) => CardTicker(
+        text: text ?? this.text,
+        image: image ?? this.image,
+        link: link ?? this.link,
+      );
+}
+
 /// Todo el contenido de la tarjeta digital, como un solo bloque. Es contenido
 /// de presentación (no se reporta ni se cruza contra nada), así que no hace
 /// falta una tabla por sección — un campo más aquí no pide otra migración de
@@ -146,6 +174,7 @@ class BusinessCardData {
     this.catalogUrl = '',
     this.coverImagePath,
     this.banners = const [],
+    this.ticker = const [],
     this.shippingNotice = '',
     this.shippingFaq = const [],
     this.purchaseSteps = const [],
@@ -165,6 +194,10 @@ class BusinessCardData {
 
   /// Carrusel superior, propio de la tarjeta (ya no los de la tienda).
   final List<CardBanner> banners;
+
+  /// Tira de anuncios de la tienda (debajo del horario). Vacía = la tienda cae
+  /// a los ejemplos de `web-catalogo/config.js`.
+  final List<CardTicker> ticker;
 
   final String shippingNotice;
   final List<FaqItem> shippingFaq;
@@ -192,6 +225,11 @@ class BusinessCardData {
                     CardBanner.fromJson(Map<String, dynamic>.from(e as Map)))
                 .toList() ??
             const [],
+        ticker: (j['ticker'] as List?)
+                ?.map((e) =>
+                    CardTicker.fromJson(Map<String, dynamic>.from(e as Map)))
+                .toList() ??
+            const [],
         shippingNotice: j['shippingNotice'] as String? ?? '',
         shippingFaq: (j['shippingFaq'] as List?)
                 ?.map((e) => FaqItem.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -217,6 +255,7 @@ class BusinessCardData {
         'catalogUrl': catalogUrl,
         if (coverImagePath != null) 'coverImagePath': coverImagePath,
         'banners': banners.map((e) => e.toJson()).toList(),
+        'ticker': ticker.map((e) => e.toJson()).toList(),
         'shippingNotice': shippingNotice,
         'shippingFaq': shippingFaq.map((e) => e.toJson()).toList(),
         'purchaseSteps': purchaseSteps,
@@ -232,6 +271,7 @@ class BusinessCardData {
     String? catalogUrl,
     String? coverImagePath,
     List<CardBanner>? banners,
+    List<CardTicker>? ticker,
     String? shippingNotice,
     List<FaqItem>? shippingFaq,
     List<String>? purchaseSteps,
@@ -246,6 +286,7 @@ class BusinessCardData {
         catalogUrl: catalogUrl ?? this.catalogUrl,
         coverImagePath: coverImagePath ?? this.coverImagePath,
         banners: banners ?? this.banners,
+        ticker: ticker ?? this.ticker,
         shippingNotice: shippingNotice ?? this.shippingNotice,
         shippingFaq: shippingFaq ?? this.shippingFaq,
         purchaseSteps: purchaseSteps ?? this.purchaseSteps,
@@ -356,12 +397,21 @@ class BusinessCardSettings extends ChangeNotifier {
         final url = await upload(b.image, 'business-card/banner-$i.jpg');
         newBanners.add(b.copyWith(image: url ?? b.image));
       }
+      final newTicker = <CardTicker>[];
+      for (var i = 0; i < payload.ticker.length; i++) {
+        final t = payload.ticker[i];
+        final url = t.image.isEmpty
+            ? ''
+            : (await upload(t.image, 'business-card/ticker-$i.jpg')) ?? t.image;
+        newTicker.add(t.copyWith(image: url));
+      }
       payload = payload.copyWith(
         loyaltyImagePath:
             await upload(payload.loyaltyImagePath, 'business-card/loyalty.jpg'),
         coverImagePath:
             await upload(payload.coverImagePath, 'business-card/cover.jpg'),
         banners: newBanners,
+        ticker: newTicker,
       );
 
       final secret = await sync.ensureSecret();

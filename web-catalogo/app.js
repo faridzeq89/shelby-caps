@@ -224,8 +224,11 @@
   // ---- Tira de anuncios (ticker): textos + imágenes pequeñas que rotan ----
   let tkIdx = 0;
   let tkTimer = null;
-  function renderTicker() {
-    const items = (CFG.TICKER || []).filter((t) => t && (t.text || t.image));
+  function renderTicker(list) {
+    // Prioriza la tira publicada desde el POS (Admin → Tira de anuncios); si no
+    // hay, cae a los ejemplos de config.js.
+    const source = (list && list.length) ? list : (CFG.TICKER || []);
+    const items = source.filter((t) => t && (t.text || t.image));
     const box = $("ticker");
     if (!items.length) { box.hidden = true; return; }
     box.hidden = false;
@@ -1055,6 +1058,10 @@
       // Sin tabla `business_card`: renderShipping cae a CFG.SHIPPING.
     }
     renderShipping(cardData);
+    // La tira de anuncios publicada desde el POS gana sobre los ejemplos.
+    if (cardData && Array.isArray(cardData.ticker) && cardData.ticker.length) {
+      renderTicker(cardData.ticker);
+    }
 
     // Los anuncios se piden aparte y primero: son lo primero que se ve, y si
     // el catálogo tardara no tiene por qué retrasarlos.

@@ -7,6 +7,7 @@ import '../../services/auth_controller.dart';
 import '../admin/access_screen.dart';
 import '../admin/banners_screen.dart';
 import '../admin/business_card_screen.dart';
+import '../admin/store_ticker_screen.dart';
 import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
 import '../admin/factory_reset_screen.dart';
@@ -164,6 +165,9 @@ class AppDrawer extends StatelessWidget {
                 onTap: () => push(const TaxSettingsScreen())),
             _item(context, Icons.campaign_outlined, 'Anuncios de la tienda',
                 onTap: () => push(const BannersScreen())),
+            _item(context, Icons.notifications_active_outlined,
+                'Tira de anuncios',
+                onTap: () => push(const StoreTickerScreen())),
             _item(context, Icons.cloud_upload_outlined,
                 'Publicación de la tienda',
                 onTap: () => push(const PublishSettingsScreen())),

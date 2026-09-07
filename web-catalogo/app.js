@@ -674,49 +674,139 @@
     window.open(url, "_blank", "noopener");
   }
 
-  // ---- Pago con Mercado Pago (Checkout Pro) ----
-  /** Crea la preferencia en el servidor y redirige al checkout de Mercado Pago. */
-  async function payMercadoPago() {
+  // ---- Pago con tarjeta (Mercado Pago — checkout transparente / Bricks) ----
+  // El cliente paga SIN salir de la tienda: el Payment Brick tokeniza la tarjeta
+  // en el navegador (con la Public Key) y la Edge Function `process-payment`
+  // crea el cobro real recalculando el precio desde el catálogo publicado.
+  let mpInstance = null;
+  let brickController = null;
+
+  function mpClient() {
+    if (mpInstance) return mpInstance;
+    if (typeof MercadoPago === "undefined" || !CFG.MP_PUBLIC_KEY) return null;
+    mpInstance = new MercadoPago(CFG.MP_PUBLIC_KEY, { locale: "es-MX" });
+    return mpInstance;
+  }
+
+  /** Mensaje humano para el motivo de rechazo de Mercado Pago. */
+  function mpRejectMessage(detail) {
+    const m = {
+      cc_rejected_insufficient_amount: "Fondos insuficientes en la tarjeta.",
+      cc_rejected_bad_filled_security_code: "El código de seguridad es incorrecto.",
+      cc_rejected_bad_filled_date: "La fecha de vencimiento es incorrecta.",
+      cc_rejected_bad_filled_other: "Revisa los datos de la tarjeta.",
+      cc_rejected_call_for_authorize: "Autoriza el pago con tu banco e intenta de nuevo.",
+      cc_rejected_card_disabled: "La tarjeta está inhabilitada; llama a tu banco.",
+      cc_rejected_high_risk: "El pago fue rechazado. Prueba con otra tarjeta.",
+      cc_rejected_max_attempts: "Demasiados intentos. Prueba con otra tarjeta.",
+      cc_rejected_duplicated_payment: "Ya hiciste un pago igual hace un momento.",
+    };
+    return m[detail] || "El pago fue rechazado. Intenta con otra tarjeta.";
+  }
+
+  function unmountBrick() {
+    if (brickController) {
+      try { brickController.unmount(); } catch (_) {}
+      brickController = null;
+    }
+  }
+
+  function closeMp() {
+    unmountBrick();
+    $("mpSheet").hidden = true;
+    $("paySheet").hidden = false;
+  }
+
+  /** Éxito de pago: limpia el carrito y cierra todas las hojas. */
+  function finishMpSuccess() {
+    unmountBrick();
+    cart.clear();
+    renderCartCount();
+    $("mpSheet").hidden = true;
+    $("paySheet").hidden = true;
+    $("checkoutSheet").hidden = true;
+    $("cartSheet").hidden = true;
+    document.body.style.overflow = "";
+    toast("¡Pago aprobado! Gracias por tu compra 🧢");
+  }
+
+  /** Abre la hoja de tarjeta y monta el Payment Brick con el total del carrito. */
+  async function openMpBrick() {
     const contact = readContact();
     if (!contact) { closePay(); return; }
-    const items = pricedCart().map((l) => {
-      const meta = [l.variant.size, l.variant.color].filter(Boolean).join(" ");
-      return {
-        title: l.product.name + (meta ? " (" + meta + ")" : "") +
-          (l.wholesale ? " [mayoreo]" : ""),
-        quantity: l.qty,
-        unit_price: l.unit / 100, // pesos
-      };
-    });
-    if (!items.length) return;
-    const btn = $("payMp");
-    btn.disabled = true;
-    toast("Preparando el pago…");
+    const lines = pricedCart();
+    if (!lines.length) return;
+    const mp = mpClient();
+    if (!mp) { toast("No se pudo cargar el pago con tarjeta"); return; }
+
+    // El servidor recalcula el precio; solo mandamos qué variante y cuántas.
+    const cartLines = lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty }));
+    const amount = cartTotal() / 100; // pesos, solo para mostrar el formulario
+
+    $("paySheet").hidden = true;
+    $("mpSheet").hidden = false;
+    $("mpAmount").textContent = money(cartTotal());
+    $("mpBrick").innerHTML = "";
+    unmountBrick();
+
     try {
-      const res = await fetch(CFG.SUPABASE_URL + "/functions/v1/create-preference", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: CFG.SUPABASE_ANON,
-          Authorization: "Bearer " + CFG.SUPABASE_ANON,
+      const bricks = mp.bricks();
+      brickController = await bricks.create("payment", "mpBrick", {
+        initialization: {
+          amount,
+          payer: { email: contact.email || "" },
         },
-        body: JSON.stringify({
-          items,
-          customer: contact,
-          store_url: location.origin + location.pathname,
-        }),
+        customization: {
+          paymentMethods: { creditCard: "all", debitCard: "all" },
+        },
+        callbacks: {
+          onReady: () => {},
+          onSubmit: ({ formData }) =>
+            new Promise((resolve, reject) => {
+              fetch(CFG.SUPABASE_URL + "/functions/v1/process-payment", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  apikey: CFG.SUPABASE_ANON,
+                  Authorization: "Bearer " + CFG.SUPABASE_ANON,
+                },
+                body: JSON.stringify({
+                  form_data: formData,
+                  cart: cartLines,
+                  customer: contact,
+                }),
+              })
+                .then((r) => r.json().then((d) => ({ ok: r.ok, d })).catch(() => ({ ok: false, d: {} })))
+                .then(({ ok, d }) => {
+                  if (ok && d.status === "approved") {
+                    resolve();
+                    finishMpSuccess();
+                  } else if (ok && (d.status === "in_process" || d.status === "pending")) {
+                    resolve();
+                    unmountBrick();
+                    cart.clear();
+                    renderCartCount();
+                    $("mpSheet").hidden = true;
+                    $("checkoutSheet").hidden = true;
+                    $("cartSheet").hidden = true;
+                    document.body.style.overflow = "";
+                    toast("Tu pago quedó en revisión. Te avisaremos al confirmarse.");
+                  } else if (d.status === "rejected") {
+                    reject();
+                    toast(mpRejectMessage(d.status_detail));
+                  } else {
+                    reject();
+                    toast(d.error || "No se pudo procesar el pago");
+                  }
+                })
+                .catch(() => { reject(); toast("Error de red al procesar el pago"); });
+            }),
+          onError: (error) => { console.error("MP Brick:", error); },
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      const target = data.init_point || data.sandbox_init_point;
-      if (!res.ok || !target) {
-        toast(data.error || "No se pudo iniciar el pago");
-        btn.disabled = false;
-        return;
-      }
-      window.location.href = target; // al checkout seguro de Mercado Pago
     } catch (_) {
-      toast("Error de red al iniciar el pago");
-      btn.disabled = false;
+      toast("No se pudo cargar el formulario de pago");
+      closeMp();
     }
   }
 
@@ -793,6 +883,8 @@
     $("payBack").onclick = closePay;
     $("paySheet").onclick = (e) => { if (e.target === $("paySheet")) closePay(); };
     $("payWa").onclick = sendWhatsApp;
+    $("mpBack").onclick = closeMp;
+    $("mpSheet").onclick = (e) => { if (e.target === $("mpSheet")) closeMp(); };
 
     $("footShipping").onclick = openShipping;
     $("coShipping").onclick = openShipping;
@@ -801,13 +893,15 @@
       if (e.target === $("shippingSheet")) closeShipping();
     };
 
-    // Mercado Pago: el botón solo aparece si está habilitado en config.js
-    // (es decir, cuando ya están desplegadas las Edge Functions y el secreto).
+    // Pago con tarjeta: el botón solo aparece si está habilitado en config.js,
+    // hay Public Key y el SDK de Mercado Pago cargó (todo listo para el Brick).
     const mpBtn = $("payMp");
     if (mpBtn) {
-      if (CFG.MP_ENABLED) {
+      const mpReady = CFG.MP_ENABLED && CFG.MP_PUBLIC_KEY &&
+        typeof MercadoPago !== "undefined";
+      if (mpReady) {
         mpBtn.disabled = false;
-        mpBtn.onclick = payMercadoPago;
+        mpBtn.onclick = openMpBrick;
         const small = mpBtn.querySelector("small");
         if (small) small.remove();
       } else {
@@ -821,6 +915,7 @@
       if (e.key !== "Escape") return;
       if (!$("detail").hidden) closeDetail();
       else if (!$("shippingSheet").hidden) closeShipping();
+      else if (!$("mpSheet").hidden) closeMp();
       else if (!$("paySheet").hidden) closePay();
       else if (!$("checkoutSheet").hidden) closeCheckout();
       else if (!$("cartSheet").hidden) closeCart();

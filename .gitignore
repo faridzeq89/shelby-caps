@@ -32,3 +32,6 @@ Thumbs.db
 
 # Cache local de wrangler (Cloudflare): id de cuenta y proyecto, no va al repo.
 .wrangler/
+
+# Cache local del CLI de Supabase (project-ref, versiones): no va al repo.
+supabase/.temp/

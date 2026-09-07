@@ -679,8 +679,8 @@
       `*Total: ${money(cartTotal())}*`,
       "",
       contact.delivery
-        ? `Entrega a domicilio: ${contact.addr}`
-        : "Para llevar / Recoger en tienda",
+        ? `Envío a domicilio: ${contact.addr}`
+        : "Recoger en tienda",
       `Nombre: ${contact.name}`,
       `Celular: ${contact.phone}`,
     ];

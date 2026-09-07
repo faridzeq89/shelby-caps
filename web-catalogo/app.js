@@ -752,8 +752,12 @@
     $("paySheet").hidden = false;
   }
 
-  /** Éxito de pago: limpia el carrito y cierra todas las hojas. */
-  function finishMpSuccess() {
+  // Datos del último pedido confirmado, para el botón de WhatsApp de la
+  // ventana de confirmación.
+  let lastOrder = null;
+
+  /** Éxito de pago: limpia el carrito y muestra la ventana de confirmación. */
+  function showDone({ status, orderId, contact, orderMsg, totalCents }) {
     unmountBrick();
     cart.clear();
     renderCartCount();
@@ -761,8 +765,34 @@
     $("paySheet").hidden = true;
     $("checkoutSheet").hidden = true;
     $("cartSheet").hidden = true;
+    const ref = orderId ? String(orderId).slice(0, 8).toUpperCase() : "—";
+    const approved = status === "approved";
+    $("doneRef").textContent = ref;
+    $("doneTotal").textContent = money(totalCents);
+    $("doneTitle").textContent = approved ? "¡Compra confirmada!" : "Pago en revisión";
+    $("doneMsg").textContent = approved
+      ? "Gracias por tu compra. Nos pondremos en contacto contigo para coordinar la entrega de tu pedido."
+      : "Tu pago quedó en revisión. En cuanto se confirme nos pondremos en contacto contigo. Guarda tu número de pedido.";
+    lastOrder = { ref, orderMsg, status };
+    $("doneSheet").hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeDone() {
+    $("doneSheet").hidden = true;
     document.body.style.overflow = "";
-    toast("¡Pago aprobado! Gracias por tu compra 🧢");
+  }
+
+  /** Manda el comprobante del pedido al WhatsApp de la tienda. */
+  function doneWhatsApp() {
+    const phone = (CFG.WHATSAPP || "").replace(/\D/g, "");
+    if (!phone || !lastOrder) { closeDone(); return; }
+    const header = "*Comprobante de compra*\n" +
+      "Pedido: " + lastOrder.ref + "\n" +
+      (lastOrder.status === "approved" ? "Pago: APROBADO ✅" : "Pago: EN REVISIÓN ⏳");
+    const msg = header + "\n\n" + (lastOrder.orderMsg || "");
+    window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(msg),
+      "_blank", "noopener");
   }
 
   /** Abre la hoja de tarjeta y monta el Payment Brick con el total del carrito. */
@@ -816,19 +846,20 @@
               })
                 .then((r) => r.json().then((d) => ({ ok: r.ok, d })).catch(() => ({ ok: false, d: {} })))
                 .then(({ ok, d }) => {
-                  if (ok && d.status === "approved") {
+                  const approved = ok && d.status === "approved";
+                  const pending = ok && (d.status === "in_process" || d.status === "pending");
+                  if (approved || pending) {
                     resolve();
-                    finishMpSuccess();
-                  } else if (ok && (d.status === "in_process" || d.status === "pending")) {
-                    resolve();
-                    unmountBrick();
-                    cart.clear();
-                    renderCartCount();
-                    $("mpSheet").hidden = true;
-                    $("checkoutSheet").hidden = true;
-                    $("cartSheet").hidden = true;
-                    document.body.style.overflow = "";
-                    toast("Tu pago quedó en revisión. Te avisaremos al confirmarse.");
+                    // Capturar total y mensaje ANTES de limpiar el carrito.
+                    const totalCents = cartTotal();
+                    const orderMsg = orderMessage(contact);
+                    showDone({
+                      status: approved ? "approved" : "pending",
+                      orderId: d.order_id,
+                      contact,
+                      orderMsg,
+                      totalCents,
+                    });
                   } else if (d.status === "rejected") {
                     reject();
                     toast(mpRejectMessage(d.status_detail));
@@ -923,6 +954,9 @@
     $("payWa").onclick = sendWhatsApp;
     $("mpBack").onclick = closeMp;
     $("mpSheet").onclick = (e) => { if (e.target === $("mpSheet")) closeMp(); };
+    $("doneClose").onclick = closeDone;
+    $("doneWa").onclick = doneWhatsApp;
+    $("doneSheet").onclick = (e) => { if (e.target === $("doneSheet")) closeDone(); };
 
     $("footShipping").onclick = openShipping;
     $("coShipping").onclick = openShipping;
@@ -951,7 +985,8 @@
 
     document.onkeydown = (e) => {
       if (e.key !== "Escape") return;
-      if (!$("detail").hidden) closeDetail();
+      if (!$("doneSheet").hidden) closeDone();
+      else if (!$("detail").hidden) closeDetail();
       else if (!$("shippingSheet").hidden) closeShipping();
       else if (!$("mpSheet").hidden) closeMp();
       else if (!$("paySheet").hidden) closePay();

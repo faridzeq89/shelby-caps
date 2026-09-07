@@ -285,6 +285,33 @@
   </div>
 </div>
 
+<!-- Confirmación de compra: se muestra tras un pago aprobado (o en revisión). -->
+<div class="sheet" id="doneSheet" hidden role="dialog" aria-modal="true" aria-labelledby="doneTitle">
+  <div class="sheet-card">
+    <div class="sheet-body">
+      <div class="done">
+        <div class="done-check" id="doneIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <h2 id="doneTitle">¡Compra confirmada!</h2>
+        <p class="done-msg" id="doneMsg">
+          Gracias por tu compra. Nos pondremos en contacto contigo para coordinar
+          la entrega de tu pedido.
+        </p>
+        <div class="done-info">
+          <div class="done-row"><span>N.º de pedido</span><b id="doneRef">—</b></div>
+          <div class="done-row"><span>Total pagado</span><b id="doneTotal">—</b></div>
+        </div>
+        <button class="add wide" id="doneWa">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-3.2-6.4"/><path d="M8.5 9.5c0 4 2 6 6 6l1.5-1.5-2-1.5-1 1c-1 -.5-1.8-1.3-2.3-2.3l1-1L10 8 8.5 9.5Z"/></svg>
+          Enviar mi comprobante por WhatsApp
+        </button>
+        <button class="ghostbtn wide" id="doneClose">Seguir comprando</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Envíos y compra: preguntas frecuentes, sin producto de por medio. -->
 <div class="sheet" id="shippingSheet" hidden role="dialog" aria-modal="true" aria-labelledby="shipTitle">
   <div class="sheet-card">

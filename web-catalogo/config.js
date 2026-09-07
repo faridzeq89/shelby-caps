@@ -24,7 +24,7 @@ window.CATALOGO_CONFIG = {
   // Public Key de Mercado Pago (PÚBLICA por diseño: va en el navegador para que
   // el Payment Brick tokenice la tarjeta). NO es el Access Token (ese es secreto
   // y vive en Supabase). `TEST-...` = pruebas; `APP_USR-...` = producción.
-  MP_PUBLIC_KEY: "TEST-0e1dcdf2-d37b-46bd-a0f6-66cb6365ae5b",
+  MP_PUBLIC_KEY: "APP_USR-b2e12a74-2568-4038-89b4-1af011269815",
 
   // Foto de portada del catálogo (arriba de todo). Vacío = sin portada.
   COVER: "img/portada.svg",

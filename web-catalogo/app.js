@@ -221,6 +221,50 @@
 
   /// Banners que rotan solos. Se detienen en cuanto el usuario los toca: nada
   /// más molesto que un carrusel que se mueve mientras lo estás viendo.
+  // ---- Tira de anuncios (ticker): textos + imágenes pequeñas que rotan ----
+  let tkIdx = 0;
+  let tkTimer = null;
+  function renderTicker() {
+    const items = (CFG.TICKER || []).filter((t) => t && (t.text || t.image));
+    const box = $("ticker");
+    if (!items.length) { box.hidden = true; return; }
+    box.hidden = false;
+
+    const paint = () => {
+      const t = items[tkIdx % items.length];
+      const el = $("tkItem");
+      el.style.opacity = "0";
+      setTimeout(() => {
+        const inner =
+          (t.image ? '<img src="' + esc(t.image) + '" alt="" />' : "") +
+          "<span>" + esc(t.text || "") + "</span>";
+        el.innerHTML = t.link
+          ? '<a href="' + esc(t.link) + '" target="_blank" rel="noopener">' + inner + "</a>"
+          : inner;
+        el.style.opacity = "1";
+      }, 150);
+    };
+    const go = (d) => { tkIdx = (tkIdx + d + items.length) % items.length; paint(); };
+    const stop = () => { if (tkTimer) { clearInterval(tkTimer); tkTimer = null; } };
+    const start = () => {
+      stop();
+      if (items.length > 1) {
+        tkTimer = setInterval(() => go(1),
+          Math.max(3, CFG.TICKER_SECONDS || 5) * 1000);
+      }
+    };
+
+    const single = items.length < 2;
+    $("tkPrev").hidden = single;
+    $("tkNext").hidden = single;
+    $("tkPrev").onclick = () => { go(-1); start(); };
+    $("tkNext").onclick = () => { go(1); start(); };
+
+    tkIdx = 0;
+    paint();
+    start();
+  }
+
   function renderBanners() {
     const list = BANNER_LIST;
     if (!list.length) return;
@@ -997,6 +1041,7 @@
 
   async function init() {
     renderShopBar();
+    renderTicker();
     wire();
     renderCartCount();
 

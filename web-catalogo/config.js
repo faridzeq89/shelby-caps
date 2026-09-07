@@ -40,6 +40,18 @@ window.CATALOGO_CONFIG = {
   // Segundos que dura cada banner antes de pasar al siguiente.
   BANNER_SECONDS: 5,
 
+  // Tira de anuncios (debajo del horario): mensajes cortos que rotan solos,
+  // con flechas ‹ ›. Cada uno lleva `text` y, opcional, una `image` pequeña
+  // (logo/ícono; ponla en la carpeta img/ y referénciala como "img/archivo.png")
+  // y un `link` opcional. Deja la lista vacía [] para ocultar la tira.
+  TICKER: [
+    { text: "🚚 Envíos el mismo día si pagas antes de las 4:00 p. m." },
+    { text: "Pagos seguros con tarjeta, débito y crédito" },
+    { text: "Meses sin intereses con Mercado Pago" },
+  ],
+  // Segundos que dura cada anuncio de la tira antes de pasar al siguiente.
+  TICKER_SECONDS: 5,
+
   // Horario por día (0 = domingo … 6 = sábado). `null` = cerrado ese día.
   // Con esto la barra dice "Abierto" o "Abre mar, 11:00 a. m. - 7:00 p. m.".
   OPENING_HOURS: {

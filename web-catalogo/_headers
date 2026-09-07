@@ -1,0 +1,17 @@
+# Cloudflare Pages: forzar que el navegador REVALIDE los archivos que cambian a
+# menudo, para que un cambio publicado se vea de inmediato (sin quedar pegado en
+# una versión vieja cacheada). `no-cache` NO desactiva la caché: permite usar la
+# copia guardada solo tras revalidar con el servidor (respuesta 304 si no cambió),
+# así que sigue siendo rápido. Las imágenes (img/*) conservan su caché normal.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/config.js
+  Cache-Control: no-cache
+/app.js
+  Cache-Control: no-cache
+/styles.css
+  Cache-Control: no-cache
+/tarjeta/*
+  Cache-Control: no-cache

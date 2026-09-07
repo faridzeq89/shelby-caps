@@ -38,6 +38,17 @@
   </div>
 </section>
 
+<!-- Tira de anuncios: textos + imágenes pequeñas que rotan (config.js → TICKER). -->
+<section class="ticker" id="ticker" hidden aria-label="Anuncios">
+  <button class="tk-arrow" id="tkPrev" aria-label="Anterior">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19 8 12l7-7"/></svg>
+  </button>
+  <div class="tk-view"><div class="tk-item" id="tkItem"></div></div>
+  <button class="tk-arrow" id="tkNext" aria-label="Siguiente">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+  </button>
+</section>
+
 <!-- Portada de la tienda -->
 <figure class="cover" id="cover" hidden></figure>
 

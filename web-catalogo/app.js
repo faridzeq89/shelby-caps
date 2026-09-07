@@ -774,6 +774,9 @@
                   form_data: formData,
                   cart: cartLines,
                   customer: contact,
+                  // Huella del dispositivo (antifraude de MP) — la define
+                  // security.js; reduce los rechazos por "riesgo alto".
+                  device_id: window.MP_DEVICE_SESSION_ID || null,
                 }),
               })
                 .then((r) => r.json().then((d) => ({ ok: r.ok, d })).catch(() => ({ ok: false, d: {} })))

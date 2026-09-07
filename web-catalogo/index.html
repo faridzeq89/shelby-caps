@@ -266,6 +266,10 @@
 </div>
 
 <script src="https://sdk.mercadopago.com/js/v2"></script>
+<!-- Huella del dispositivo para el antifraude de MP: define
+     window.MP_DEVICE_SESSION_ID, que se manda al crear el pago (reduce los
+     rechazos por "riesgo alto" en el checkout transparente). -->
+<script src="https://www.mercadopago.com/v2/security.js" view="home"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

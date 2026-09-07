@@ -166,6 +166,22 @@ Deno.serve(async (req) => {
     const identification = (payer.identification ?? undefined) as
       | Record<string, unknown>
       | undefined;
+    // Datos del pagador para el motor antifraude: nombre, apellido y teléfono.
+    // Mientras más señales, menos rechazos por "riesgo alto".
+    const fullName = String(c.name ?? "").trim();
+    const firstName = fullName.split(/\s+/)[0] || undefined;
+    const lastName = fullName.split(/\s+/).slice(1).join(" ") || undefined;
+    const phoneDigits = String(c.phone ?? "").replace(/\D/g, "");
+    const phone = phoneDigits.length >= 10
+      ? { area_code: phoneDigits.slice(0, 3), number: phoneDigits.slice(3) }
+      : undefined;
+    const payerBlock: Record<string, unknown> = {
+      email,
+      ...(firstName ? { first_name: firstName } : {}),
+      ...(lastName ? { last_name: lastName } : {}),
+      ...(phone ? { phone } : {}),
+      ...(identification && identification.number ? { identification } : {}),
+    };
     const payBody: Record<string, unknown> = {
       transaction_amount: Math.round(totalCents) / 100,
       token: form.token,
@@ -175,12 +191,7 @@ Deno.serve(async (req) => {
       external_reference: order!.id,
       notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mp-webhook`,
       metadata: { order_id: order!.id },
-      payer: {
-        email,
-        ...(identification && identification.number
-          ? { identification }
-          : {}),
-      },
+      payer: payerBlock,
       additional_info: {
         items: items.map((it) => ({
           id: it.id,
@@ -188,9 +199,20 @@ Deno.serve(async (req) => {
           quantity: it.quantity,
           unit_price: it.unit_price,
         })),
+        payer: {
+          ...(firstName ? { first_name: firstName } : {}),
+          ...(lastName ? { last_name: lastName } : {}),
+          ...(phone ? { phone } : {}),
+        },
       },
     };
     if (form.issuer_id) payBody.issuer_id = form.issuer_id;
+
+    // Huella del dispositivo (device fingerprint): es la señal antifraude más
+    // importante en checkout transparente. Sin ella MP suele rechazar como
+    // "cc_rejected_high_risk". La manda el frontend (window.MP_DEVICE_SESSION_ID)
+    // y va en el header X-meli-session-id.
+    const deviceId = String(body.device_id ?? "").trim();
 
     const payRes = await fetch("https://api.mercadopago.com/v1/payments", {
       method: "POST",
@@ -200,6 +222,8 @@ Deno.serve(async (req) => {
         // Una llave por pedido: un reintento sobre el MISMO pedido no cobra dos
         // veces (cada envío del Brick crea un pedido nuevo, así que es único).
         "X-Idempotency-Key": order!.id,
+        // Huella del dispositivo para el antifraude de MP (reduce high_risk).
+        ...(deviceId ? { "X-meli-session-id": deviceId } : {}),
       },
       body: JSON.stringify(payBody),
     });

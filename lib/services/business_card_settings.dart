@@ -175,6 +175,8 @@ class BusinessCardData {
     this.coverImagePath,
     this.banners = const [],
     this.ticker = const [],
+    this.shippingCents = 0,
+    this.freeShippingCents = 0,
     this.shippingNotice = '',
     this.shippingFaq = const [],
     this.purchaseSteps = const [],
@@ -198,6 +200,16 @@ class BusinessCardData {
   /// Tira de anuncios de la tienda (debajo del horario). Vacía = la tienda cae
   /// a los ejemplos de `web-catalogo/config.js`.
   final List<CardTicker> ticker;
+
+  /// Costo fijo del envío a domicilio, en centavos. 0 = sin costo (gratis). Se
+  /// suma al total SOLO cuando el cliente elige "Envío a Domicilio". El cobro
+  /// (`process-payment`) lo vuelve a sumar desde este valor publicado, así el
+  /// cliente no puede saltárselo.
+  final int shippingCents;
+
+  /// Umbral para **envío gratis**, en centavos: si el total de productos alcanza
+  /// este monto, no se cobra envío aunque sea a domicilio. 0 = sin envío gratis.
+  final int freeShippingCents;
 
   final String shippingNotice;
   final List<FaqItem> shippingFaq;
@@ -230,6 +242,8 @@ class BusinessCardData {
                     CardTicker.fromJson(Map<String, dynamic>.from(e as Map)))
                 .toList() ??
             const [],
+        shippingCents: (j['shippingCents'] as num?)?.toInt() ?? 0,
+        freeShippingCents: (j['freeShippingCents'] as num?)?.toInt() ?? 0,
         shippingNotice: j['shippingNotice'] as String? ?? '',
         shippingFaq: (j['shippingFaq'] as List?)
                 ?.map((e) => FaqItem.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -256,6 +270,8 @@ class BusinessCardData {
         if (coverImagePath != null) 'coverImagePath': coverImagePath,
         'banners': banners.map((e) => e.toJson()).toList(),
         'ticker': ticker.map((e) => e.toJson()).toList(),
+        'shippingCents': shippingCents,
+        'freeShippingCents': freeShippingCents,
         'shippingNotice': shippingNotice,
         'shippingFaq': shippingFaq.map((e) => e.toJson()).toList(),
         'purchaseSteps': purchaseSteps,
@@ -272,6 +288,8 @@ class BusinessCardData {
     String? coverImagePath,
     List<CardBanner>? banners,
     List<CardTicker>? ticker,
+    int? shippingCents,
+    int? freeShippingCents,
     String? shippingNotice,
     List<FaqItem>? shippingFaq,
     List<String>? purchaseSteps,
@@ -287,6 +305,8 @@ class BusinessCardData {
         coverImagePath: coverImagePath ?? this.coverImagePath,
         banners: banners ?? this.banners,
         ticker: ticker ?? this.ticker,
+        shippingCents: shippingCents ?? this.shippingCents,
+        freeShippingCents: freeShippingCents ?? this.freeShippingCents,
         shippingNotice: shippingNotice ?? this.shippingNotice,
         shippingFaq: shippingFaq ?? this.shippingFaq,
         purchaseSteps: purchaseSteps ?? this.purchaseSteps,

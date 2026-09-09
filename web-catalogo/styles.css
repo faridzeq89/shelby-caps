@@ -305,6 +305,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 .form input:focus, .form textarea:focus, .form .fselect:focus { border-color: var(--ink); }
 .form input.bad, .form textarea.bad { border-color: #c0111f; }
 .ferr { margin: 2px 0 0; font-size: 12.5px; color: #c0111f; }
+.ship-fee { margin: 10px 0 0; font-size: 13.5px; font-weight: 700; color: var(--ink); }
 
 /* Opción de entrega: toda la fila es tocable, como en el original. */
 .opt {

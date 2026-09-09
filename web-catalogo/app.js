@@ -80,6 +80,18 @@
   const cartCount = () => [...cart.values()].reduce((n, e) => n + e.qty, 0);
   const cartTotal = () => pricedCart().reduce((s, l) => s + l.lineTotal, 0);
 
+  // Costo de envío a domicilio: lo publica el POS (business_card.shippingCents);
+  // solo aplica si el cliente eligió "Envío a Domicilio". `orderTotal` es lo que
+  // de verdad se cobra (productos + envío).
+  let SHIPPING_CENTS = 0;
+  let FREE_SHIP_CENTS = 0; // envío gratis desde este total de productos (0 = no)
+  const shippingFee = () => {
+    if (!isDelivery() || SHIPPING_CENTS <= 0) return 0;
+    if (FREE_SHIP_CENTS > 0 && cartTotal() >= FREE_SHIP_CENTS) return 0;
+    return SHIPPING_CENTS;
+  };
+  const orderTotal = () => cartTotal() + shippingFee();
+
   function addToCart(product, variant, delta) {
     const cur = cart.get(variant.id);
     const qty = Math.min((cur ? cur.qty : 0) + delta, variant.stock || 0);
@@ -636,12 +648,35 @@
       clearError("coColonia", "errColonia");
       clearError("coCity", "errCity");
     }
+    drawCheckoutTotal(); // el envío depende de si es domicilio
   }
 
   function drawCheckoutTotal() {
     const n = cartCount();
     $("coCount").textContent = String(n);
-    $("coTotal").textContent = money(cartTotal());
+    $("coTotal").textContent = money(orderTotal());
+    const note = $("coShipNote");
+    if (!isDelivery() || SHIPPING_CENTS <= 0) {
+      note.hidden = true;
+      return;
+    }
+    const ship = shippingFee();
+    if (ship > 0) {
+      let txt = "Incluye envío a domicilio: " + money(ship);
+      if (FREE_SHIP_CENTS > 0) {
+        const falta = FREE_SHIP_CENTS - cartTotal();
+        if (falta > 0) {
+          txt += " · Te faltan " + money(falta) + " para envío gratis";
+        }
+      }
+      note.textContent = txt;
+      note.hidden = false;
+    } else if (FREE_SHIP_CENTS > 0 && cartTotal() >= FREE_SHIP_CENTS) {
+      note.textContent = "¡Envío gratis! 🎉";
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
   }
 
   function markError(inputId, errId, bad) {
@@ -723,7 +758,8 @@
           `${l.wholesale ? " [mayoreo]" : ""} — ${money(l.lineTotal)}`;
       }),
       "",
-      `*Total: ${money(cartTotal())}*`,
+      ...(shippingFee() > 0 ? [`Envío: ${money(shippingFee())}`] : []),
+      `*Total: ${money(orderTotal())}*`,
       "",
       contact.delivery
         ? `Envío a domicilio: ${contact.addr}`
@@ -853,11 +889,11 @@
 
     // El servidor recalcula el precio; solo mandamos qué variante y cuántas.
     const cartLines = lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty }));
-    const amount = cartTotal() / 100; // pesos, solo para mostrar el formulario
+    const amount = orderTotal() / 100; // pesos (productos + envío), para el Brick
 
     $("paySheet").hidden = true;
     $("mpSheet").hidden = false;
-    $("mpAmount").textContent = money(cartTotal());
+    $("mpAmount").textContent = money(orderTotal());
     $("mpBrick").innerHTML = "";
     unmountBrick();
 
@@ -898,7 +934,7 @@
                   if (approved || pending) {
                     resolve();
                     // Capturar total y mensaje ANTES de limpiar el carrito.
-                    const totalCents = cartTotal();
+                    const totalCents = orderTotal();
                     const orderMsg = orderMessage(contact);
                     showDone({
                       status: approved ? "approved" : "pending",
@@ -1061,6 +1097,13 @@
     // La tira de anuncios publicada desde el POS gana sobre los ejemplos.
     if (cardData && Array.isArray(cardData.ticker) && cardData.ticker.length) {
       renderTicker(cardData.ticker);
+    }
+    // Costo de envío a domicilio publicado desde el POS (+ umbral gratis).
+    if (cardData && typeof cardData.shippingCents === "number") {
+      SHIPPING_CENTS = cardData.shippingCents;
+    }
+    if (cardData && typeof cardData.freeShippingCents === "number") {
+      FREE_SHIP_CENTS = cardData.freeShippingCents;
     }
 
     // Los anuncios se piden aparte y primero: son lo primero que se ve, y si

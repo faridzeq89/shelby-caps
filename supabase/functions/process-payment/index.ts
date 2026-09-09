@@ -205,6 +205,31 @@ Deno.serve(async (req) => {
     const email = String((payer.email ?? c.email ?? "")).trim();
     if (!email) return json({ error: "Falta el correo del pagador" }, 400);
 
+    // Envío a domicilio: costo fijo publicado (business_card.shippingCents), con
+    // envío gratis desde un umbral (freeShippingCents) sobre el total de
+    // PRODUCTOS. Se lee y se suma en el SERVIDOR para que el cliente no lo evada.
+    if (c.delivery) {
+      const { data: card } = await supabase
+        .from("business_card")
+        .select("data")
+        .eq("id", 1)
+        .maybeSingle();
+      const cardData = (card?.data ?? {}) as Record<string, unknown>;
+      const fee = Number(cardData.shippingCents) || 0;
+      const freeFrom = Number(cardData.freeShippingCents) || 0;
+      const freeEarned = freeFrom > 0 && totalCents >= freeFrom;
+      if (fee > 0 && !freeEarned) {
+        items.push({
+          id: "shipping",
+          title: "Envío a domicilio",
+          quantity: 1,
+          unit_price: Math.round(fee) / 100,
+          currency_id: "MXN",
+        });
+        totalCents += fee;
+      }
+    }
+
     // -----------------------------------------------------------------------
     // 2) Pedido pendiente (el webhook y esta misma función lo actualizan).
     // -----------------------------------------------------------------------

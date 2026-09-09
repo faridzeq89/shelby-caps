@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui_kit.dart';
+import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/catalog_repository.dart';
@@ -788,6 +789,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               _header(data),
               _photoStrip(data),
               _mayoreoCard(data),
+              _descuentoCard(data),
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -953,6 +955,82 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
           productId: data.product.id,
           priceCents: result.priceCents);
       _toast(result.priceCents == null ? 'Mayoreo quitado' : 'Mayoreo guardado');
+      _reload();
+    } catch (e) {
+      _toast('$e');
+    }
+  }
+
+  /// Descuento de **oferta** del producto (fijo o %). Aplica al menudeo siempre;
+  /// en la venta y la tienda se ve el precio anterior tachado.
+  Widget _descuentoCard(_EditorData data) {
+    final theme = Theme.of(context);
+    final kind = data.product.discountKind;
+    final value = data.product.discountValue;
+    final has = kind != null && value != null && value > 0;
+    final base = data.product.basePriceCents;
+    final offer = discountedPrice(base, kind, value);
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.sell_outlined,
+                    size: 20, color: theme.colorScheme.primary),
+                const SizedBox(width: 6),
+                Text('Descuento de oferta', style: theme.textTheme.titleSmall),
+                const Spacer(),
+                if (_canEditPrices)
+                  TextButton(
+                    onPressed: () => _editDiscount(data),
+                    child: Text(has ? 'Editar' : 'Agregar'),
+                  ),
+              ],
+            ),
+            if (!has)
+              Text(
+                'Sin oferta. Ponle un % o un monto fijo y el precio de menudeo '
+                'baja en la venta y en la tienda (mostrando el precio anterior).',
+                style: theme.textTheme.bodySmall,
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${kind == 'percent' ? '$value% de descuento' : '${money(value)} de descuento'}'
+                  '  ·  oferta ${money(offer)} (antes ${money(base)})',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editDiscount(_EditorData data) async {
+    final result = await showDialog<_DiscountResult>(
+      context: context,
+      builder: (_) => _DiscountDialog(
+        productName: data.product.name,
+        basePriceCents: data.product.basePriceCents,
+        kind: data.product.discountKind,
+        value: data.product.discountValue,
+      ),
+    );
+    if (result == null) return;
+    try {
+      await _repo.setProductDiscount(
+        actor: _actor,
+        productId: data.product.id,
+        kind: result.kind,
+        value: result.value,
+      );
+      _toast(result.kind == null ? 'Descuento quitado' : 'Descuento guardado');
       _reload();
     } catch (e) {
       _toast('$e');
@@ -1414,6 +1492,138 @@ class _StockDialogState extends State<_StockDialog> {
                   Navigator.of(context).pop(_StockResult(
                       objetivo, _motivo, nota.isEmpty ? null : nota));
                 },
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Resultado del diálogo de descuento. `kind`/`value` nulos = quitar el
+/// descuento.
+class _DiscountResult {
+  const _DiscountResult(this.kind, this.value);
+  final String? kind;
+  final int? value;
+}
+
+class _DiscountDialog extends StatefulWidget {
+  const _DiscountDialog({
+    required this.productName,
+    required this.basePriceCents,
+    required this.kind,
+    required this.value,
+  });
+  final String productName;
+  final int basePriceCents;
+  final String? kind;
+  final int? value;
+
+  @override
+  State<_DiscountDialog> createState() => _DiscountDialogState();
+}
+
+class _DiscountDialogState extends State<_DiscountDialog> {
+  late bool _percent = (widget.kind ?? 'percent') == 'percent';
+  late final TextEditingController _value = TextEditingController(
+    text: (widget.value == null || widget.value! <= 0)
+        ? ''
+        : (widget.kind == 'percent'
+            ? widget.value.toString()
+            : (widget.value! / 100).toStringAsFixed(2)),
+  );
+  String? _error;
+
+  @override
+  void dispose() {
+    _value.dispose();
+    super.dispose();
+  }
+
+  int get _offer {
+    final raw = double.tryParse(_value.text.trim()) ?? 0;
+    final v = _percent ? raw.round() : (raw * 100).round();
+    return discountedPrice(widget.basePriceCents, _percent ? 'percent' : 'fixed', v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = widget.basePriceCents;
+    return AlertDialog(
+      title: const Text('Descuento de oferta'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('${widget.productName}  ·  menudeo ${money(base)}',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 12),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: true, label: Text('Porcentaje %')),
+                ButtonSegment(value: false, label: Text('Monto fijo \$')),
+              ],
+              selected: {_percent},
+              onSelectionChanged: (s) => setState(() => _percent = s.first),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _value,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              onChanged: (_) => setState(() => _error = null),
+              decoration: InputDecoration(
+                labelText: _percent ? 'Porcentaje de descuento' : 'Monto a descontar',
+                prefixText: _percent ? null : '\$ ',
+                suffixText: _percent ? '%' : null,
+                errorText: _error,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('Precio de oferta: ${money(_offer)}',
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        if (widget.kind != null)
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(const _DiscountResult(null, null)),
+            child: const Text('Quitar'),
+          ),
+        FilledButton(
+          onPressed: () {
+            final raw = double.tryParse(_value.text.trim()) ?? 0;
+            if (raw <= 0) {
+              setState(() => _error = 'Escribe un descuento mayor a 0');
+              return;
+            }
+            if (_percent) {
+              final v = raw.round();
+              if (v < 1 || v > 100) {
+                setState(() => _error = 'El porcentaje debe ser entre 1 y 100');
+                return;
+              }
+              Navigator.of(context).pop(_DiscountResult('percent', v));
+            } else {
+              final v = (raw * 100).round();
+              if (v >= base) {
+                setState(() =>
+                    _error = 'El descuento no puede ser mayor o igual al precio');
+                return;
+              }
+              Navigator.of(context).pop(_DiscountResult('fixed', v));
+            }
+          },
           child: const Text('Guardar'),
         ),
       ],

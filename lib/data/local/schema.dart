@@ -129,6 +129,13 @@ class Products extends Table {
   // (no por producto) al alcanzar el umbral global `wholesale_threshold` en
   // AppSettings. Siempre menor al menudeo; la captura lo valida.
   IntColumn get wholesalePriceCents => integer().nullable()();
+  // Descuento de OFERTA por producto (menudeo). Nulo = sin oferta. `discountKind`
+  // es 'percent' (discountValue = 1..100, porcentaje) o 'fixed' (discountValue =
+  // centavos a descontar). Aplica sobre el precio de menudeo de cada variante;
+  // el mayoreo va aparte y, cuando aplica, gana. El precio de oferta nunca baja
+  // de 0.
+  TextColumn get discountKind => text().nullable()();
+  IntColumn get discountValue => integer().nullable()();
   // Servicio (limpieza, personalización): el precio se define DESPUÉS, en la
   // cotización (depende del estado de la prenda), y NO maneja inventario. Se
   // vende agregándolo → guardar cotización → poner precio → pasar a venta.

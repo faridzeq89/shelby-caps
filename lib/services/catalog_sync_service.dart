@@ -234,6 +234,10 @@ class CatalogSyncService {
           // Precio de mayoreo del producto (nulo => sin mayoreo). La tienda lo
           // activa por total de carrito contra `wholesaleThreshold`.
           'wholesale_price_cents': p.wholesalePriceCents,
+          // Descuento de oferta del producto (menudeo): la tienda muestra el
+          // precio anterior tachado y cobra el de oferta.
+          'discount_kind': p.discountKind,
+          'discount_value': p.discountValue,
           'tax_rate_bps': p.taxRateBps,
           'active': p.active,
         }

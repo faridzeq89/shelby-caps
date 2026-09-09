@@ -163,9 +163,17 @@ Deno.serve(async (req) => {
     const productIds = [...new Set((variants ?? []).map((v) => v.product_id as number))];
     const { data: products } = await supabase
       .from("catalog_products")
-      .select("id, name, wholesale_price_cents")
+      .select("id, name, wholesale_price_cents, discount_kind, discount_value")
       .in("id", productIds);
     const pById = new Map((products ?? []).map((p) => [p.id as number, p]));
+
+    // Descuento de oferta por producto (misma regla que el POS y la tienda).
+    const offer = (base: number, kind: unknown, value: unknown): number => {
+      const v = Number(value) || 0;
+      if (!kind || v <= 0) return base;
+      const off = kind === "percent" ? Math.round(base * v / 100) : v;
+      return Math.max(0, base - off);
+    };
 
     // Umbral de mayoreo (si la tabla no existe todavía, sin mayoreo).
     let threshold = 0;
@@ -188,7 +196,10 @@ Deno.serve(async (req) => {
       if (!v) return json({ error: "Un producto del carrito ya no está disponible" }, 409);
       const p = pById.get(v.product_id as number);
       const w = p?.wholesale_price_cents as number | null | undefined;
-      const unit = wholesaleActive && w != null ? w : (v.price_cents as number);
+      // Mayoreo gana; si no, el precio lleva el descuento de oferta del producto.
+      const unit = wholesaleActive && w != null
+        ? w
+        : offer(v.price_cents as number, p?.discount_kind, p?.discount_value);
       totalCents += unit * qty;
       items.push({
         id: String(id),

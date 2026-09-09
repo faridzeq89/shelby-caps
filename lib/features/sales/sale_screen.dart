@@ -206,8 +206,12 @@ class SaleScreenState extends State<SaleScreen> {
       if (existing != null) {
         existing.qty++;
       } else {
-        _lines.add(_CartLine(product, variant,
-            priceOverrideCents ?? effectivePrice(product, variant), 1));
+        // El menudeo ya lleva el descuento de oferta del producto (si tiene);
+        // un precio dado a mano (servicio) manda y no se descuenta.
+        final retail = priceOverrideCents ??
+            discountedPrice(effectivePrice(product, variant),
+                product.discountKind, product.discountValue);
+        _lines.add(_CartLine(product, variant, retail, 1));
       }
       _reprice();
     });

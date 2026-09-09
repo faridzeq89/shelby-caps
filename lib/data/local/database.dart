@@ -63,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -170,6 +170,10 @@ class AppDatabase extends _$AppDatabase {
             await _convertTiersToWholesale();
             await customStatement('DROP TABLE IF EXISTS price_tiers');
           }
+          if (from < 19) {
+            // v18 → v19: descuento de oferta por producto (fijo o %).
+            await _addProductDiscountIfMissing(m);
+          }
           await _createExtras();
         },
         beforeOpen: (details) async {
@@ -200,6 +204,19 @@ class AppDatabase extends _$AppDatabase {
         info.any((r) => r.read<String>('name') == 'image_path');
     if (!hasColumn) {
       await m.addColumn(products, products.imagePath);
+    }
+  }
+
+  /// Agrega `products.discount_kind` / `discount_value` solo si faltan.
+  /// Idempotente (una base nueva ya nace con ellas).
+  Future<void> _addProductDiscountIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('products')").get();
+    final cols = {for (final r in info) r.read<String>('name')};
+    if (!cols.contains('discount_kind')) {
+      await m.addColumn(products, products.discountKind);
+    }
+    if (!cols.contains('discount_value')) {
+      await m.addColumn(products, products.discountValue);
     }
   }
 

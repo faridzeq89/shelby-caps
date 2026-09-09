@@ -530,6 +530,50 @@ class CatalogRepository {
     });
   }
 
+  /// Fija (o quita) el **descuento de oferta** de un producto: `kind` =
+  /// 'percent' (value 1..100) o 'fixed' (value en centavos). `kind`/`value`
+  /// nulos o value<=0 quitan el descuento. Exige permiso de precios y audita.
+  Future<void> setProductDiscount({
+    required Profile actor,
+    required int productId,
+    required String? kind,
+    required int? value,
+  }) async {
+    if (!Permissions.canEditPrices(actor.role)) {
+      throw PermissionException(
+          'El rol ${actor.role.name} no puede editar precios');
+    }
+    String? k = kind;
+    int? v = value;
+    if (k == null || v == null || v <= 0) {
+      k = null;
+      v = null;
+    }
+    if (k != null) {
+      if (k != 'percent' && k != 'fixed') {
+        throw ArgumentError('Tipo de descuento inválido');
+      }
+      if (k == 'percent' && (v! < 1 || v > 100)) {
+        throw ArgumentError('El porcentaje debe ser entre 1 y 100');
+      }
+      if (k == 'fixed') {
+        final product = await (_db.select(_db.products)
+              ..where((t) => t.id.equals(productId)))
+            .getSingleOrNull();
+        if (product != null && v! >= product.basePriceCents) {
+          throw ArgumentError('El descuento no puede ser mayor o igual al precio');
+        }
+      }
+    }
+    await _db.transaction(() async {
+      await (_db.update(_db.products)..where((t) => t.id.equals(productId)))
+          .write(ProductsCompanion(
+              discountKind: Value(k), discountValue: Value(v)));
+      await _audit(actor, 'set_product_discount', 'product',
+          productId.toString(), k == null ? 'quitado' : '$k=$v');
+    });
+  }
+
   /// Cambia el **umbral global** de mayoreo (piezas en el carrito para activar
   /// el mayoreo de todo el carrito). Exige permiso de precios y audita.
   Future<void> setWholesaleThreshold(Profile actor, int qty) async {

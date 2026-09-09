@@ -65,14 +65,41 @@
     return vs.length ? Math.min(...vs.map((v) => v.price_cents)) : null;
   }
 
+  // Descuento de OFERTA por producto (misma regla que el POS y el servidor).
+  function jsDiscount(cents, kind, value) {
+    if (!kind || !value || value <= 0) return cents;
+    const off = kind === "percent" ? Math.round(cents * value / 100) : value;
+    return Math.max(0, cents - off);
+  }
+  const offerOf = (product, cents) =>
+    jsDiscount(cents, product.discount_kind, product.discount_value);
+  const hasOffer = (product) =>
+    !!product.discount_kind && (product.discount_value || 0) > 0;
+
+  /** HTML del precio: si hay oferta, muestra el anterior tachado + el de oferta. */
+  function priceHtml(product, origCents) {
+    const offer = offerOf(product, origCents);
+    if (hasOffer(product) && offer < origCents) {
+      return '<p class="price"><span class="was">' + money(origCents) +
+        '</span> <span class="now">' + money(offer) + "</span></p>";
+    }
+    return '<p class="price">' + money(origCents) + "</p>";
+  }
+
   function pricedCart() {
     const active = wholesaleActive();
     const lines = [];
     for (const entry of cart.values()) {
       const w = entry.product.wholesale_price_cents;
       const useW = active && w != null;
-      const unit = useW ? w : entry.variant.price_cents;
-      lines.push({ ...entry, unit, wholesale: useW, lineTotal: unit * entry.qty });
+      const orig = entry.variant.price_cents;
+      // Mayoreo gana; si no, aplica el descuento de oferta del producto.
+      const unit = useW ? w : offerOf(entry.product, orig);
+      lines.push({
+        ...entry, unit, orig, wholesale: useW,
+        offer: !useW && unit < orig,
+        lineTotal: unit * entry.qty,
+      });
     }
     return lines;
   }
@@ -390,7 +417,10 @@
         .toLowerCase().includes(q)) return false;
       return true;
     });
-    const price = (p) => priceOf(p.id) ?? Number.MAX_SAFE_INTEGER;
+    const price = (p) => {
+      const o = priceOf(p.id);
+      return o == null ? Number.MAX_SAFE_INTEGER : offerOf(p, o);
+    };
     if (sortBy === "price-asc") list = list.slice().sort((a, b) => price(a) - price(b));
     else if (sortBy === "price-desc") list = list.slice().sort((a, b) => price(b) - price(a));
     else if (sortBy === "name-asc") list = list.slice().sort((a, b) => a.name.localeCompare(b.name, "es"));
@@ -426,57 +456,63 @@
       card.className = "card" + (soldOut ? " soldout" : "");
       card.innerHTML =
         thumbHtml(p) +
+        (hasOffer(p) && offerOf(p, price) < price ? offerBadge(p, price) : "") +
         "<div>" +
         "<h3>" + esc(p.name) + "</h3>" +
         (p.description ? '<p class="desc">' + esc(p.description) + "</p>" : "") +
         (soldOut
           ? '<p class="out">Producto agotado</p>'
-          : '<p class="price">' + money(price) + "</p>") +
+          : priceHtml(p, price)) +
         "</div>";
       card.querySelector(".thumb").onclick = () => openDetail(p);
       card.querySelector("h3").onclick = () => openDetail(p);
       if (!soldOut) {
-        // Control de agregar: "Agregar" que se vuelve un stepper − N + una vez en
-        // el carrito, para poder subir/bajar la cantidad sin abrir la ficha. Si el
-        // producto tiene talla/color que elegir, se abre la ficha (no se adivina).
-        let ctrl;
-        const build = () => {
-          const vs = variantsOf(p.id).filter((v) => v.stock > 0);
-          if (!vs.length) return document.createElement("span");
-          const needsChoice = vs.length > 1 || !!(vs[0].size || vs[0].color);
-          if (needsChoice) {
-            const b = document.createElement("button");
-            b.className = "addmini"; b.type = "button";
-            b.textContent = "Agregar al carrito";
-            b.onclick = (e) => { e.stopPropagation(); openDetail(p); };
-            return b;
-          }
-          const v = vs[0];
-          const qty = (cart.get(v.id) || {}).qty || 0;
-          if (qty <= 0) {
-            const b = document.createElement("button");
-            b.className = "addmini"; b.type = "button"; b.textContent = "Agregar";
-            b.onclick = (e) => { e.stopPropagation(); addToCart(p, v, 1); swap(); };
-            return b;
-          }
-          const wrap = document.createElement("div");
-          wrap.className = "qstep";
-          wrap.innerHTML =
-            '<button type="button" aria-label="Quitar uno">−</button>' +
-            '<span class="n">' + qty + "</span>" +
-            '<button type="button" aria-label="Agregar uno"' +
-            (qty >= v.stock ? " disabled" : "") + ">+</button>";
-          const btns = wrap.querySelectorAll("button");
-          btns[0].onclick = (e) => { e.stopPropagation(); addToCart(p, v, -1); swap(); };
-          btns[1].onclick = (e) => { e.stopPropagation(); addToCart(p, v, 1); swap(); };
-          return wrap;
+        // Dos botones, como pidió el cliente: "Agregar al carrito" y "Comprar
+        // ahora" (agrega y salta al checkout). Si hay talla/color que elegir, se
+        // abre la ficha para no adivinar la variante.
+        const vs = variantsOf(p.id).filter((v) => v.stock > 0);
+        const needsChoice =
+          vs.length !== 1 || !!(vs[0].size || vs[0].color);
+        const actions = document.createElement("div");
+        actions.className = "cardacts";
+
+        const addBtn = document.createElement("button");
+        addBtn.className = "cbtn"; addBtn.type = "button";
+        addBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/>' +
+          '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/>' +
+          '<path d="M6 6 5 3H2"/></svg><span>Agregar al carrito</span>';
+        addBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (needsChoice) { openDetail(p); return; }
+          addToCart(p, vs[0], 1);
+          toast("Agregado al carrito");
         };
-        const swap = () => { const nu = build(); ctrl.replaceWith(nu); ctrl = nu; };
-        ctrl = build();
-        card.appendChild(ctrl);
+
+        const buyBtn = document.createElement("button");
+        buyBtn.className = "cbtn"; buyBtn.type = "button";
+        buyBtn.textContent = "Comprar ahora";
+        buyBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (needsChoice) { openDetail(p); return; }
+          addToCart(p, vs[0], 1);
+          openCheckout();
+        };
+
+        actions.appendChild(addBtn);
+        actions.appendChild(buyBtn);
+        card.appendChild(actions);
       }
       grid.appendChild(card);
     }
+  }
+
+  /** Etiqueta de oferta en la esquina del mosaico (−30% o "OFERTA"). */
+  function offerBadge(product, origCents) {
+    const label = product.discount_kind === "percent"
+      ? "-" + product.discount_value + "%"
+      : "-" + money(origCents - offerOf(product, origCents));
+    return '<span class="offer-badge">' + esc(label) + "</span>";
   }
 
   // ---- Ficha de producto ----
@@ -553,8 +589,13 @@
     // esto el botón prometía un total ("$3,600") que no se iba a respetar.
     let qty = Math.max(1, parseInt($("dQty").value, 10) || 1);
     if (max > 0 && qty > max) { qty = max; $("dQty").value = String(max); }
-    const price = currentVariant ? currentVariant.price_cents : priceOf(current.id) || 0;
-    $("dPrice").textContent = money(price);
+    const orig = currentVariant ? currentVariant.price_cents : priceOf(current.id) || 0;
+    const price = offerOf(current, orig);
+    // Si hay oferta, muestra el precio anterior tachado junto al de oferta.
+    $("dPrice").innerHTML = (hasOffer(current) && price < orig)
+      ? '<span class="was">' + money(orig) + '</span> ' +
+        '<span class="now">' + money(price) + "</span>"
+      : money(price);
     $("dAddTotal").textContent = money(price * qty);
     $("dAdd").disabled = !currentVariant || max <= 0;
   }

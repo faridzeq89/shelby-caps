@@ -185,6 +185,25 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 .card .addmini:active { background: var(--accent); border-color: var(--accent); }
 .card.soldout .thumb img { filter: grayscale(1); opacity: .55; }
 
+/* Oferta: precio anterior tachado + precio de oferta, badge y botones negros */
+.card { position: relative; }
+.was { color: var(--muted); text-decoration: line-through; font-weight: 700; }
+.now { color: var(--accent); }
+.card .price .was { font-size: 13.5px; margin-right: 4px; }
+.offer-badge {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  background: var(--accent); color: #fff; font-weight: 800; font-size: 12px;
+  padding: 2px 8px; border-radius: 999px;
+}
+.cardacts { margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.cbtn {
+  width: 100%; min-height: 38px; border: 0; border-radius: var(--radius);
+  background: #000; color: #fff; font-weight: 800; font-size: 13.5px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px;
+}
+.cbtn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.cbtn:active { opacity: .85; }
+
 /* Stepper − N + para subir/bajar cantidad (vitrina y carrito) */
 .qstep {
   display: flex; align-items: center; height: 34px; overflow: hidden;
@@ -208,6 +227,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 10px 14px 40px; }
 .grid.list .card > div { flex: 1 1 auto; min-width: 0; }
 .grid.list .addmini { margin: 0; flex: 0 0 auto; padding: 0 12px; }
 .grid.list .qstep { margin: 0; flex: 0 0 auto; width: 120px; }
+.grid.list .cardacts { margin: 0; flex: 0 0 auto; width: 160px; }
 
 /* ---------- Hojas (ficha y carrito) ---------- */
 .sheet { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.35); display: grid; }

@@ -205,6 +205,36 @@ Deno.serve(async (req) => {
     const email = String((payer.email ?? c.email ?? "")).trim();
     if (!email) return json({ error: "Falta el correo del pagador" }, 400);
 
+    // Subtotal de PRODUCTOS (antes de cupón y envío). El cupón descuenta sobre
+    // esto; el umbral de envío gratis también se mide sobre esto.
+    const productCents = totalCents;
+
+    // Cupón de descuento: se valida contra la tabla `coupons` en el SERVIDOR
+    // (nunca se confía en el navegador). Aplica al subtotal de productos.
+    let couponDiscount = 0;
+    let couponCode = "";
+    const rawCoupon = String(body.coupon ?? "").trim();
+    if (rawCoupon) {
+      const code = rawCoupon.toUpperCase();
+      const { data: cp } = await supabase
+        .from("coupons")
+        .select("kind, value")
+        .eq("code", code)
+        .eq("active", true)
+        .maybeSingle();
+      if (cp) {
+        const val = Number(cp.value) || 0;
+        couponDiscount = cp.kind === "percent"
+          ? Math.round(productCents * val / 100)
+          : Math.min(val, productCents);
+        couponDiscount = Math.max(0, Math.min(couponDiscount, productCents));
+        if (couponDiscount > 0) {
+          couponCode = code;
+          totalCents -= couponDiscount;
+        }
+      }
+    }
+
     // Envío a domicilio: costo fijo publicado (business_card.shippingCents), con
     // envío gratis desde un umbral (freeShippingCents) sobre el total de
     // PRODUCTOS. Se lee y se suma en el SERVIDOR para que el cliente no lo evada.
@@ -217,7 +247,7 @@ Deno.serve(async (req) => {
       const cardData = (card?.data ?? {}) as Record<string, unknown>;
       const fee = Number(cardData.shippingCents) || 0;
       const freeFrom = Number(cardData.freeShippingCents) || 0;
-      const freeEarned = freeFrom > 0 && totalCents >= freeFrom;
+      const freeEarned = freeFrom > 0 && productCents >= freeFrom;
       if (fee > 0 && !freeEarned) {
         items.push({
           id: "shipping",
@@ -229,6 +259,15 @@ Deno.serve(async (req) => {
         totalCents += fee;
       }
     }
+    if (totalCents <= 0) return json({ error: "Total inválido" }, 400);
+
+    // Nota con el cupón aplicado, para que el POS lo vea en el pedido.
+    const orderNotes = [
+      c.notes ? String(c.notes) : "",
+      couponCode
+        ? `Cupón ${couponCode} (−${(couponDiscount / 100).toFixed(2)})`
+        : "",
+    ].filter((s) => s).join(" · ") || null;
 
     // -----------------------------------------------------------------------
     // 2) Pedido pendiente (el webhook y esta misma función lo actualizan).
@@ -241,7 +280,7 @@ Deno.serve(async (req) => {
       customer_email: email,
       delivery: !!c.delivery,
       address: c.addr ?? c.address ?? null,
-      notes: c.notes ?? null,
+      notes: orderNotes,
       items,
     };
     let order: { id: string } | null = null;

@@ -90,7 +90,21 @@
     if (FREE_SHIP_CENTS > 0 && cartTotal() >= FREE_SHIP_CENTS) return 0;
     return SHIPPING_CENTS;
   };
-  const orderTotal = () => cartTotal() + shippingFee();
+
+  // Cupón de descuento aplicado (validado contra el servidor). Descuenta sobre
+  // el subtotal de productos; el cobro lo revalida y lo aplica de verdad.
+  let COUPON = null; // { code, kind, value }
+  const couponDiscount = () => {
+    if (!COUPON) return 0;
+    const sub = cartTotal();
+    const d = COUPON.kind === "percent"
+      ? Math.round(sub * COUPON.value / 100)
+      : Math.min(COUPON.value, sub);
+    return Math.max(0, Math.min(d, sub));
+  };
+
+  // Lo que de verdad se cobra: productos − cupón + envío.
+  const orderTotal = () => cartTotal() - couponDiscount() + shippingFee();
 
   function addToCart(product, variant, delta) {
     const cur = cart.get(variant.id);
@@ -679,6 +693,51 @@
     }
   }
 
+  /** Valida el cupón contra el servidor y lo aplica (o lo quita si está vacío). */
+  async function applyCoupon() {
+    const code = $("coCoupon").value.trim();
+    const msg = $("coCouponMsg");
+    if (!code) {
+      COUPON = null;
+      msg.hidden = true;
+      drawCheckoutTotal();
+      return;
+    }
+    msg.hidden = false;
+    msg.className = "coupon-msg";
+    msg.textContent = "Validando…";
+    try {
+      const res = await fetch(CFG.SUPABASE_URL + "/rest/v1/rpc/validate_coupon", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: CFG.SUPABASE_ANON,
+          Authorization: "Bearer " + CFG.SUPABASE_ANON,
+        },
+        body: JSON.stringify({ p_code: code }),
+      });
+      const rows = await res.json().catch(() => []);
+      const cp = Array.isArray(rows) && rows.length ? rows[0] : null;
+      if (!cp) {
+        COUPON = null;
+        msg.className = "coupon-msg bad";
+        msg.textContent = "Cupón no válido o inactivo";
+      } else {
+        COUPON = { code: cp.code, kind: cp.kind, value: cp.value };
+        const label = cp.kind === "percent"
+          ? cp.value + "% de descuento"
+          : money(cp.value) + " de descuento";
+        msg.className = "coupon-msg ok";
+        msg.textContent = "Cupón aplicado: " + label;
+      }
+    } catch (_) {
+      COUPON = null;
+      msg.className = "coupon-msg bad";
+      msg.textContent = "No se pudo validar el cupón";
+    }
+    drawCheckoutTotal();
+  }
+
   function markError(inputId, errId, bad) {
     $(inputId).classList.toggle("bad", bad);
     $(errId).hidden = !bad;
@@ -758,6 +817,9 @@
           `${l.wholesale ? " [mayoreo]" : ""} — ${money(l.lineTotal)}`;
       }),
       "",
+      ...(couponDiscount() > 0
+        ? [`Cupón ${COUPON.code}: −${money(couponDiscount())}`]
+        : []),
       ...(shippingFee() > 0 ? [`Envío: ${money(shippingFee())}`] : []),
       `*Total: ${money(orderTotal())}*`,
       "",
@@ -844,6 +906,10 @@
     unmountBrick();
     cart.clear();
     renderCartCount();
+    // El cupón y su descuento ya fueron usados en esta compra.
+    COUPON = null;
+    if ($("coCoupon")) $("coCoupon").value = "";
+    if ($("coCouponMsg")) $("coCouponMsg").hidden = true;
     $("mpSheet").hidden = true;
     $("paySheet").hidden = true;
     $("checkoutSheet").hidden = true;
@@ -922,6 +988,7 @@
                   form_data: formData,
                   cart: cartLines,
                   customer: contact,
+                  coupon: COUPON ? COUPON.code : null,
                   // Huella del dispositivo (antifraude de MP) — la define
                   // security.js; reduce los rechazos por "riesgo alto".
                   device_id: window.MP_DEVICE_SESSION_ID || null,
@@ -1031,6 +1098,7 @@
     for (const r of document.querySelectorAll('input[name="entrega"]')) {
       r.onchange = syncDelivery;
     }
+    $("coCouponBtn").onclick = applyCoupon;
     $("coSend").onclick = () => { if (readContact()) openPay(); };
     $("payBack").onclick = closePay;
     $("paySheet").onclick = (e) => { if (e.target === $("paySheet")) closePay(); };

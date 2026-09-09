@@ -9,6 +9,7 @@ import '../admin/banners_screen.dart';
 import '../admin/business_card_screen.dart';
 import '../admin/store_ticker_screen.dart';
 import '../admin/shipping_fee_screen.dart';
+import '../admin/coupons_screen.dart';
 import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
 import '../admin/factory_reset_screen.dart';
@@ -172,6 +173,9 @@ class AppDrawer extends StatelessWidget {
             _item(context, Icons.local_shipping_outlined,
                 'Envío a domicilio',
                 onTap: () => push(const ShippingFeeScreen())),
+            _item(context, Icons.confirmation_number_outlined,
+                'Cupones de descuento',
+                onTap: () => push(const CouponsScreen())),
             _item(context, Icons.cloud_upload_outlined,
                 'Publicación de la tienda',
                 onTap: () => push(const PublishSettingsScreen())),

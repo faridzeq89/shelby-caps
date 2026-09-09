@@ -48,6 +48,10 @@ class _CartLine {
   /// True cuando el precio unitario cayó a un escalón de mayoreo.
   bool wholesaleApplied = false;
 
+  /// True cuando el cajero fijó un precio a mano (descuento del día que no es
+  /// mayoreo). Protege el precio de que [_reprice] lo pise al cambiar el carrito.
+  bool priceOverridden = false;
+
   int qty;
   int lineDiscountCents = 0;
 
@@ -216,6 +220,8 @@ class SaleScreenState extends State<SaleScreen> {
   void _reprice() {
     final active = wholesaleActive(_itemCount, _wholesaleThreshold);
     for (final l in _lines) {
+      // Un precio fijado a mano manda sobre el mayoreo: no se recalcula.
+      if (l.priceOverridden) continue;
       final wholesale = l.product.wholesalePriceCents;
       final applies = active && wholesale != null;
       l.unitPriceCents = applies ? wholesale : l.retailUnitPriceCents;
@@ -903,9 +909,28 @@ class SaleScreenState extends State<SaleScreen> {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text('${money(line.unitPriceCents)} c/u',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
+                    InkWell(
+                      onTap: () async {
+                        await _editLinePrice(line);
+                        onChanged?.call();
+                      },
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text('${money(line.unitPriceCents)} c/u',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: line.priceOverridden
+                                      ? AppColors.accent
+                                      : theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: line.priceOverridden
+                                      ? FontWeight.w800
+                                      : FontWeight.w400)),
+                          const SizedBox(width: 3),
+                          Icon(Icons.edit, size: 13, color: theme.hintColor),
+                        ]),
+                      ),
+                    ),
                     if (discounted) ...[
                       const SizedBox(width: 6),
                       Text('−${money(line.lineDiscountCents)}',
@@ -1185,6 +1210,75 @@ class SaleScreenState extends State<SaleScreen> {
       }
     }
     setState(() => line.lineDiscountCents = cents);
+  }
+
+  /// Fija el precio por pieza a mano (descuento del día que no es mayoreo). Si
+  /// baja del precio normal más que el umbral, pide PIN de gerente. "Restaurar"
+  /// devuelve el precio de lista/mayoreo.
+  Future<void> _editLinePrice(_CartLine line) async {
+    final ctrl = TextEditingController(
+        text: (line.unitPriceCents / 100).toStringAsFixed(2));
+    final result = await showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Precio — ${line.title}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Precio normal: ${money(line.retailUnitPriceCents)}',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  prefixText: '\$', labelText: 'Precio por pieza'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar')),
+          if (line.priceOverridden)
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(-1.0),
+                child: const Text('Restaurar')),
+          FilledButton(
+              onPressed: () => Navigator.of(context)
+                  .pop(double.tryParse(ctrl.text.trim()) ?? 0),
+              child: const Text('Aplicar')),
+        ],
+      ),
+    );
+    if (result == null) return;
+    if (result < 0) {
+      setState(() {
+        line.priceOverridden = false;
+        _reprice();
+      });
+      return;
+    }
+    final cents = (result * 100).round();
+    if (cents <= 0) {
+      _toast('El precio debe ser mayor a 0');
+      return;
+    }
+    final retail = line.retailUnitPriceCents;
+    if (cents < retail &&
+        (retail - cents) > (retail * _lineAuthThreshold).round()) {
+      if (!await _authorizeManager()) {
+        _toast('Precio no autorizado');
+        return;
+      }
+    }
+    setState(() {
+      line.unitPriceCents = cents;
+      line.priceOverridden = true;
+    });
   }
 
   /// Guardar el carrito como cotización. [primary] lo pinta como el botón

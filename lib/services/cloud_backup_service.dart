@@ -10,6 +10,9 @@ import '../data/local/open_db.dart';
 
 enum SyncState { disabled, idle, syncing, ok, error }
 
+/// Qué pasó al iniciar sesión en la cuenta del negocio en este equipo.
+enum SignInSync { restored, needsChoice, backedUp, nothing }
+
 /// Respaldo del archivo completo de la base a Supabase Storage. Local-first: la
 /// tablet es la verdad; esto es la red de seguridad. Ruta fija (single-tenant),
 /// así una tablet nueva puede restaurar el último respaldo.
@@ -28,8 +31,18 @@ class CloudBackupService extends ChangeNotifier {
   final bool enabled;
 
   static const _bucket = 'backups';
-  static const _object = 'boutique.sqlite';
-  static const _historyPrefix = 'history';
+  // Ruta del respaldo. Con cuenta iniciada va a la carpeta privada del usuario
+  // (`u/<uid>/…`), que solo esa cuenta puede leer/escribir; sin cuenta cae al
+  // respaldo global de siempre (retrocompatible con equipos ya en uso).
+  String? get _uid => _client.auth.currentUser?.id;
+  String get _object =>
+      _uid != null ? 'u/$_uid/boutique.sqlite' : 'boutique.sqlite';
+  String get _historyPrefix => _uid != null ? 'u/$_uid/history' : 'history';
+
+  /// ¿Hay una cuenta del negocio con sesión iniciada?
+  bool get isSignedIn => _client.auth.currentUser != null;
+  String? get accountEmail => _client.auth.currentUser?.email;
+
   static const _claimedKey = 'backup_claimed';
   static const _historyStampKey = 'backup_last_history_at';
   static const _keepHistory = 10;
@@ -92,6 +105,56 @@ class CloudBackupService extends ChangeNotifier {
     final row =
         await _db.customSelect('SELECT COUNT(*) AS n FROM sales').getSingle();
     if (row.read<int>('n') > 0) await markClaimed();
+  }
+
+  // -------------------------------------------------------------------------
+  // Cuenta del negocio (acceso multi-dispositivo)
+  // -------------------------------------------------------------------------
+
+  /// ¿La cuenta ya tiene un respaldo en su carpeta privada de la nube?
+  Future<bool> hasCloudBackup() async {
+    final uid = _uid;
+    if (uid == null) return false;
+    try {
+      final items = await _client.storage.from(_bucket).list(path: 'u/$uid');
+      return items.any((f) => f.name == 'boutique.sqlite');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// ¿Este equipo ya tiene ventas registradas (datos de trabajo reales)?
+  Future<bool> localHasData() async {
+    final row =
+        await _db.customSelect('SELECT COUNT(*) AS n FROM sales').getSingle();
+    return row.read<int>('n') > 0;
+  }
+
+  /// Sincroniza al iniciar sesión en la cuenta:
+  /// - sin respaldo en la nube pero con datos locales → sube (puebla la cuenta);
+  /// - con respaldo y equipo vacío → baja los datos (restaura) y reinicia;
+  /// - con respaldo y datos locales → el usuario elige ([SignInSync.needsChoice]).
+  Future<SignInSync> syncOnSignIn() async {
+    if (!isSignedIn) return SignInSync.nothing;
+    final hasCloud = await hasCloudBackup();
+    final hasLocal = await localHasData();
+    if (!hasCloud && hasLocal) {
+      await markClaimed();
+      await backupNow();
+      return SignInSync.backedUp;
+    }
+    if (hasCloud && !hasLocal) {
+      await restoreFromCloud(); // el llamador reinicia la app
+      return SignInSync.restored;
+    }
+    if (hasCloud && hasLocal) return SignInSync.needsChoice;
+    return SignInSync.nothing;
+  }
+
+  /// Sube los datos de ESTE equipo a la cuenta (reemplaza el respaldo de la nube).
+  Future<void> uploadThisDevice() async {
+    await markClaimed();
+    await backupNow();
   }
 
   // -------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import '../admin/business_card_screen.dart';
 import '../admin/store_ticker_screen.dart';
 import '../admin/shipping_fee_screen.dart';
 import '../admin/coupons_screen.dart';
+import '../admin/account_screen.dart';
 import '../admin/cloud_backup_screen.dart';
 import '../admin/demo_catalog_screen.dart';
 import '../admin/factory_reset_screen.dart';
@@ -155,6 +156,8 @@ class AppDrawer extends StatelessWidget {
                 onTap: () => push(const UsersScreen())),
             _item(context, Icons.lock_outline, 'Acceso',
                 onTap: () => push(const AccessScreen())),
+            _item(context, Icons.account_circle_outlined, 'Cuenta del negocio',
+                onTap: () => push(const AccountScreen())),
             _item(context, Icons.cloud_outlined, 'Respaldo (nube)',
                 onTap: () => push(const CloudBackupScreen())),
             _item(context, Icons.rule, 'Reconciliación',

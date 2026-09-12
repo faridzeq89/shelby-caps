@@ -25,6 +25,24 @@ class PeriodSummary {
   final int returnsCents; // monto devuelto, en positivo
 }
 
+/// Utilidades de un periodo: ingresos (ventas netas), costo de lo vendido
+/// (COGS) y gastos. La utilidad neta es ingresos − costo − gastos.
+class ProfitSummary {
+  const ProfitSummary({
+    required this.ingresosCents,
+    required this.cogsCents,
+    required this.gastosCents,
+  });
+  final int ingresosCents; // ventas netas (con IVA incluido, menos devoluciones)
+  final int cogsCents; // costo de lo vendido (último costo por variante)
+  final int gastosCents; // gastos del negocio del periodo
+
+  int get utilidadBrutaCents => ingresosCents - cogsCents;
+  int get utilidadNetaCents => ingresosCents - cogsCents - gastosCents;
+  double get margenPct =>
+      ingresosCents == 0 ? 0 : utilidadNetaCents / ingresosCents * 100;
+}
+
 /// Unidades y dinero por variante (para top de ventas y desglose talla/color).
 class VariantSales {
   const VariantSales({
@@ -265,6 +283,33 @@ class ReportsRepository {
       itemsSold: itemsRow.read<int>('units'),
       returnsCount: row.read<int>('rn'),
       returnsCents: row.read<int>('ret'),
+    );
+  }
+
+  /// Utilidades del periodo: ingresos (ventas netas), costo de lo vendido y
+  /// gastos. El costo usa el `cost_cents` de cada variante; las devoluciones
+  /// (líneas con qty negativa) descuentan solas tanto ingreso como costo.
+  Future<ProfitSummary> profitSummary(DateTime from, DateTime to) async {
+    final s = await periodSummary(from, to);
+    final cogsRow = await _db.customSelect(
+      'SELECT COALESCE(SUM(sl.qty * v.cost_cents), 0) AS cogs '
+      'FROM sale_lines sl '
+      'JOIN sales s ON s.id = sl.sale_id '
+      'JOIN variants v ON v.id = sl.variant_id '
+      'WHERE s.status IN $_soldStatuses AND s.created_at >= ? AND s.created_at < ?',
+      variables: [_d(from), _d(to)],
+      readsFrom: {_db.sales, _db.saleLines, _db.variants},
+    ).getSingle();
+    final gRow = await _db.customSelect(
+      'SELECT COALESCE(SUM(amount_cents), 0) AS g FROM expenses '
+      'WHERE created_at >= ? AND created_at < ?',
+      variables: [_d(from), _d(to)],
+      readsFrom: {_db.expenses},
+    ).getSingle();
+    return ProfitSummary(
+      ingresosCents: s.netCents,
+      cogsCents: cogsRow.read<int>('cogs'),
+      gastosCents: gRow.read<int>('g'),
     );
   }
 

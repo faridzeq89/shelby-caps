@@ -8,6 +8,7 @@ import '../../core/ui_kit.dart';
 import '../../data/local/database.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/reports_repository.dart';
+import '../expenses/expenses_screen.dart';
 import '../sales/sales_history_screen.dart';
 import 'report_export.dart';
 
@@ -43,13 +44,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
   late final ExpenseRepository _expenses =
       ExpenseRepository(context.read<AppDatabase>());
 
-  String _presetSlug = '30d';
+  // Por default el balance abre en "Este mes", como pidió el dueño.
+  String _presetSlug = 'mes';
   DateTimeRange? _customRange;
+  // Tipo de reporte que se está viendo (selector de arriba).
+  String _reportType = 'utilidades';
   late Future<_HubData> _future = _load();
 
   static const _presets = <(String, String)>[
     ('hoy', 'Hoy'),
     ('ayer', 'Ayer'),
+    ('semana', 'Esta semana'),
     ('7d', 'Últimos 7 días'),
     ('30d', 'Últimos 30 días'),
     ('60d', 'Últimos 60 días'),
@@ -57,6 +62,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ('mes', 'Este mes'),
     ('mespasado', 'Mes pasado'),
     ('custom', 'Personalizado…'),
+  ];
+
+  static const _reportTypes = <(String, String)>[
+    ('utilidades', 'Utilidades'),
+    ('ventas', 'Ventas'),
+    ('gastos', 'Gastos'),
+    ('detalles', 'Más reportes'),
   ];
 
   _Period get _period {
@@ -69,6 +81,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
       case 'ayer':
         final y = today.subtract(const Duration(days: 1));
         return _Period('Ayer', y, today, 'ayer');
+      case 'semana':
+        // Semana en curso: desde el lunes hasta el fin de hoy.
+        final monday = today.subtract(Duration(days: today.weekday - 1));
+        return _Period('Esta semana', monday,
+            today.add(const Duration(days: 1)), 'semana');
       case '7d':
         return _Period('7 días', now.subtract(const Duration(days: 7)), now, '7d');
       case '60d':
@@ -132,8 +149,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final prevFrom = p.from.subtract(length);
     final summary = await _repo.periodSummary(p.from, p.to);
     final prev = await _repo.periodSummary(prevFrom, p.from);
+    final profit = await _repo.profitSummary(p.from, p.to);
+    final prevProfit = await _repo.profitSummary(prevFrom, p.from);
     final expenses = await _expenses.totalBetween(p.from, p.to);
-    return _HubData(summary, prev, expenses);
+    final expenseList = await _expenses.between(p.from, p.to);
+    return _HubData(summary, prev, expenses, profit, prevProfit, expenseList);
   }
 
   void _reload() => setState(() => _future = _load());
@@ -178,11 +198,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snap.data!;
-          final s = data.current;
-          final delta = data.current.netCents - data.previous.netCents;
-          final pct = data.previous.netCents == 0
-              ? null
-              : delta / data.previous.netCents * 100;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -205,52 +220,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 child: Text('Mostrando: ${_period.label}',
                     style: theme.textTheme.bodySmall),
               ),
-              const SizedBox(height: 16),
-              // Resumen.
-              SurfaceCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    StatBlock(
-                      label: 'Ventas netas',
-                      value: _money(s.netCents),
-                      size: 30,
-                    ),
-                    if (pct != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: StatusPill(
-                          '${pct.abs().toStringAsFixed(1)}% vs periodo anterior',
-                          icon: pct >= 0
-                              ? Icons.trending_up
-                              : Icons.trending_down,
-                          color: pct >= 0
-                              ? AppColors.success
-                              : theme.colorScheme.error,
-                        ),
-                      ),
-                    const Divider(height: 24),
-                    _kv('Ventas', '${s.salesCount}'),
-                    _kv('Piezas vendidas', '${s.itemsSold}'),
-                    // Solo aparece si de verdad se cobró IVA en el periodo.
-                    if (s.taxCents > 0) _kv('IVA incluido', _money(s.taxCents)),
-                    _kv('Descuentos', _money(s.discountCents)),
-                    _kv('Devoluciones',
-                        '${s.returnsCount} · ${_money(s.returnsCents)}'),
-                    _kv('Gastos', _money(data.expensesCents)),
-                    const Divider(height: 20),
-                    StatBlock(
-                      label: 'Ganancia (ventas − gastos)',
-                      value: _money(s.netCents - data.expensesCents),
-                      size: 22,
-                      color: (s.netCents - data.expensesCents) < 0
-                          ? theme.colorScheme.error
-                          : AppColors.success,
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 12),
+              // Selector de TIPO de reporte (Utilidades / Ventas / Gastos / …).
+              AppDropdown<String>(
+                label: 'Reporte',
+                icon: Icons.assessment_outlined,
+                value: _reportType,
+                items: [
+                  for (final (slug, label) in _reportTypes)
+                    DropdownMenuItem(value: slug, child: Text(label)),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _reportType = v);
+                },
               ),
+              const SizedBox(height: 16),
+              ..._headerFor(data, theme),
               const SizedBox(height: 12),
               GridView.extent(
                 shrinkWrap: true,
@@ -260,7 +245,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
                 children: [
-                  _tile(Icons.lightbulb_outline, 'Recomendaciones',
+                  if (_showFor(const ['detalles']))
+                    _tile(Icons.lightbulb_outline, 'Recomendaciones',
                   'Qué reabastecer, ofertar o descontar', () {
                 _open('Recomendaciones', 'recomendaciones', () async {
                   final recs = await _repo.recommendations();
@@ -273,7 +259,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.trending_up, 'Más vendidos',
+              if (_showFor(const ['ventas', 'detalles']))
+                _tile(Icons.trending_up, 'Más vendidos',
                   'Top por piezas en el periodo', () {
                 _open('Más vendidos', 'top_vendidos', () async {
                   final rows = await _repo.variantSales(_period.from, _period.to,
@@ -294,7 +281,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.trending_down, 'Menos vendidos',
+              if (_showFor(const ['ventas', 'detalles']))
+                _tile(Icons.trending_down, 'Menos vendidos',
                   'Los que se venden poco en el periodo', () {
                 _open('Menos vendidos', 'menos_vendidos', () async {
                   final rows = await _repo.variantSales(_period.from, _period.to,
@@ -315,7 +303,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.color_lens_outlined, 'Tallas y colores',
+              if (_showFor(const ['ventas', 'detalles']))
+                _tile(Icons.color_lens_outlined, 'Tallas y colores',
                   'Qué combinaciones se venden', () {
                 _open('Tallas y colores', 'talla_color', () async {
                   final rows =
@@ -335,7 +324,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.percent, 'Margen por producto',
+              if (_showFor(const ['utilidades', 'detalles']))
+                _tile(Icons.percent, 'Margen por producto',
                   'Ingreso menos costo (último costo)', () {
                 _open('Margen por producto', 'margen', () async {
                   final rows =
@@ -356,7 +346,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.inventory_2_outlined, 'Inventario muerto',
+              if (_showFor(const ['detalles']))
+                _tile(Icons.inventory_2_outlined, 'Inventario muerto',
                   'Con existencia y sin venta en 60 días', () {
                 _open('Inventario muerto', 'inventario_muerto', () async {
                   final rows = await _repo.deadStock(days: 60);
@@ -377,7 +368,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.assignment_return_outlined, 'Devoluciones por producto',
+              if (_showFor(const ['detalles']))
+                _tile(Icons.assignment_return_outlined, 'Devoluciones por producto',
                   'Tasa de devolución en el periodo', () {
                 _open('Devoluciones por producto', 'devoluciones', () async {
                   final rows =
@@ -396,7 +388,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.badge_outlined, 'Ventas por vendedor',
+              if (_showFor(const ['ventas', 'detalles']))
+                _tile(Icons.badge_outlined, 'Ventas por vendedor',
                   'Atribución por vendedor/cajero', () {
                 _open('Ventas por vendedor', 'vendedores', () async {
                   final rows =
@@ -414,7 +407,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.account_balance_wallet_outlined,
+              if (_showFor(const ['detalles']))
+                _tile(Icons.account_balance_wallet_outlined,
                   'Diferencias de caja', 'Arqueos por cajero', () {
                 _open('Diferencias de caja', 'cajeros', () async {
                   final rows =
@@ -432,7 +426,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
-              _tile(Icons.receipt_long_outlined, 'Gastos del periodo',
+              if (_showFor(const ['gastos', 'detalles']))
+                _tile(Icons.receipt_long_outlined, 'Gastos del periodo',
                   'Detalle de gastos registrados', () {
                 _open('Gastos del periodo', 'gastos', () async {
                   final rows =
@@ -461,6 +456,163 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
+  /// ¿El mosaico se muestra en el tipo de reporte actual?
+  bool _showFor(List<String> types) => types.contains(_reportType);
+
+  /// Encabezado según el tipo de reporte seleccionado.
+  List<Widget> _headerFor(_HubData data, ThemeData theme) {
+    switch (_reportType) {
+      case 'ventas':
+        return [_ventasSummaryCard(data, theme)];
+      case 'gastos':
+        return _gastosCards(data, theme);
+      case 'detalles':
+        return [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Reportes detallados',
+                style: theme.textTheme.titleSmall),
+          ),
+        ];
+      default:
+        return _utilidadesCards(data, theme);
+    }
+  }
+
+  /// Utilidades: ingresos, costo de lo vendido, gastos y utilidad neta.
+  List<Widget> _utilidadesCards(_HubData data, ThemeData theme) {
+    final p = data.profit;
+    final prevNeta = data.prevProfit.utilidadNetaCents;
+    final delta = p.utilidadNetaCents - prevNeta;
+    final pct = prevNeta == 0 ? null : delta / prevNeta.abs() * 100;
+
+    Widget card(String label, int cents, {Color? color, String? sub}) =>
+        SurfaceCard(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatBlock(label: label, value: _money(cents), size: 21, color: color),
+              if (sub != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(sub, style: theme.textTheme.bodySmall),
+                ),
+            ],
+          ),
+        );
+
+    return [
+      GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.45,
+        children: [
+          card('Ingresos', p.ingresosCents),
+          card('Costo de lo vendido', p.cogsCents, color: theme.colorScheme.error),
+          card('Gastos', p.gastosCents, color: theme.colorScheme.error),
+          card('Utilidad neta', p.utilidadNetaCents,
+              color: p.utilidadNetaCents < 0
+                  ? theme.colorScheme.error
+                  : AppColors.success,
+              sub: 'Margen ${p.margenPct.toStringAsFixed(1)}%'),
+        ],
+      ),
+      if (pct != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: StatusPill(
+            '${pct.abs().toStringAsFixed(1)}% vs periodo anterior',
+            icon: pct >= 0 ? Icons.trending_up : Icons.trending_down,
+            color: pct >= 0 ? AppColors.success : theme.colorScheme.error,
+          ),
+        ),
+      const SizedBox(height: 8),
+      Text('Utilidad bruta (ingresos − costo): ${_money(p.utilidadBrutaCents)}',
+          style: theme.textTheme.bodySmall),
+    ];
+  }
+
+  /// Ventas: resumen del periodo (el que estaba antes en el balance).
+  Widget _ventasSummaryCard(_HubData data, ThemeData theme) {
+    final s = data.current;
+    final delta = s.netCents - data.previous.netCents;
+    final pct =
+        data.previous.netCents == 0 ? null : delta / data.previous.netCents * 100;
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          StatBlock(label: 'Ventas netas', value: _money(s.netCents), size: 30),
+          if (pct != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: StatusPill(
+                '${pct.abs().toStringAsFixed(1)}% vs periodo anterior',
+                icon: pct >= 0 ? Icons.trending_up : Icons.trending_down,
+                color: pct >= 0 ? AppColors.success : theme.colorScheme.error,
+              ),
+            ),
+          const Divider(height: 24),
+          _kv('Ventas', '${s.salesCount}'),
+          _kv('Piezas vendidas', '${s.itemsSold}'),
+          if (s.taxCents > 0) _kv('IVA incluido', _money(s.taxCents)),
+          _kv('Descuentos', _money(s.discountCents)),
+          _kv('Devoluciones', '${s.returnsCount} · ${_money(s.returnsCents)}'),
+        ],
+      ),
+    );
+  }
+
+  /// Gastos: total + desglose por categoría + acceso a Gastos.
+  List<Widget> _gastosCards(_HubData data, ThemeData theme) {
+    final byCat = <String, int>{};
+    for (final e in data.expenseList) {
+      byCat[e.category] = (byCat[e.category] ?? 0) + e.amountCents;
+    }
+    final cats = byCat.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return [
+      SurfaceCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            StatBlock(
+                label: 'Gastos del periodo',
+                value: _money(data.expensesCents),
+                size: 30,
+                color: theme.colorScheme.error),
+            const Divider(height: 24),
+            if (cats.isEmpty)
+              Text('Sin gastos en este periodo.',
+                  style: theme.textTheme.bodySmall)
+            else
+              for (final c in cats) _kv(c.key, _money(c.value)),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () async {
+            await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ExpensesScreen()));
+            _reload();
+          },
+          icon: const Icon(Icons.receipt_long_outlined),
+          label: const Text('Registrar / ver gastos'),
+        ),
+      ),
+    ];
+  }
+
   Widget _kv(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
@@ -476,10 +628,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
 }
 
 class _HubData {
-  _HubData(this.current, this.previous, this.expensesCents);
+  _HubData(this.current, this.previous, this.expensesCents, this.profit,
+      this.prevProfit, this.expenseList);
   final PeriodSummary current;
   final PeriodSummary previous;
   final int expensesCents;
+  final ProfitSummary profit;
+  final ProfitSummary prevProfit;
+  final List<Expense> expenseList;
 }
 
 /// Muestra una tabla de reporte y permite exportarla a CSV.

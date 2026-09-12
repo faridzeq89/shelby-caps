@@ -35,3 +35,7 @@ Thumbs.db
 
 # Cache local del CLI de Supabase (project-ref, versiones): no va al repo.
 supabase/.temp/
+
+# Archivos fuente del logo (grandes, ~10 MB). Quedan locales; en el repo va
+# solo el logo optimizado que usa la tienda (web-catalogo/img/logo.png).
+marca/

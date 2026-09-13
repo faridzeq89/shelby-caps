@@ -41,6 +41,17 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!-- El POS web se compila SIN service worker (--pwa-strategy=none) para que
+       siempre cargue la última versión y no se quede pegado en una vieja. Este
+       script elimina cualquier service worker viejo que haya quedado cacheando
+       de una versión anterior (una sola vez, al cargar). -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (rs) {
+        rs.forEach(function (r) { r.unregister(); });
+      }).catch(function () {});
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

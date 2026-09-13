@@ -57,6 +57,7 @@ QueryExecutor openDatabase() {
         result.chosenImplementation.storageApi == WebStorageApi.opfs;
     storageMissingFeatures =
         result.missingFeatures.map((f) => f.name).toList(growable: false);
+    _diag('open: impl=$storageKind durable=$storageIsDurable');
 
     return result.resolvedExecutor;
   });
@@ -162,6 +163,12 @@ Future<Uint8List> exportDatabaseBytes() async {
 /// Nombre del archivo OPFS donde se deja el respaldo a restaurar.
 const _restoreFile = 'shelby_restore.sqlite';
 
+/// Ruta OPFS donde drift guarda la base cuando usa OPFS: `drift_db/<name>/database`.
+/// Es un archivo SQLite normal (el mismo formato que exporta `exportDatabaseBytes`).
+const _driftDir1 = 'drift_db';
+const _driftDir2 = 'boutique_pos';
+const _driftDbFile = 'database';
+
 /// Importa una base (bytes de un `.sqlite`) para **bajar los datos de la cuenta
 /// en otro equipo**. NO reemplaza la base aquí: deja los bytes en un archivo
 /// OPFS aparte y el reemplazo real ocurre al **arrancar** ([_applyPendingRestore]),
@@ -169,11 +176,20 @@ const _restoreFile = 'shelby_restore.sqlite';
 /// de OPFS impide que el reemplazo "pegue" y la app arranca vacía). El llamador
 /// debe RECARGAR después.
 Future<void> importDatabaseBytes(Uint8List bytes) async {
+  _diag('import: ${bytes.length} bytes');
   await _opfsWrite(_restoreFile, bytes);
+  _diag('import: stashed en $_restoreFile');
 }
 
 /// Si hay un respaldo pendiente ([_restoreFile]), reemplaza la base con él y lo
 /// borra. Se llama al abrir, ANTES de abrir la base, para que no haya candado.
+///
+/// Escribe los bytes **directamente** sobre el archivo OPFS de drift
+/// (`drift_db/boutique_pos/database`). Antes se intentaba con
+/// `initializeDatabase`, pero drift solo lo usa cuando la base **no existe**: en
+/// un equipo ya sembrado la base ya estaba, drift ignoraba los bytes y la app
+/// arrancaba con la semilla fresca. Sobrescribir el archivo sí pega, porque al
+/// abrir después drift lee justo ese archivo.
 Future<void> _applyPendingRestore() async {
   Uint8List? bytes;
   try {
@@ -182,28 +198,23 @@ Future<void> _applyPendingRestore() async {
     return; // sin OPFS o sin archivo pendiente: nada que hacer
   }
   if (bytes == null || bytes.isEmpty) return;
+  _diag('apply: encontrado stash ${bytes.length} bytes');
   try {
-    final probe = await WasmDatabase.probe(
-      sqlite3Uri: Uri.parse('sqlite3.wasm'),
-      driftWorkerUri: Uri.parse('drift_worker.js'),
-      databaseName: 'boutique_pos',
-    );
-    for (final existing in probe.existingDatabases) {
-      if (existing.$2 == 'boutique_pos') {
-        await probe.deleteDatabase(existing);
-      }
-    }
-    final result = await WasmDatabase.open(
-      databaseName: 'boutique_pos',
-      sqlite3Uri: Uri.parse('sqlite3.wasm'),
-      driftWorkerUri: Uri.parse('drift_worker.js'),
-      initializeDatabase: () => bytes,
-      moveExistingIndexedDbToOpfs: true,
-    );
-    await result.resolvedExecutor.close();
+    // Sobrescribe el archivo de la base. `createWritable()` trunca y reescribe.
+    await _opfsWriteNested(
+        const [_driftDir1, _driftDir2], _driftDbFile, bytes);
+    // Quita posibles archivos laterales (journal/wal) de la base anterior, que
+    // ya no corresponden a la base restaurada.
+    await _opfsDeleteNested(
+        const [_driftDir1, _driftDir2], '$_driftDbFile-journal');
+    await _opfsDeleteNested(const [_driftDir1, _driftDir2], '$_driftDbFile-wal');
+    _diag('apply: escrito en $_driftDir1/$_driftDir2/$_driftDbFile');
+  } catch (e) {
+    _diag('apply: ERROR $e');
   } finally {
     try {
       await _opfsDelete(_restoreFile);
+      _diag('apply: stash borrado');
     } catch (_) {}
   }
 }
@@ -228,6 +239,8 @@ Future<_DirHandle> _opfsRoot() async {
 
 extension type _DirHandle._(JSObject _) implements JSObject {
   external JSPromise<_FileHandle> getFileHandle(String name, [JSObject options]);
+  external JSPromise<_DirHandle> getDirectoryHandle(String name,
+      [JSObject options]);
   external JSPromise<JSAny?> removeEntry(String name);
 }
 
@@ -271,4 +284,58 @@ Future<Uint8List?> _opfsRead(String name) async {
 Future<void> _opfsDelete(String name) async {
   final dir = await _opfsRoot();
   await dir.removeEntry(name).toDart;
+}
+
+/// Escribe un archivo dentro de una ruta anidada de OPFS, creando las carpetas
+/// que falten (`createWritable` trunca y reescribe, así que sobrescribe entero).
+Future<void> _opfsWriteNested(
+    List<String> dirs, String name, Uint8List bytes) async {
+  var dir = await _opfsRoot();
+  for (final d in dirs) {
+    dir = await dir
+        .getDirectoryHandle(d, {'create': true}.jsify() as JSObject)
+        .toDart;
+  }
+  final fh = await dir
+      .getFileHandle(name, {'create': true}.jsify() as JSObject)
+      .toDart;
+  final w = await fh.createWritable().toDart;
+  await w.write(bytes.toJS).toDart;
+  await w.close().toDart;
+}
+
+/// Borra un archivo anidado si existe (silencioso: si no está, no pasa nada).
+Future<void> _opfsDeleteNested(List<String> dirs, String name) async {
+  try {
+    var dir = await _opfsRoot();
+    for (final d in dirs) {
+      dir = await dir.getDirectoryHandle(d).toDart;
+    }
+    await dir.removeEntry(name).toDart;
+  } catch (_) {}
+}
+
+// --- Diagnóstico que sobrevive la recarga (localStorage) -------------------
+// El respaldo se aplica al arrancar y luego la app recarga, así que la consola
+// se limpia. Estas migas quedan en localStorage bajo `shelby_diag` para poder
+// ver, después de la recarga, qué pasó en cada paso de la restauración.
+
+@JS('localStorage')
+external _LocalStorage get _localStorage;
+
+extension type _LocalStorage._(JSObject _) implements JSObject {
+  external String? getItem(String key);
+  external void setItem(String key, String value);
+}
+
+void _diag(String msg) {
+  try {
+    final prev = _localStorage.getItem('shelby_diag') ?? '';
+    final ts = DateTime.now().toIso8601String();
+    // Deja solo las últimas ~40 líneas para no crecer sin límite.
+    final lines = ('$prev\n$ts  $msg').split('\n');
+    final trimmed =
+        lines.length > 40 ? lines.sublist(lines.length - 40) : lines;
+    _localStorage.setItem('shelby_diag', trimmed.join('\n'));
+  } catch (_) {}
 }

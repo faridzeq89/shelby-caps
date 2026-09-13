@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -29,7 +30,8 @@ class TicketConfig {
     this.footerLegend = '¡Gracias por su compra!',
     this.qrData = '',
     this.businessPhone = '899 703 4922',
-    this.businessAddress = 'Calle Monterrey 455 Col. Rdz',
+    this.businessAddress = 'Calle Monterrey 455, Col. Rodríguez, Reynosa',
+    this.attendedBy = 'Shelby Varela',
   });
 
   final String title; // encabezado (nombre del negocio)
@@ -37,13 +39,17 @@ class TicketConfig {
   final String footerLegend; // leyenda al pie
   final String qrData; // contenido del QR (URL/texto); vacío = sin QR
 
-  /// WhatsApp del negocio, impreso en el bloque "Datos del negocio" de la nota
-  /// de servicio. Trae el número real de fábrica para que el dueño no tenga que
-  /// capturarlo antes de poder imprimir su primera nota.
+  /// WhatsApp del negocio, impreso en el encabezado de todos los documentos.
+  /// Trae el número real de fábrica para que el dueño no tenga que capturarlo
+  /// antes de poder imprimir.
   final String businessPhone;
 
   /// Ubicación del negocio, mismo bloque y mismo motivo.
   final String businessAddress;
+
+  /// Quién atiende, impreso como "Atendió: …" en los documentos. Fijo por
+  /// petición del dueño (una sola persona en el mostrador).
+  final String attendedBy;
 
   static const kTitle = 'ticket_title';
   static const kSubheading = 'ticket_subheading';
@@ -51,6 +57,7 @@ class TicketConfig {
   static const kQr = 'ticket_qr';
   static const kBusinessPhone = 'business_phone';
   static const kBusinessAddress = 'business_address';
+  static const kAttendedBy = 'ticket_attended_by';
 
   /// Lee la configuración desde `app_settings`. Si una clave no existe usa el
   /// valor por defecto (retrocompatibilidad con instalaciones previas).
@@ -68,6 +75,7 @@ class TicketConfig {
     // guardado; si el dueño los borra a propósito, se respetan vacíos.
     final phone = (await get(kBusinessPhone))?.trim();
     final address = (await get(kBusinessAddress))?.trim();
+    final attended = (await get(kAttendedBy))?.trim();
     return TicketConfig(
       title: (title != null && title.isNotEmpty) ? title : def.title,
       subheading: (await get(kSubheading))?.trim() ?? def.subheading,
@@ -75,6 +83,69 @@ class TicketConfig {
       qrData: (await get(kQr))?.trim() ?? def.qrData,
       businessPhone: phone ?? def.businessPhone,
       businessAddress: address ?? def.businessAddress,
+      attendedBy: (attended != null && attended.isNotEmpty)
+          ? attended
+          : def.attendedBy,
+    );
+  }
+}
+
+/// Encabezado de marca común a todos los documentos (ticket, cotización,
+/// apartado, nota de servicio): **logo** + dirección + WhatsApp. Así todo lo que
+/// se imprime o se comparte lleva los mismos datos del negocio.
+class TicketBrand {
+  const TicketBrand._();
+
+  // El logo se carga una vez y se reutiliza (evita leer el asset por documento).
+  static pw.MemoryImage? _logo;
+  static bool _logoTried = false;
+
+  static Future<pw.MemoryImage?> _loadLogo() async {
+    if (_logoTried) return _logo;
+    _logoTried = true;
+    try {
+      final data = await rootBundle.load('assets/logo-ticket.png');
+      _logo = pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      _logo = null; // si falla, se usa el título en texto
+    }
+    return _logo;
+  }
+
+  /// Solo el logo (o el título en texto si el logo no carga). Útil para
+  /// documentos que ya imprimen los datos del negocio en otro bloque.
+  static Future<pw.Widget> logoOrTitle(TicketConfig config) async {
+    final logo = await _loadLogo();
+    return logo != null
+        ? pw.Center(child: pw.Image(logo, width: 150))
+        : pw.Center(
+            child: pw.Text(config.title,
+                style:
+                    pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+          );
+  }
+
+  /// Encabezado listo para poner al inicio de la columna del documento.
+  static Future<pw.Widget> header(TicketConfig config) async {
+    final logo = await logoOrTitle(config);
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        logo,
+        if (config.businessAddress.isNotEmpty) ...[
+          pw.SizedBox(height: 4),
+          pw.Center(
+            child: pw.Text(config.businessAddress,
+                textAlign: pw.TextAlign.center,
+                style: const pw.TextStyle(fontSize: 8)),
+          ),
+        ],
+        if (config.businessPhone.isNotEmpty)
+          pw.Center(
+            child: pw.Text('WhatsApp: ${config.businessPhone}',
+                style: const pw.TextStyle(fontSize: 8)),
+          ),
+      ],
     );
   }
 }
@@ -121,6 +192,7 @@ class TicketService {
   }) async {
     final doc = pw.Document();
     final fmt = DateFormat('dd/MM/yyyy HH:mm');
+    final header = await TicketBrand.header(config);
 
     pw.Widget row(String a, String b, {bool bold = false}) => pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -143,11 +215,7 @@ class TicketService {
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
-            pw.Center(
-              child: pw.Text(config.title,
-                  style:
-                      pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-            ),
+            header,
             if (config.subheading.isNotEmpty) ...[
               pw.SizedBox(height: 2),
               pw.Center(
@@ -160,7 +228,7 @@ class TicketService {
             pw.Text('Folio: ${t.folio}', style: const pw.TextStyle(fontSize: 9)),
             pw.Text(fmt.format(t.dateTime),
                 style: const pw.TextStyle(fontSize: 9)),
-            pw.Text('Atendió: ${t.cashierName}',
+            pw.Text('Atendió: ${config.attendedBy}',
                 style: const pw.TextStyle(fontSize: 9)),
             if (t.gift)
               pw.Center(

@@ -34,6 +34,7 @@ class QuoteService {
   }) async {
     final doc = pw.Document();
     final df = DateFormat('dd/MM/yyyy');
+    final header = await TicketBrand.header(config);
 
     pw.Widget row(String a, String b, {bool bold = false}) => pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -59,15 +60,13 @@ class QuoteService {
       build: (context) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          pw.Center(
-              child: pw.Text(config.title,
-                  style:
-                      pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold))),
+          header,
           if (config.subheading.isNotEmpty)
             pw.Center(
                 child: pw.Text(config.subheading,
                     textAlign: pw.TextAlign.center,
                     style: const pw.TextStyle(fontSize: 9))),
+          pw.SizedBox(height: 2),
           pw.Center(
               child: pw.Text('COTIZACIÓN',
                   style: pw.TextStyle(
@@ -78,6 +77,8 @@ class QuoteService {
             pw.Text('Cliente: $customerName',
                 style: const pw.TextStyle(fontSize: 9)),
           pw.Text('Fecha: ${df.format(dateTime)}',
+              style: const pw.TextStyle(fontSize: 9)),
+          pw.Text('Atendió: ${config.attendedBy}',
               style: const pw.TextStyle(fontSize: 9)),
           pw.Divider(),
           for (final l in lines)

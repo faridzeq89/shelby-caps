@@ -35,6 +35,7 @@ class ServiceNoteTicket {
   }) async {
     final doc = pw.Document();
     final df = DateFormat('dd/MM/yyyy HH:mm');
+    final logo = await TicketBrand.logoOrTitle(config);
 
     pw.Widget titulo(String texto) => pw.Padding(
           padding: const pw.EdgeInsets.only(top: 6, bottom: 2),
@@ -64,10 +65,8 @@ class ServiceNoteTicket {
       build: (context) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          pw.Center(
-              child: pw.Text(config.title,
-                  style: pw.TextStyle(
-                      fontSize: 13, fontWeight: pw.FontWeight.bold))),
+          logo,
+          pw.SizedBox(height: 2),
           pw.Center(
               child: pw.Text('NOTA DE SERVICIO',
                   style: pw.TextStyle(
@@ -75,6 +74,8 @@ class ServiceNoteTicket {
           pw.SizedBox(height: 4),
           pw.Text('Folio: ${note.folio}', style: const pw.TextStyle(fontSize: 9)),
           pw.Text(df.format(note.createdAt),
+              style: const pw.TextStyle(fontSize: 9)),
+          pw.Text('Atendió: ${config.attendedBy}',
               style: const pw.TextStyle(fontSize: 9)),
 
           // Datos del negocio: no se capturan por nota, vienen de Ajustes →

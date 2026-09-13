@@ -130,6 +130,44 @@ class CloudBackupService extends ChangeNotifier {
     return row.read<int>('n') > 0;
   }
 
+  /// Sube la base de ESTE equipo a la carpeta de la cuenta (`u/<uid>/`).
+  /// Multiplataforma: en nativo toma un snapshot en vivo (VACUUM, sin cerrar);
+  /// en **web** cierra la base, la exporta y RECARGA la app (en el navegador no
+  /// se puede exportar con la base abierta), por eso en web es una acción
+  /// puntual —al entrar o con el botón—, no tras cada venta.
+  Future<void> _accountUpload() async {
+    await markClaimed();
+    final Uint8List bytes;
+    if (kIsWeb) {
+      await _db.close();
+      bytes = await exportDatabaseBytes();
+    } else {
+      bytes = await _snapshot();
+    }
+    await _client.storage.from(_bucket).uploadBinary(
+          _object,
+          bytes,
+          fileOptions: const FileOptions(
+              upsert: true, contentType: 'application/octet-stream'),
+        );
+    lastBackupAt = DateTime.now();
+    lastError = null;
+    if (kIsWeb) reloadApp(); // la base quedó cerrada: reabrir con recarga
+  }
+
+  /// Baja la base de la cuenta e instálala en este equipo. En web recarga sola;
+  /// en nativo el llamador pide "cerrar y reabrir".
+  Future<void> accountDownload() async {
+    final bytes = await _client.storage.from(_bucket).download(_object);
+    await _db.close();
+    if (kIsWeb) {
+      await importDatabaseBytes(bytes);
+      reloadApp();
+    } else {
+      await replaceDatabaseFile(bytes);
+    }
+  }
+
   /// Sincroniza al iniciar sesión en la cuenta:
   /// - sin respaldo en la nube pero con datos locales → sube (puebla la cuenta);
   /// - con respaldo y equipo vacío → baja los datos (restaura) y reinicia;
@@ -139,12 +177,11 @@ class CloudBackupService extends ChangeNotifier {
     final hasCloud = await hasCloudBackup();
     final hasLocal = await localHasData();
     if (!hasCloud && hasLocal) {
-      await markClaimed();
-      await backupNow();
+      await _accountUpload(); // en web recarga dentro
       return SignInSync.backedUp;
     }
     if (hasCloud && !hasLocal) {
-      await restoreFromCloud(); // el llamador reinicia la app
+      await accountDownload(); // en web recarga dentro
       return SignInSync.restored;
     }
     if (hasCloud && hasLocal) return SignInSync.needsChoice;
@@ -152,10 +189,7 @@ class CloudBackupService extends ChangeNotifier {
   }
 
   /// Sube los datos de ESTE equipo a la cuenta (reemplaza el respaldo de la nube).
-  Future<void> uploadThisDevice() async {
-    await markClaimed();
-    await backupNow();
-  }
+  Future<void> uploadThisDevice() => _accountUpload();
 
   // -------------------------------------------------------------------------
   // Respaldo

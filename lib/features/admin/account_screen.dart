@@ -132,7 +132,7 @@ class _AccountScreenState extends State<AccountScreen> {
     setState(() => _busy = true);
     try {
       if (choice == 'download') {
-        await _backup.restoreFromCloud();
+        await _backup.accountDownload();
         if (mounted) {
           await _restartDialog(
               'Descargamos los datos de tu cuenta. Cierra y vuelve a abrir la '
@@ -170,6 +170,19 @@ class _AccountScreenState extends State<AccountScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _uploadNow() async {
+    setState(() => _busy = true);
+    try {
+      await _backup.uploadThisDevice();
+      // En web la app se recarga sola tras subir; en nativo seguimos aquí.
+      if (mounted) _toast('Datos de este equipo subidos a tu cuenta.');
+    } catch (e) {
+      if (mounted) _toast('No se pudo subir: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _downloadNow() async {
@@ -338,6 +351,15 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _busy ? null : _uploadNow,
+            icon: const Icon(Icons.cloud_upload_outlined),
+            label: const Text('Subir los cambios de este equipo'),
+          ),
+        ),
+        const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(

@@ -53,6 +53,10 @@ Future<void> replaceDatabaseFile(Uint8List bytes) async {
   await file.writeAsBytes(bytes, flush: true);
 }
 
+/// Importa una base reemplazando la local. En nativo es reescribir el archivo
+/// (el llamador cierra la base antes y reinicia después). Misma firma que web.
+Future<void> importDatabaseBytes(Uint8List bytes) => replaceDatabaseFile(bytes);
+
 /// Contraparte del "empezar de cero" web. En la app instalada no recarga una
 /// página; el borrado en un toque se ofrece solo en la versión web (la UI lo
 /// esconde en nativo). Existe para que la firma compile en las tres superficies.

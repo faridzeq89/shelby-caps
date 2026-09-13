@@ -154,6 +154,32 @@ Future<Uint8List> exportDatabaseBytes() async {
   throw StateError('No se encontró la base local para exportar.');
 }
 
+/// Importa una base (bytes de un `.sqlite`) reemplazando la local del navegador:
+/// borra la actual y la vuelve a crear desde los bytes. Sirve para **bajar los
+/// datos de la cuenta en otro equipo**. El llamador debe CERRAR la base antes
+/// (soltar el candado de OPFS) y RECARGAR después para reabrir la base nueva.
+Future<void> importDatabaseBytes(Uint8List bytes) async {
+  final probe = await WasmDatabase.probe(
+    sqlite3Uri: Uri.parse('sqlite3.wasm'),
+    driftWorkerUri: Uri.parse('drift_worker.js'),
+    databaseName: 'boutique_pos',
+  );
+  for (final existing in probe.existingDatabases) {
+    if (existing.$2 == 'boutique_pos') {
+      await probe.deleteDatabase(existing);
+    }
+  }
+  // Recrea la base desde los bytes: `initializeDatabase` solo se usa cuando la
+  // base no existe (por eso se borró antes). Se cierra para volcar a disco.
+  final result = await WasmDatabase.open(
+    databaseName: 'boutique_pos',
+    sqlite3Uri: Uri.parse('sqlite3.wasm'),
+    driftWorkerUri: Uri.parse('drift_worker.js'),
+    initializeDatabase: () => bytes,
+  );
+  await result.resolvedExecutor.close();
+}
+
 /// Recarga la página (en web reabre la app y su base). En nativo no aplica.
 void reloadApp() => _jsLocation.reload();
 

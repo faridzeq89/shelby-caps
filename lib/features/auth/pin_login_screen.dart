@@ -36,7 +36,7 @@ class PinLoginScreen extends StatelessWidget {
             ),
             title: 'SHELBY CAPS',
             titleWidget: BrandLogo(
-                onDark: BrandLogo.isDark(AppColors.bg), height: 40),
+                onDark: !BrandLogo.isDark(AppColors.ink), height: 40),
             subtitle: 'Ingresa tu PIN para comenzar',
             onSubmit: (pin) async {
               final ok = await auth.loginWithPin(pin);

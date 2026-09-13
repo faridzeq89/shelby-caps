@@ -76,7 +76,7 @@ class AppDrawer extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: BrandLogo(
-                      onDark: BrandLogo.isDark(AppColors.bar), height: 34),
+                      onDark: !BrandLogo.isDark(AppColors.onBar), height: 34),
                 ),
                 const SizedBox(height: 10),
                 Text(

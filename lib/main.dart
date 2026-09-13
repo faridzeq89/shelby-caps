@@ -40,6 +40,10 @@ Future<void> main() async {
   // Install existente (ya con ventas) reclama solo para seguir respaldando tras
   // actualizar; una tablet nueva queda sin reclamar hasta que el usuario decida.
   await backup.autoClaimIfHasData();
+  // Acceso multi-dispositivo (web): si la cuenta ya inició sesión y este equipo
+  // está vacío, baja los datos SOLO y recarga. Si disparó, la página se está
+  // recargando: no seguimos armando la app con la base que quedó cerrada.
+  if (await backup.autoRestoreOnStartIfEmpty()) return;
   backup.startPeriodic();
   final paleta = PaletteSettings(db);
   await paleta.load();

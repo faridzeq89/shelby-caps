@@ -191,6 +191,24 @@ class CloudBackupService extends ChangeNotifier {
   /// Sube los datos de ESTE equipo a la cuenta (reemplaza el respaldo de la nube).
   Future<void> uploadThisDevice() => _accountUpload();
 
+  /// Al arrancar en **web**: si hay sesión de cuenta, este equipo todavía no está
+  /// reclamado (recién instalado / vacío) y la cuenta tiene respaldo, baja los
+  /// datos **automáticamente** y recarga —sin que el usuario tenga que tocar
+  /// "Descargar mis datos".
+  ///
+  /// El guardia por "reclamado" evita bucles de recarga: la base restaurada llega
+  /// ya reclamada (venía de un equipo reclamado), así que en el siguiente arranque
+  /// no se vuelve a disparar aunque el negocio aún no tenga ventas. Devuelve
+  /// `true` si disparó la restauración (la app se está recargando).
+  Future<bool> autoRestoreOnStartIfEmpty() async {
+    if (!kIsWeb) return false;
+    if (!isSignedIn) return false;
+    if (await isClaimed()) return false;
+    if (!await hasCloudBackup()) return false;
+    await accountDownload(); // baja, deja el stash y recarga
+    return true;
+  }
+
   // -------------------------------------------------------------------------
   // Respaldo
   // -------------------------------------------------------------------------

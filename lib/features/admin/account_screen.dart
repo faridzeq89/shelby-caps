@@ -206,7 +206,7 @@ class _AccountScreenState extends State<AccountScreen> {
     if (ok != true) return;
     setState(() => _busy = true);
     try {
-      await _backup.restoreFromCloud();
+      await _backup.accountDownload();
       if (mounted) {
         await _restartDialog(
             'Listo. Cierra y vuelve a abrir la app para usar tus datos.');

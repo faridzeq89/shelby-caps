@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart' show sha1;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/store_backend.dart';
 import '../data/local/database.dart';
 import '../data/repositories/banner_repository.dart';
 import '../data/repositories/catalog_repository.dart';
@@ -114,6 +115,33 @@ class CatalogSyncService {
   int dbgImagesSkipped = 0;
 
   SupabaseClient get _client => Supabase.instance.client;
+
+  /// Cliente `anon` dedicado para publicar. Se crea una sola vez y se reusa.
+  SupabaseClient? _anonClient;
+
+  /// Cliente con el que se PUBLICA (storage + RPC).
+  ///
+  /// Publicar el catálogo es una operación de la **tienda pública**: debe ir como
+  /// rol `anon`. El bucket `catalog` solo permite escribir a `anon`; con la
+  /// Cuenta del negocio iniciada, el cliente global es `authenticated` y Storage
+  /// rechazaba las subidas (403), así que los banners nunca llegaban a la tienda.
+  /// Si no hay sesión, el cliente global YA es anon y se reusa tal cual.
+  Future<SupabaseClient> _publishClient() async {
+    if (_client.auth.currentUser == null) return _client;
+    if (_anonClient != null) return _anonClient!;
+    final url = await _settingValue('supabase_url') ?? storeSupabaseUrl;
+    final key = await _settingValue('supabase_anon') ?? storeSupabaseAnonKey;
+    return _anonClient = SupabaseClient(url, key);
+  }
+
+  /// Lee un valor de `app_settings`, o null si no existe / está vacío.
+  Future<String?> _settingValue(String key) async {
+    final row = await (_db.select(_db.appSettings)
+          ..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    final v = row?.value.trim();
+    return (v == null || v.isEmpty) ? null : v;
+  }
 
   /// ¿Hay conexión a Supabase? Sin ella la tienda simplemente no se actualiza.
   bool get available => _supabaseReady();
@@ -352,7 +380,7 @@ class CatalogSyncService {
   Future<List<Map<String, dynamic>>> _uploadImages(
       List<Product> products, void Function(int done, int total)? onProgress) async {
     final repo = CatalogRepository(_db);
-    final storage = _client.storage.from('catalog');
+    final storage = (await _publishClient()).storage.from('catalog');
     final out = <Map<String, dynamic>>[];
 
     // Se recolecta primero para poder informar avance con un total real.
@@ -416,7 +444,7 @@ class CatalogSyncService {
   /// acumular basura en el bucket.
   Future<List<Map<String, dynamic>>> _uploadBanners() async {
     final repo = BannerRepository(_db);
-    final storage = _client.storage.from('catalog');
+    final storage = (await _publishClient()).storage.from('catalog');
     final out = <Map<String, dynamic>>[];
     final list = await repo.published();
     dbgBannersFound = list.length;
@@ -486,11 +514,13 @@ class CatalogSyncService {
       'p_images': images,
       'p_banners': banners,
     };
+    // Publica como `anon` (ver [_publishClient]).
+    final pub = await _publishClient();
     bool isMissingFn(PostgrestException e) =>
         e.code == 'PGRST202' || e.message.contains('does not exist');
     try {
       // Firma nueva (`0009_wholesale.sql`): categorías + umbral de mayoreo.
-      await _client.rpc('publish_catalog', params: {
+      await pub.rpc('publish_catalog', params: {
         ...params,
         'p_categories': snap.categories,
         'p_wholesale_threshold': snap.wholesaleThreshold,
@@ -503,7 +533,7 @@ class CatalogSyncService {
       // la firma de categorías (`0007`); el mayoreo web se pierde hasta correrlo.
       wholesaleUnsupported = true;
       try {
-        await _client.rpc('publish_catalog', params: {
+        await pub.rpc('publish_catalog', params: {
           ...params,
           'p_categories': snap.categories,
         });
@@ -513,7 +543,7 @@ class CatalogSyncService {
         // orden manual de las categorías.
         if (!isMissingFn(e2)) rethrow;
         categoriesUnsupported = true;
-        await _client.rpc('publish_catalog', params: params);
+        await pub.rpc('publish_catalog', params: params);
       }
     }
     lastStep = 'listo';

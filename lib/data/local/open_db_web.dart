@@ -37,6 +37,10 @@ QueryExecutor openDatabase() {
     // falte espacio, sin avisar. Con esto quedan marcados como "no los borres".
     await _requestPersistentStorage();
 
+    // Si otro equipo dejó un respaldo para restaurar, se aplica ahora (con la
+    // base aún cerrada, para que el reemplazo sí pegue).
+    await _applyPendingRestore();
+
     final result = await WasmDatabase.open(
       databaseName: 'boutique_pos',
       sqlite3Uri: Uri.parse('sqlite3.wasm'),
@@ -94,6 +98,7 @@ extension type _Navigator._(JSObject _) implements JSObject {
 extension type _StorageManager._(JSObject _) implements JSObject {
   external JSPromise<JSBoolean> persist();
   external JSPromise<JSBoolean> persisted();
+  external JSPromise<_DirHandle> getDirectory();
 }
 
 /// El respaldo a Supabase (que sube el archivo .sqlite) no aplica en web:
@@ -154,30 +159,53 @@ Future<Uint8List> exportDatabaseBytes() async {
   throw StateError('No se encontró la base local para exportar.');
 }
 
-/// Importa una base (bytes de un `.sqlite`) reemplazando la local del navegador:
-/// borra la actual y la vuelve a crear desde los bytes. Sirve para **bajar los
-/// datos de la cuenta en otro equipo**. El llamador debe CERRAR la base antes
-/// (soltar el candado de OPFS) y RECARGAR después para reabrir la base nueva.
+/// Nombre del archivo OPFS donde se deja el respaldo a restaurar.
+const _restoreFile = 'shelby_restore.sqlite';
+
+/// Importa una base (bytes de un `.sqlite`) para **bajar los datos de la cuenta
+/// en otro equipo**. NO reemplaza la base aquí: deja los bytes en un archivo
+/// OPFS aparte y el reemplazo real ocurre al **arrancar** ([_applyPendingRestore]),
+/// cuando nadie tiene la base abierta (si se hace con la base abierta, el candado
+/// de OPFS impide que el reemplazo "pegue" y la app arranca vacía). El llamador
+/// debe RECARGAR después.
 Future<void> importDatabaseBytes(Uint8List bytes) async {
-  final probe = await WasmDatabase.probe(
-    sqlite3Uri: Uri.parse('sqlite3.wasm'),
-    driftWorkerUri: Uri.parse('drift_worker.js'),
-    databaseName: 'boutique_pos',
-  );
-  for (final existing in probe.existingDatabases) {
-    if (existing.$2 == 'boutique_pos') {
-      await probe.deleteDatabase(existing);
-    }
+  await _opfsWrite(_restoreFile, bytes);
+}
+
+/// Si hay un respaldo pendiente ([_restoreFile]), reemplaza la base con él y lo
+/// borra. Se llama al abrir, ANTES de abrir la base, para que no haya candado.
+Future<void> _applyPendingRestore() async {
+  Uint8List? bytes;
+  try {
+    bytes = await _opfsRead(_restoreFile);
+  } catch (_) {
+    return; // sin OPFS o sin archivo pendiente: nada que hacer
   }
-  // Recrea la base desde los bytes: `initializeDatabase` solo se usa cuando la
-  // base no existe (por eso se borró antes). Se cierra para volcar a disco.
-  final result = await WasmDatabase.open(
-    databaseName: 'boutique_pos',
-    sqlite3Uri: Uri.parse('sqlite3.wasm'),
-    driftWorkerUri: Uri.parse('drift_worker.js'),
-    initializeDatabase: () => bytes,
-  );
-  await result.resolvedExecutor.close();
+  if (bytes == null || bytes.isEmpty) return;
+  try {
+    final probe = await WasmDatabase.probe(
+      sqlite3Uri: Uri.parse('sqlite3.wasm'),
+      driftWorkerUri: Uri.parse('drift_worker.js'),
+      databaseName: 'boutique_pos',
+    );
+    for (final existing in probe.existingDatabases) {
+      if (existing.$2 == 'boutique_pos') {
+        await probe.deleteDatabase(existing);
+      }
+    }
+    final result = await WasmDatabase.open(
+      databaseName: 'boutique_pos',
+      sqlite3Uri: Uri.parse('sqlite3.wasm'),
+      driftWorkerUri: Uri.parse('drift_worker.js'),
+      initializeDatabase: () => bytes,
+      moveExistingIndexedDbToOpfs: true,
+    );
+    await result.resolvedExecutor.close();
+  } finally {
+    try {
+      await _opfsDelete(_restoreFile);
+    } catch (_) {}
+  }
 }
 
 /// Recarga la página (en web reabre la app y su base). En nativo no aplica.
@@ -188,4 +216,59 @@ external _Location get _jsLocation;
 
 extension type _Location._(JSObject _) implements JSObject {
   external void reload();
+}
+
+// --- OPFS: leer/escribir un archivo suelto (para dejar y aplicar el respaldo) ---
+
+Future<_DirHandle> _opfsRoot() async {
+  final storage = _navigator.storage;
+  if (storage == null) throw StateError('OPFS no disponible');
+  return storage.getDirectory().toDart;
+}
+
+extension type _DirHandle._(JSObject _) implements JSObject {
+  external JSPromise<_FileHandle> getFileHandle(String name, [JSObject options]);
+  external JSPromise<JSAny?> removeEntry(String name);
+}
+
+extension type _FileHandle._(JSObject _) implements JSObject {
+  external JSPromise<_JsFile> getFile();
+  external JSPromise<_Writable> createWritable();
+}
+
+extension type _JsFile._(JSObject _) implements JSObject {
+  external JSPromise<JSArrayBuffer> arrayBuffer();
+}
+
+extension type _Writable._(JSObject _) implements JSObject {
+  external JSPromise<JSAny?> write(JSAny data);
+  external JSPromise<JSAny?> close();
+}
+
+Future<void> _opfsWrite(String name, Uint8List bytes) async {
+  final dir = await _opfsRoot();
+  final fh = await dir
+      .getFileHandle(name, {'create': true}.jsify() as JSObject)
+      .toDart;
+  final w = await fh.createWritable().toDart;
+  await w.write(bytes.toJS).toDart;
+  await w.close().toDart;
+}
+
+Future<Uint8List?> _opfsRead(String name) async {
+  final dir = await _opfsRoot();
+  _FileHandle fh;
+  try {
+    fh = await dir.getFileHandle(name).toDart; // sin create: lanza si no existe
+  } catch (_) {
+    return null;
+  }
+  final file = await fh.getFile().toDart;
+  final buf = await file.arrayBuffer().toDart;
+  return buf.toDart.asUint8List();
+}
+
+Future<void> _opfsDelete(String name) async {
+  final dir = await _opfsRoot();
+  await dir.removeEntry(name).toDart;
 }

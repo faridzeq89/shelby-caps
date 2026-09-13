@@ -232,7 +232,17 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                 qty: l.qty,
                 unitPriceCents: l.unitPriceCents,
                 lineTotalCents: l.lineTotalCents,
-              )
+              ),
+            // Ventas de servicio ("venta directa") no tienen líneas de producto:
+            // el detalle vive en `notes`. Sin esto, el ticket reimpreso salía
+            // sin decir qué se cobró.
+            if (lineas.isEmpty && (venta.notes?.trim().isNotEmpty ?? false))
+              TicketLine(
+                description: venta.notes!.trim(),
+                qty: 1,
+                unitPriceCents: venta.totalCents,
+                lineTotalCents: venta.totalCents,
+              ),
           ],
           subtotalCents: venta.subtotalCents,
           discountCents: venta.discountCents,

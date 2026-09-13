@@ -22,3 +22,20 @@
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
+
+# Los archivos que deciden si la app se actualiza NO se cachean sin revalidar,
+# para que un despliegue nuevo entre de inmediato (sin quedar pegado en la
+# versión vieja del service worker de Flutter). El resto de los assets (con
+# hash o grandes como CanvasKit) siguen su caché normal y solo revalidan.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/flutter_bootstrap.js
+  Cache-Control: no-cache
+/flutter_service_worker.js
+  Cache-Control: no-cache
+/main.dart.js
+  Cache-Control: no-cache
+/manifest.json
+  Cache-Control: no-cache

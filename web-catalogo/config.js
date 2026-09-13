@@ -55,13 +55,13 @@ window.CATALOGO_CONFIG = {
   // Horario por día (0 = domingo … 6 = sábado). `null` = cerrado ese día.
   // Con esto la barra dice "Abierto" o "Abre mar, 11:00 a. m. - 7:00 p. m.".
   OPENING_HOURS: {
-    0: null,
-    1: null,
-    2: ["11:00", "19:00"],
-    3: ["11:00", "19:00"],
-    4: ["11:00", "19:00"],
-    5: ["11:00", "19:00"],
-    6: ["11:00", "19:00"],
+    0: null, // domingo cerrado
+    1: ["12:00", "19:00"], // lunes 12 a 7
+    2: ["12:00", "19:00"], // martes 12 a 7
+    3: ["12:00", "19:00"], // miércoles 12 a 7
+    4: ["12:00", "19:00"], // jueves 12 a 7
+    5: ["12:00", "19:00"], // viernes 12 a 7
+    6: ["12:00", "17:00"], // sábado 12 a 5
   },
 
   // Información de envíos y compra (preguntas frecuentes). Se edita aquí sin

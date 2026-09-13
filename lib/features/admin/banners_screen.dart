@@ -52,11 +52,15 @@ class _BannersScreenState extends State<BannersScreen> {
     unawaited(sync.publishNow().whenComplete(() {
       if (!mounted) return;
       setState(() => _busy = false);
-      // En éxito, mensaje simple. Si falla, incluye la pista técnica.
+      // Siempre mostramos el diagnóstico de banners: hubo casos en que la
+      // publicación decía "✓" pero los anuncios no llegaban (0 subidos) y el
+      // fallo pasaba inadvertido. Con esto se ve al instante qué pasó.
+      final diag = 'anuncios: ${sync.dbgBannersFound} hallados, '
+          '${sync.dbgBannersUploaded} subidos'
+          '${sync.dbgBannerNote != null ? ' · ${sync.dbgBannerNote}' : ''}';
       _toast(sync.lastError == null
-          ? 'Publicado en la tienda ✓'
-          : 'No se pudo publicar: ${sync.lastError}'
-              '${sync.dbgBannerNote != null ? ' · ${sync.dbgBannerNote}' : ''}');
+          ? 'Publicado ✓ · $diag'
+          : 'No se pudo publicar: ${sync.lastError} · $diag');
     }));
   }
 

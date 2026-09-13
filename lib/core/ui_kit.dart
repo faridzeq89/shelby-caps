@@ -521,13 +521,45 @@ class EmptyState extends StatelessWidget {
   }
 }
 
+/// El wordmark de SHELBY CAPS como imagen, eligiendo la variante que contrasta
+/// con el fondo donde va: la **clara** (SHELBY blanco) sobre fondos oscuros y la
+/// **oscura** (SHELBY negro) sobre fondos claros. Así se lee igual con el tema en
+/// claro o en oscuro. El "CAPS" rojo va en ambas.
+class BrandLogo extends StatelessWidget {
+  const BrandLogo({super.key, required this.onDark, this.height = 28});
+
+  /// `true` si el fondo detrás del logo es oscuro (usa la variante clara).
+  final bool onDark;
+  final double height;
+
+  /// ¿El fondo [c] es oscuro? Ayuda para decidir la variante desde un color de
+  /// la paleta (barra o fondo).
+  static bool isDark(Color c) => c.computeLuminance() < 0.5;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      onDark ? 'assets/logo-claro.png' : 'assets/logo-oscuro.png',
+      height: height,
+      fit: BoxFit.contain,
+      // Etiqueta para lectores de pantalla (la imagen reemplaza al texto).
+      semanticLabel: 'SHELBY CAPS',
+    );
+  }
+}
+
 /// Título de dos líneas para el `AppBar`: marca arriba, contexto abajo.
 /// Es el header que estrenó Inicio; lo usan todas las pantallas del shell.
+///
+/// Si se pasa [logo], se muestra esa imagen en vez del texto [title] (que se
+/// conserva como respaldo/semántica).
 class AppBarTitle extends StatelessWidget {
-  const AppBarTitle({super.key, required this.title, this.subtitle});
+  const AppBarTitle(
+      {super.key, required this.title, this.subtitle, this.logo});
 
   final String title;
   final String? subtitle;
+  final Widget? logo;
 
   @override
   Widget build(BuildContext context) {
@@ -535,14 +567,15 @@ class AppBarTitle extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
-          ),
-        ),
+        logo ??
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+              ),
+            ),
         if (subtitle != null)
           Text(
             subtitle!,

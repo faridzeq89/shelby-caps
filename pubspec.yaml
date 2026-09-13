@@ -103,6 +103,8 @@ flutter:
     - .env
     - assets/demo/
     - assets/icono-app.png
+    - assets/logo-claro.png
+    - assets/logo-oscuro.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

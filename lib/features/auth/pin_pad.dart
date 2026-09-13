@@ -16,6 +16,7 @@ class PinPad extends StatefulWidget {
     required this.onSubmit,
     this.subtitle,
     this.logo,
+    this.titleWidget,
     this.minLength = 4,
     this.maxLength = 6,
     this.submitLabel = 'Entrar',
@@ -24,6 +25,10 @@ class PinPad extends StatefulWidget {
   final String title;
   final String? subtitle;
   final Widget? logo;
+
+  /// Si se pasa, se muestra en vez del texto [title] (p. ej. el logo de la
+  /// marca). El [title] se conserva como respaldo/semántica.
+  final Widget? titleWidget;
   final int minLength;
   final int maxLength;
   final String submitLabel;
@@ -82,10 +87,11 @@ class _PinPadState extends State<PinPad> {
                     widget.logo!,
                     const SizedBox(height: 20),
                   ],
-                  Text(widget.title,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  widget.titleWidget ??
+                      Text(widget.title,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.w700)),
                   if (widget.subtitle != null) ...[
                     const SizedBox(height: 6),
                     Text(

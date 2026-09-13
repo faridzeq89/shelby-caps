@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui_kit.dart';
 import '../../services/auth_controller.dart';
 import 'pin_pad.dart';
 
@@ -34,6 +35,8 @@ class PinLoginScreen extends StatelessWidget {
               child: Image.asset('assets/icono-app.png', fit: BoxFit.cover),
             ),
             title: 'SHELBY CAPS',
+            titleWidget: BrandLogo(
+                onDark: BrandLogo.isDark(AppColors.bg), height: 40),
             subtitle: 'Ingresa tu PIN para comenzar',
             onSubmit: (pin) async {
               final ok = await auth.loginWithPin(pin);

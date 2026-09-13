@@ -5,8 +5,6 @@ import '../expenses/expenses_screen.dart';
 import '../sales/gift_cards_screen.dart';
 import '../sales/layaways_screen.dart';
 import '../sales/quotes_screen.dart';
-import '../sales/returns_screen.dart';
-import '../suppliers/suppliers_screen.dart';
 
 /// Una entrada posible del menú rápido de abajo.
 ///
@@ -94,13 +92,6 @@ const quickDestinations = <QuickDestination>[
     builder: LayawaysScreen.new,
   ),
   QuickDestination(
-    id: 'devoluciones',
-    label: 'Devoluciones',
-    icon: Icons.assignment_return_outlined,
-    selectedIcon: Icons.assignment_return,
-    builder: ReturnsScreen.new,
-  ),
-  QuickDestination(
     id: 'giftcards',
     label: 'Tarjetas',
     icon: Icons.card_giftcard,
@@ -120,14 +111,6 @@ const quickDestinations = <QuickDestination>[
     icon: Icons.receipt_long_outlined,
     selectedIcon: Icons.receipt_long,
     builder: ExpensesScreen.new,
-    adminOnly: true,
-  ),
-  QuickDestination(
-    id: 'proveedores',
-    label: 'Proveedores',
-    icon: Icons.local_shipping_outlined,
-    selectedIcon: Icons.local_shipping,
-    builder: SuppliersScreen.new,
     adminOnly: true,
   ),
 ];

@@ -87,6 +87,7 @@ class InicioScreenState extends State<InicioScreen> {
         title: AppBarTitle(
           title: 'SHELBY CAPS',
           subtitle: auth.isAdmin ? 'Propietario' : 'Cajero',
+          logo: BrandLogo(onDark: BrandLogo.isDark(AppColors.bar), height: 24),
         ),
       ),
       body: RefreshIndicator(

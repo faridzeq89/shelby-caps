@@ -30,10 +30,8 @@ import '../sales/cash_session_screen.dart';
 import '../sales/gift_cards_screen.dart';
 import '../sales/layaways_screen.dart';
 import '../sales/quotes_screen.dart';
-import '../sales/returns_screen.dart';
 import '../sales/sales_history_screen.dart';
 import '../sales/service_notes_screen.dart';
-import '../suppliers/suppliers_screen.dart';
 
 /// Menú lateral (hamburguesa) con TODAS las funciones agrupadas. Las 4 más usadas
 /// viven en el bottom-nav (Inicio · Vender · Inventario · Balance) y también se
@@ -75,26 +73,12 @@ class AppDrawer extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                          color: AppColors.brand, shape: BoxShape.circle),
-                      child: Icon(Icons.local_mall_outlined,
-                          color: AppColors.onAccent, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Text('SHELBY CAPS',
-                        style: TextStyle(
-                            color: AppColors.onBar,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
-                            letterSpacing: 0.5)),
-                  ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: BrandLogo(
+                      onDark: BrandLogo.isDark(AppColors.bar), height: 34),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Text(
                   '${auth.currentUser?.name ?? ''} · ${_roleLabel(isAdmin)}',
                   style: TextStyle(
@@ -120,8 +104,6 @@ class AppDrawer extends StatelessWidget {
               onTap: () => push(const QuotesScreen())),
           _item(context, Icons.bookmark_border, 'Apartados',
               onTap: () => push(const LayawaysScreen())),
-          _item(context, Icons.assignment_return_outlined, 'Devoluciones',
-              onTap: () => push(const ReturnsScreen())),
           _item(context, Icons.card_giftcard, 'Tarjetas de regalo',
               onTap: () => push(const GiftCardsScreen())),
           _item(context, Icons.design_services_outlined, 'Notas de servicio',
@@ -133,9 +115,6 @@ class AppDrawer extends StatelessWidget {
           if (isAdmin)
             _item(context, Icons.storefront_outlined, 'Catálogo (productos)',
                 onTap: () => push(const CatalogHomeScreen())),
-          if (isAdmin)
-            _item(context, Icons.local_shipping_outlined, 'Proveedores',
-                onTap: () => push(const SuppliersScreen())),
           _group('Clientes y dinero'),
           _item(context, Icons.people_alt_outlined, 'Clientes',
               onTap: () => push(const CustomersScreen())),

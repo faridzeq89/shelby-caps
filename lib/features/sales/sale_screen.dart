@@ -28,7 +28,6 @@ import '../scan/scanner_screen.dart';
 import 'gift_cards_screen.dart';
 import 'layaways_screen.dart';
 import 'quotes_screen.dart';
-import 'returns_screen.dart';
 import 'pdf_actions.dart';
 import 'ticket_service.dart';
 import 'variant_picker.dart';
@@ -641,13 +640,6 @@ class SaleScreenState extends State<SaleScreen> {
               tooltip: 'Tarjetas de regalo',
             ),
             IconButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ReturnsScreen()),
-              ),
-              icon: const Icon(Icons.assignment_return_outlined),
-              tooltip: 'Devoluciones y cambios',
-            ),
-            IconButton(
               onPressed: _openQuotes,
               icon: const Icon(Icons.request_quote_outlined),
               tooltip: 'Cotizaciones',
@@ -665,9 +657,6 @@ class SaleScreenState extends State<SaleScreen> {
                   case 'gift':
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const GiftCardsScreen()));
-                  case 'ret':
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => const ReturnsScreen()));
                   case 'quote':
                     _openQuotes();
                 }
@@ -688,11 +677,6 @@ class SaleScreenState extends State<SaleScreen> {
                     child: ListTile(
                         leading: Icon(Icons.card_giftcard),
                         title: Text('Tarjetas de regalo'))),
-                PopupMenuItem(
-                    value: 'ret',
-                    child: ListTile(
-                        leading: Icon(Icons.assignment_return_outlined),
-                        title: Text('Devoluciones y cambios'))),
                 PopupMenuItem(
                     value: 'quote',
                     child: ListTile(

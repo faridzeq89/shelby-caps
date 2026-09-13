@@ -43,6 +43,42 @@ class ProfitSummary {
       ingresosCents == 0 ? 0 : utilidadNetaCents / ingresosCents * 100;
 }
 
+/// Valuación del inventario **actual** (una foto, no depende del periodo):
+/// cuánto costó todo lo que hay en existencia (a costo) y cuánto valdría si se
+/// vendiera (a precio de menudeo). Solo cuenta variantes activas con existencia.
+class InventoryValuation {
+  const InventoryValuation({
+    required this.units,
+    required this.skus,
+    required this.costCents,
+    required this.retailCents,
+  });
+  final int units; // piezas totales en existencia (on_hand)
+  final int skus; // variantes distintas con existencia
+  final int costCents; // costo total del inventario (lo que pediste)
+  final int retailCents; // valor a precio de venta (menudeo)
+  int get potentialMarginCents => retailCents - costCents;
+}
+
+/// Una línea del inventario valorizado (para el desglose por variante).
+class InventoryLine {
+  const InventoryLine({
+    required this.productName,
+    required this.size,
+    required this.color,
+    required this.sku,
+    required this.onHand,
+    required this.unitCostCents,
+  });
+  final String productName;
+  final String? size;
+  final String? color;
+  final String sku;
+  final int onHand;
+  final int unitCostCents;
+  int get totalCostCents => onHand * unitCostCents;
+}
+
 /// Unidades y dinero por variante (para top de ventas y desglose talla/color).
 class VariantSales {
   const VariantSales({
@@ -311,6 +347,59 @@ class ReportsRepository {
       cogsCents: cogsRow.read<int>('cogs'),
       gastosCents: gRow.read<int>('g'),
     );
+  }
+
+  /// Valuación del inventario **actual** (foto, sin periodo): costo total de lo
+  /// que hay en existencia y su valor a precio de menudeo. El costo usa
+  /// `cost_cents` de cada variante; el precio usa el override de la variante o,
+  /// si no tiene, el precio base del producto. Solo variantes activas con
+  /// `on_hand > 0`.
+  Future<InventoryValuation> inventoryValuation() async {
+    final row = await _db.customSelect(
+      'SELECT '
+      'COALESCE(SUM(vs.on_hand), 0) AS units, '
+      'COALESCE(SUM(CASE WHEN vs.on_hand > 0 THEN 1 ELSE 0 END), 0) AS skus, '
+      'COALESCE(SUM(vs.on_hand * v.cost_cents), 0) AS cost, '
+      'COALESCE(SUM(vs.on_hand * '
+      '  COALESCE(v.price_cents_override, p.base_price_cents)), 0) AS retail '
+      'FROM variant_stock vs '
+      'JOIN variants v ON v.id = vs.variant_id '
+      'JOIN products p ON p.id = v.product_id '
+      'WHERE v.active = 1 AND vs.on_hand > 0',
+      readsFrom: {_db.variants, _db.products, _db.inventoryMovements},
+    ).getSingle();
+    return InventoryValuation(
+      units: row.read<int>('units'),
+      skus: row.read<int>('skus'),
+      costCents: row.read<int>('cost'),
+      retailCents: row.read<int>('retail'),
+    );
+  }
+
+  /// Desglose del inventario valorizado por variante, de mayor a menor costo
+  /// total (para el reporte detallado y su CSV). Solo variantes activas con
+  /// existencia.
+  Future<List<InventoryLine>> inventoryLines() async {
+    final rows = await _db.customSelect(
+      'SELECT p.name AS pname, v.size AS size, v.color AS color, v.sku AS sku, '
+      'vs.on_hand AS on_hand, v.cost_cents AS cost '
+      'FROM variant_stock vs '
+      'JOIN variants v ON v.id = vs.variant_id '
+      'JOIN products p ON p.id = v.product_id '
+      'WHERE v.active = 1 AND vs.on_hand > 0 '
+      'ORDER BY (vs.on_hand * v.cost_cents) DESC, p.name ASC',
+      readsFrom: {_db.variants, _db.products, _db.inventoryMovements},
+    ).get();
+    return rows
+        .map((r) => InventoryLine(
+              productName: r.read<String>('pname'),
+              size: r.read<String?>('size'),
+              color: r.read<String?>('color'),
+              sku: r.read<String>('sku'),
+              onHand: r.read<int>('on_hand'),
+              unitCostCents: r.read<int>('cost'),
+            ))
+        .toList();
   }
 
   // ---------------------------------------------------------------------------

@@ -67,6 +67,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   static const _reportTypes = <(String, String)>[
     ('utilidades', 'Utilidades'),
     ('ventas', 'Ventas'),
+    ('inventario', 'Inventario'),
     ('gastos', 'Gastos'),
     ('detalles', 'Más reportes'),
   ];
@@ -153,7 +154,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final prevProfit = await _repo.profitSummary(prevFrom, p.from);
     final expenses = await _expenses.totalBetween(p.from, p.to);
     final expenseList = await _expenses.between(p.from, p.to);
-    return _HubData(summary, prev, expenses, profit, prevProfit, expenseList);
+    // El inventario es una foto del momento (no depende del periodo).
+    final inventory = await _repo.inventoryValuation();
+    return _HubData(
+        summary, prev, expenses, profit, prevProfit, expenseList, inventory);
   }
 
   void _reload() => setState(() => _future = _load());
@@ -346,6 +350,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 });
               }),
+              if (_showFor(const ['inventario', 'detalles']))
+                _tile(Icons.inventory_outlined, 'Inventario valorizado',
+                  'Costo por producto (mayor a menor)', () {
+                _open('Inventario valorizado', 'inventario_valorizado', () async {
+                  final rows = await _repo.inventoryLines();
+                  return ReportTable(
+                    ['Producto', 'Talla', 'Color', 'SKU', 'Existencia',
+                      'Costo unit.', 'Costo total'],
+                    [
+                      for (final r in rows)
+                        [
+                          r.productName,
+                          r.size ?? '',
+                          r.color ?? '',
+                          r.sku,
+                          '${r.onHand}',
+                          ReportExport.money(r.unitCostCents),
+                          ReportExport.money(r.totalCostCents),
+                        ],
+                    ],
+                  );
+                });
+              }),
               if (_showFor(const ['detalles']))
                 _tile(Icons.inventory_2_outlined, 'Inventario muerto',
                   'Con existencia y sin venta en 60 días', () {
@@ -464,6 +491,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     switch (_reportType) {
       case 'ventas':
         return [_ventasSummaryCard(data, theme)];
+      case 'inventario':
+        return _inventarioCards(data, theme);
       case 'gastos':
         return _gastosCards(data, theme);
       case 'detalles':
@@ -533,6 +562,60 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       const SizedBox(height: 8),
       Text('Utilidad bruta (ingresos − costo): ${_money(p.utilidadBrutaCents)}',
+          style: theme.textTheme.bodySmall),
+    ];
+  }
+
+  /// Inventario: costo total de lo que hay en existencia (una foto del momento,
+  /// no depende del periodo), su valor a precio de venta y el margen potencial.
+  List<Widget> _inventarioCards(_HubData data, ThemeData theme) {
+    final inv = data.inventory;
+    Widget card(String label, String value, {Color? color, String? sub}) =>
+        SurfaceCard(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatBlock(label: label, value: value, size: 21, color: color),
+              if (sub != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(sub, style: theme.textTheme.bodySmall),
+                ),
+            ],
+          ),
+        );
+
+    return [
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Text('Existencia actual (no depende del periodo)',
+            style: theme.textTheme.bodySmall),
+      ),
+      const SizedBox(height: 10),
+      GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.45,
+        children: [
+          card('Costo total de inventario', _money(inv.costCents),
+              color: theme.colorScheme.primary,
+              sub: '${inv.units} piezas · ${inv.skus} variantes'),
+          card('Valor a precio de venta', _money(inv.retailCents)),
+          card('Margen potencial', _money(inv.potentialMarginCents),
+              color: AppColors.success,
+              sub: 'Si se vendiera todo a menudeo'),
+          card('Piezas en existencia', '${inv.units}'),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Text(
+          'El costo total es la suma de (existencia × costo) de cada variante '
+          'activa.',
           style: theme.textTheme.bodySmall),
     ];
   }
@@ -629,13 +712,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
 class _HubData {
   _HubData(this.current, this.previous, this.expensesCents, this.profit,
-      this.prevProfit, this.expenseList);
+      this.prevProfit, this.expenseList, this.inventory);
   final PeriodSummary current;
   final PeriodSummary previous;
   final int expensesCents;
   final ProfitSummary profit;
   final ProfitSummary prevProfit;
   final List<Expense> expenseList;
+  final InventoryValuation inventory;
 }
 
 /// Muestra una tabla de reporte y permite exportarla a CSV.

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/store_backend.dart';
 import '../data/local/database.dart';
 import 'catalog_sync_service.dart';
 import 'image_service.dart';
@@ -391,7 +392,10 @@ class BusinessCardSettings extends ChangeNotifier {
     notifyListeners();
     try {
       var payload = _data;
-      final storage = Supabase.instance.client.storage.from('catalog');
+      // Publica como `anon` (ver storePublishClient): el bucket `catalog` solo
+      // acepta escrituras de `anon`; con la cuenta iniciada daba 403.
+      final pub = storePublishClient();
+      final storage = pub.storage.from('catalog');
 
       // Sube una imagen local a `business-card/<remote>` y devuelve su URL
       // pública. Si ya es URL (o no hay bytes) la deja tal cual: una segunda
@@ -435,7 +439,7 @@ class BusinessCardSettings extends ChangeNotifier {
       );
 
       final secret = await sync.ensureSecret();
-      await Supabase.instance.client.rpc('publish_business_card', params: {
+      await pub.rpc('publish_business_card', params: {
         'p_secret': secret,
         'p_data': payload.toJson(),
       });

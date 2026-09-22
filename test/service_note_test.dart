@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,9 +30,10 @@ void main() {
   test('crea la nota con folio propio y sin venta ligada', () async {
     final n = await notes.create(
       customerName: 'Juan Pérez',
-      brand: 'Nike',
-      color: 'Blanco',
-      itemType: ServiceItemType.tenis,
+      items: const [
+        ServiceItem(
+            itemType: ServiceItemType.tenis, brand: 'Nike', color: 'Blanco'),
+      ],
     );
     expect(n.folio.startsWith('SV-'), isTrue);
     expect(n.customerName, 'Juan Pérez');
@@ -40,10 +42,67 @@ void main() {
 
     final second = await notes.create(
       customerName: 'Ana',
-      itemType: ServiceItemType.gorra,
+      items: const [ServiceItem(itemType: ServiceItemType.gorra)],
     );
     expect(second.folio, isNot(n.folio));
     expect(second.brand, isNull);
+  });
+
+  test('una nota guarda varias piezas y las devuelve', () async {
+    final n = await notes.create(
+      customerName: 'Marta',
+      items: const [
+        ServiceItem(itemType: ServiceItemType.tenis, brand: 'Nike', qty: 4),
+        ServiceItem(itemType: ServiceItemType.gorra, color: 'Rojo'),
+      ],
+    );
+    // El encabezado denormaliza la 1ª pieza y suma las cantidades para el
+    // resumen de la lista.
+    expect(n.itemType, ServiceItemType.tenis);
+    expect(n.brand, 'Nike');
+    expect(n.qty, 5);
+
+    final items = serviceNoteItems(n);
+    expect(items.length, 2);
+    expect(items[0].itemType, ServiceItemType.tenis);
+    expect(items[0].qty, 4);
+    expect(items[1].itemType, ServiceItemType.gorra);
+    expect(items[1].color, 'Rojo');
+  });
+
+  test('nota vieja sin items_json cae a la pieza del encabezado', () async {
+    final n = await notes.create(
+      customerName: 'Pedro',
+      items: const [ServiceItem(itemType: ServiceItemType.bolsa, brand: 'Gucci')],
+    );
+    // Simula una nota anterior a la columna items_json.
+    await (db.update(db.serviceNotes)..where((t) => t.id.equals(n.id)))
+        .write(const ServiceNotesCompanion(itemsJson: Value(null)));
+    final vieja = (await notes.byId(n.id))!;
+    expect(vieja.itemsJson, isNull);
+    final items = serviceNoteItems(vieja);
+    expect(items.length, 1);
+    expect(items.single.itemType, ServiceItemType.bolsa);
+    expect(items.single.brand, 'Gucci');
+  });
+
+  test('updateDetails reemplaza las piezas', () async {
+    final n = await notes.create(
+      customerName: 'Sofía',
+      items: const [ServiceItem(itemType: ServiceItemType.tenis, qty: 1)],
+    );
+    await notes.updateDetails(
+      n.id,
+      customerName: 'Sofía',
+      items: const [
+        ServiceItem(itemType: ServiceItemType.gorra, qty: 2),
+        ServiceItem(itemType: ServiceItemType.bolsa, qty: 1),
+      ],
+    );
+    final v = (await notes.byId(n.id))!;
+    expect(v.itemType, ServiceItemType.gorra);
+    expect(v.qty, 3);
+    expect(serviceNoteItems(v).length, 2);
   });
 
   test('venta directa cobra sin productos y sin mover inventario', () async {
@@ -79,7 +138,8 @@ void main() {
     final caja = await cashier();
     final loc = await location();
     final n = await notes.create(
-        customerName: 'Luis', itemType: ServiceItemType.bolsa);
+        customerName: 'Luis',
+        items: const [ServiceItem(itemType: ServiceItemType.bolsa)]);
 
     final r = await sales.sellDirect(
       cashier: caja,

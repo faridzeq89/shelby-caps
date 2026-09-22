@@ -502,6 +502,13 @@ class ServiceNotes extends Table {
   /// la punta", "suela despegada", "sin agujetas"). Es lo que evita el pleito
   /// al entregar, así que también va impreso en la nota del cliente.
   TextColumn get notes => text().nullable()();
+
+  /// Lista de piezas recibidas en la nota, como JSON: `[{"type","brand","size",
+  /// "color","qty"}, ...]`. Una nota puede recibir varias piezas distintas (2
+  /// tenis Nike + 1 gorra roja). Nulo/vacío = nota vieja de una sola pieza: se
+  /// reconstruye desde las columnas del encabezado (itemType/brand/size/color/qty).
+  /// El encabezado guarda la 1ª pieza y `qty` = total, para el resumen de la lista.
+  TextColumn get itemsJson => text().nullable()();
   TextColumn get saleId => text().nullable().references(Sales, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

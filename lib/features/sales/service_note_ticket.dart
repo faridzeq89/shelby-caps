@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../core/ui_kit.dart' show money;
 import '../../data/local/database.dart';
+import '../../data/repositories/service_note_repository.dart';
 import 'ticket_service.dart';
 
 String serviceItemTypeLabel(ServiceItemType t) => switch (t) {
@@ -13,6 +14,13 @@ String serviceItemTypeLabel(ServiceItemType t) => switch (t) {
       ServiceItemType.gorra => 'Gorra',
       ServiceItemType.bolsa => 'Bolsos',
     };
+
+/// Resumen corto de las piezas para la lista y la descripción del cobro:
+/// "2 Tenis, 1 Gorra".
+String serviceItemsSummary(List<ServiceItem> items) => items
+    .map((i) =>
+        '${i.qty > 1 ? '${i.qty} ' : ''}${serviceItemTypeLabel(i.itemType)}')
+    .join(', ');
 
 /// Nota de servicio en papel (rollo 80mm), con la forma que pidió el cliente el
 /// 20 ago 2026 y en ese orden:
@@ -36,6 +44,7 @@ class ServiceNoteTicket {
     final doc = pw.Document();
     final df = DateFormat('dd/MM/yyyy HH:mm');
     final logo = await TicketBrand.logoOrTitle(config);
+    final items = serviceNoteItems(note);
 
     pw.Widget titulo(String texto) => pw.Padding(
           padding: const pw.EdgeInsets.only(top: 6, bottom: 2),
@@ -94,15 +103,26 @@ class ServiceNoteTicket {
           if (note.customerPhone != null && note.customerPhone!.isNotEmpty)
             row('WhatsApp', note.customerPhone!),
 
-          titulo('Información del artículo'),
-          row('Artículo', serviceItemTypeLabel(note.itemType)),
-          if (note.brand != null && note.brand!.isNotEmpty)
-            row('Marca', note.brand!),
-          if (note.size != null && note.size!.isNotEmpty)
-            row('Talla', note.size!),
-          if (note.color != null && note.color!.isNotEmpty)
-            row('Color', note.color!),
-          row('Cantidad', '${note.qty}'),
+          titulo(items.length > 1
+              ? 'Piezas recibidas (${items.length})'
+              : 'Información del artículo'),
+          for (var i = 0; i < items.length; i++) ...[
+            if (items.length > 1)
+              pw.Text('Pieza ${i + 1}',
+                  style: pw.TextStyle(
+                      fontSize: 9, fontWeight: pw.FontWeight.bold)),
+            row(
+                'Artículo',
+                '${items[i].qty > 1 ? '${items[i].qty} × ' : ''}'
+                    '${serviceItemTypeLabel(items[i].itemType)}'),
+            if (items[i].brand != null && items[i].brand!.isNotEmpty)
+              row('Marca', items[i].brand!),
+            if (items[i].size != null && items[i].size!.isNotEmpty)
+              row('Talla', items[i].size!),
+            if (items[i].color != null && items[i].color!.isNotEmpty)
+              row('Color', items[i].color!),
+            if (i < items.length - 1) pw.SizedBox(height: 3),
+          ],
 
           pw.Divider(),
           // Sin precio se imprime "Por definir" en vez de esconder el renglón:

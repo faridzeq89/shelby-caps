@@ -23,13 +23,17 @@ void main() {
     final nota = await ServiceNoteRepository(db).create(
       customerName: 'Juan Pérez',
       customerPhone: '899 123 4567',
-      brand: 'Nike',
-      size: '27',
-      color: 'Blanco',
-      itemType: ServiceItemType.tenis,
-      qty: 2,
       priceCents: 25000,
       notes: 'Mancha en la punta del pie derecho y suela despegada atrás.',
+      items: const [
+        ServiceItem(
+            itemType: ServiceItemType.tenis,
+            brand: 'Nike',
+            size: '27',
+            color: 'Blanco',
+            qty: 2),
+        ServiceItem(itemType: ServiceItemType.gorra, color: 'Roja'),
+      ],
     );
     final bytes = await ServiceNoteTicket.build(nota);
     await File(salida).writeAsBytes(bytes);

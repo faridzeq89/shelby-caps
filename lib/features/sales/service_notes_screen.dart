@@ -96,8 +96,8 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
       _toast('Falta configurar la sucursal');
       return;
     }
-    final defaultDesc = 'Servicio ${note.folio}: ${note.qty} '
-        '${serviceItemTypeLabel(note.itemType)} — ${note.customerName}';
+    final defaultDesc = 'Servicio ${note.folio}: '
+        '${serviceItemsSummary(serviceNoteItems(note))} — ${note.customerName}';
     final input = await showModalBottomSheet<_DirectSaleInput>(
       context: context,
       isScrollControlled: true,
@@ -204,14 +204,18 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
               _detailRow('Cliente', note.customerName),
               if (note.customerPhone != null && note.customerPhone!.isNotEmpty)
                 _detailRow('WhatsApp', note.customerPhone!),
-              _detailRow('Artículo', serviceItemTypeLabel(note.itemType)),
-              if (note.brand != null && note.brand!.isNotEmpty)
-                _detailRow('Marca', note.brand!),
-              if (note.size != null && note.size!.isNotEmpty)
-                _detailRow('Talla', note.size!),
-              if (note.color != null && note.color!.isNotEmpty)
-                _detailRow('Color', note.color!),
-              _detailRow('Cantidad', '${note.qty}'),
+              for (final it in serviceNoteItems(note)) ...[
+                _detailRow(
+                    'Artículo',
+                    '${it.qty > 1 ? '${it.qty} × ' : ''}'
+                        '${serviceItemTypeLabel(it.itemType)}'),
+                if (it.brand != null && it.brand!.isNotEmpty)
+                  _detailRow('Marca', it.brand!),
+                if (it.size != null && it.size!.isNotEmpty)
+                  _detailRow('Talla', it.size!),
+                if (it.color != null && it.color!.isNotEmpty)
+                  _detailRow('Color', it.color!),
+              ],
               _detailRow('Costo',
                   note.priceCents == null
                       ? 'Por definir'
@@ -302,14 +306,14 @@ class _ServiceNotesScreenState extends State<ServiceNotesScreen> {
             itemBuilder: (_, i) {
               final n = notes[i];
               final pagada = n.saleId != null;
+              final items = serviceNoteItems(n);
+              final one = items.length == 1 ? items.first : null;
               final sub = [
-                n.qty > 1
-                    ? '${n.qty} × ${serviceItemTypeLabel(n.itemType)}'
-                    : serviceItemTypeLabel(n.itemType),
-                if (n.brand != null && n.brand!.isNotEmpty) n.brand!,
-                if (n.size != null && n.size!.isNotEmpty)
-                  'talla ${n.size!}',
-                if (n.color != null && n.color!.isNotEmpty) n.color!,
+                serviceItemsSummary(items),
+                if (one != null && one.brand != null && one.brand!.isNotEmpty)
+                  one.brand!,
+                if (one != null && one.color != null && one.color!.isNotEmpty)
+                  one.color!,
                 // "Sin precio" a la vista: es lo que hay que acordar antes de
                 // que el cliente vuelva por su pieza.
                 n.priceCents == null ? 'sin precio' : money(n.priceCents!),
@@ -387,19 +391,56 @@ class _ServiceNoteForm extends StatefulWidget {
   State<_ServiceNoteForm> createState() => _ServiceNoteFormState();
 }
 
+/// El borrador editable de una pieza dentro del formulario: sus propios
+/// controllers de texto para no compartir estado entre renglones. Se convierte
+/// a [ServiceItem] al guardar.
+class _ItemDraft {
+  _ItemDraft({
+    this.type = ServiceItemType.tenis,
+    String brand = '',
+    String size = '',
+    String color = '',
+    int qty = 1,
+  })  : brand = TextEditingController(text: brand),
+        size = TextEditingController(text: size),
+        color = TextEditingController(text: color),
+        qty = TextEditingController(text: '$qty');
+
+  ServiceItemType type;
+  final TextEditingController brand;
+  final TextEditingController size;
+  final TextEditingController color;
+  final TextEditingController qty;
+
+  factory _ItemDraft.fromItem(ServiceItem it) => _ItemDraft(
+        type: it.itemType,
+        brand: it.brand ?? '',
+        size: it.size ?? '',
+        color: it.color ?? '',
+        qty: it.qty < 1 ? 1 : it.qty,
+      );
+
+  void dispose() {
+    brand.dispose();
+    size.dispose();
+    color.dispose();
+    qty.dispose();
+  }
+}
+
 class _ServiceNoteFormState extends State<_ServiceNoteForm> {
   late final _name = TextEditingController(text: _n?.customerName ?? '');
   late final _phone = TextEditingController(text: _n?.customerPhone ?? '');
-  late final _brand = TextEditingController(text: _n?.brand ?? '');
-  late final _size = TextEditingController(text: _n?.size ?? '');
-  late final _color = TextEditingController(text: _n?.color ?? '');
-  late final _qty = TextEditingController(text: '${_n?.qty ?? 1}');
   late final _price = TextEditingController(
       text: _n?.priceCents == null
           ? ''
           : (_n!.priceCents! / 100).toStringAsFixed(2));
   late final _notes = TextEditingController(text: _n?.notes ?? '');
-  late ServiceItemType _type = _n?.itemType ?? ServiceItemType.tenis;
+  // Una pieza al crear; al corregir, las que trae la nota (una lista siempre,
+  // vía serviceNoteItems, así una nota vieja de una pieza también entra bien).
+  late final List<_ItemDraft> _items = _n == null
+      ? [_ItemDraft()]
+      : serviceNoteItems(_n!).map(_ItemDraft.fromItem).toList();
   bool _saving = false;
   String? _error;
 
@@ -416,13 +457,20 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
   void dispose() {
     _name.dispose();
     _phone.dispose();
-    _brand.dispose();
-    _size.dispose();
-    _color.dispose();
-    _qty.dispose();
     _price.dispose();
     _notes.dispose();
+    for (final it in _items) {
+      it.dispose();
+    }
     super.dispose();
+  }
+
+  void _addItem() => setState(() => _items.add(_ItemDraft()));
+
+  void _removeItem(int i) {
+    setState(() {
+      _items.removeAt(i).dispose();
+    });
   }
 
   Future<void> _save() async {
@@ -439,9 +487,25 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
           'no lo acuerdas.');
       return;
     }
-    final cantidad = int.tryParse(_qty.text.trim()) ?? 0;
-    if (cantidad < 1) {
-      setState(() => _error = 'La cantidad va de 1 en adelante');
+    final items = <ServiceItem>[];
+    for (var i = 0; i < _items.length; i++) {
+      final d = _items[i];
+      final cantidad = int.tryParse(d.qty.text.trim()) ?? 0;
+      if (cantidad < 1) {
+        setState(() => _error =
+            'La cantidad de la pieza ${i + 1} va de 1 en adelante');
+        return;
+      }
+      items.add(ServiceItem(
+        itemType: d.type,
+        brand: d.brand.text,
+        size: d.size.text,
+        color: d.color.text,
+        qty: cantidad,
+      ));
+    }
+    if (items.isEmpty) {
+      setState(() => _error = 'Agrega al menos una pieza');
       return;
     }
     setState(() {
@@ -454,13 +518,9 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
           _n!.id,
           customerName: name,
           customerPhone: _phone.text,
-          brand: _brand.text,
-          size: _size.text,
-          color: _color.text,
-          itemType: _type,
-          qty: cantidad,
           priceCents: precio,
           notes: _notes.text,
+          items: items,
         );
         final v = await widget.repo.byId(_n!.id);
         if (mounted) Navigator.of(context).pop(v);
@@ -468,13 +528,9 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
         final nota = await widget.repo.create(
           customerName: name,
           customerPhone: _phone.text,
-          brand: _brand.text,
-          size: _size.text,
-          color: _color.text,
-          itemType: _type,
-          qty: cantidad,
           priceCents: precio,
           notes: _notes.text,
+          items: items,
         );
         if (mounted) Navigator.of(context).pop(nota);
       }
@@ -495,6 +551,79 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
                 letterSpacing: 0.4,
                 color: AppColors.accent)),
       );
+
+  /// Un renglón de pieza: tipo (chips) + marca/talla/cantidad/color, con botón de
+  /// quitar cuando hay más de una.
+  Widget _itemCard(int i) {
+    final d = _items[i];
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: SurfaceCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Pieza ${i + 1}',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                ),
+                if (_items.length > 1)
+                  IconButton(
+                    tooltip: 'Quitar pieza',
+                    onPressed: () => _removeItem(i),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final t in _types)
+                  ChoiceChip(
+                    label: Text(serviceItemTypeLabel(t)),
+                    selected: d.type == t,
+                    onSelected: (_) => setState(() => d.type = t),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: d.brand,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Marca'),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: d.size,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(labelText: 'Talla'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: d.qty,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Cantidad'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: d.color,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Color'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -530,49 +659,15 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
                 helperText: 'Para avisarle cuando esté lista su pieza',
               ),
             ),
-            _titulo('INFORMACIÓN DEL ARTÍCULO'),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final t in _types)
-                  ChoiceChip(
-                    label: Text(serviceItemTypeLabel(t)),
-                    selected: _type == t,
-                    onSelected: (_) => setState(() => _type = t),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _brand,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Marca'),
-            ),
+            _titulo('PIEZAS RECIBIDAS'),
+            // Cada pieza es un artículo distinto (4 pares de tenis, o tenis +
+            // gorra + bolsa): todas salen en la nota impresa.
+            for (var i = 0; i < _items.length; i++) _itemCard(i),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _size,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(labelText: 'Talla'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _qty,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Cantidad'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _color,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Color'),
+            OutlinedButton.icon(
+              onPressed: _addItem,
+              icon: const Icon(Icons.add),
+              label: const Text('Agregar pieza'),
             ),
             _titulo('COSTO DEL SERVICIO'),
             TextField(
@@ -581,8 +676,8 @@ class _ServiceNoteFormState extends State<_ServiceNoteForm> {
               decoration: const InputDecoration(
                 labelText: 'Costo',
                 prefixText: '\$',
-                helperText: 'Déjalo vacío si lo vas a acordar después. Aquí no '
-                    'se cobra: el cobro es aparte.',
+                helperText: 'Costo total del servicio. Déjalo vacío si lo vas a '
+                    'acordar después. Aquí no se cobra: el cobro es aparte.',
               ),
             ),
             _titulo('NOTAS ADICIONALES'),

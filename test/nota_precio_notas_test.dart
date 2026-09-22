@@ -21,7 +21,7 @@ void main() {
 
   Future<ServiceNote> nota({int? precio, String? texto}) => notas.create(
         customerName: 'Juan Pérez',
-        itemType: ServiceItemType.tenis,
+        items: const [ServiceItem(itemType: ServiceItemType.tenis)],
         priceCents: precio,
         notes: texto,
       );
@@ -37,11 +37,12 @@ void main() {
       notas.updateDetails(n.id,
           customerName: nombre,
           customerPhone: tel,
-          size: talla,
-          itemType: n.itemType,
-          qty: cantidad,
           priceCents: precio,
-          notes: texto);
+          notes: texto,
+          items: [
+            ServiceItem(
+                itemType: n.itemType, size: talla, qty: cantidad),
+          ]);
 
   group('al crear', () {
     test('guarda precio y notas', () async {
@@ -55,11 +56,15 @@ void main() {
       final n = await notas.create(
         customerName: '  Juan Pérez ',
         customerPhone: '8997034922',
-        brand: 'Nike',
-        size: '27',
-        color: 'Blanco',
-        itemType: ServiceItemType.tenis,
-        qty: 2,
+        items: const [
+          ServiceItem(
+            itemType: ServiceItemType.tenis,
+            brand: 'Nike',
+            size: '27',
+            color: 'Blanco',
+            qty: 2,
+          ),
+        ],
         priceCents: 25000,
       );
       expect(n.customerName, 'Juan Pérez', reason: 'recortado');
@@ -75,8 +80,7 @@ void main() {
       // y el repositorio no se confía.
       final n = await notas.create(
           customerName: 'Ana',
-          itemType: ServiceItemType.bolsa,
-          qty: 0);
+          items: const [ServiceItem(itemType: ServiceItemType.bolsa, qty: 0)]);
       expect(n.qty, 1);
     });
 
@@ -117,7 +121,7 @@ void main() {
       final n = await notas.create(
           customerName: 'Juan Pérez',
           customerPhone: '899123',
-          itemType: ServiceItemType.tenis);
+          items: const [ServiceItem(itemType: ServiceItemType.tenis)]);
       await corregir(n, tel: '8997034922');
       expect((await notas.byId(n.id))!.customerPhone, '8997034922');
     });

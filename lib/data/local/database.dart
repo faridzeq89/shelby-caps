@@ -63,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -174,6 +174,10 @@ class AppDatabase extends _$AppDatabase {
             // v18 → v19: descuento de oferta por producto (fijo o %).
             await _addProductDiscountIfMissing(m);
           }
+          if (from < 20) {
+            // v19 → v20: varias piezas por nota de servicio (lista JSON).
+            await _addServiceItemsJsonIfMissing(m);
+          }
           await _createExtras();
         },
         beforeOpen: (details) async {
@@ -251,6 +255,18 @@ class AppDatabase extends _$AppDatabase {
     }
     if (!cols.contains('qty')) {
       await m.addColumn(serviceNotes, serviceNotes.qty);
+    }
+  }
+
+  /// Agrega `service_notes.items_json` (varias piezas por nota) solo si aún no
+  /// existe. Idempotente: una base nueva ya nace con ella; en una vieja las
+  /// notas sin la columna caen a su artículo único (columnas del encabezado).
+  Future<void> _addServiceItemsJsonIfMissing(Migrator m) async {
+    final info = await customSelect("PRAGMA table_info('service_notes')").get();
+    final cols = {for (final r in info) r.read<String>('name')};
+    if (cols.isEmpty) return; // la tabla no existe todavía; la crea el paso v16
+    if (!cols.contains('items_json')) {
+      await m.addColumn(serviceNotes, serviceNotes.itemsJson);
     }
   }
 
